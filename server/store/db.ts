@@ -60,7 +60,14 @@ export function openDb(file: string): Db {
   const db = new DatabaseSync(file)
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;')
   db.exec(SCHEMA)
+  migrate(db)
   return db
+}
+
+/** Columns added after the first databases were made; CREATE TABLE IF NOT EXISTS skips them. */
+function migrate(db: Db): void {
+  const columns = (table: string) => db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name as string)
+  if (!columns('loop').includes('started_at')) db.exec('ALTER TABLE loop ADD COLUMN started_at TEXT')
 }
 
 /** Runs `fn` in one transaction; rolls back when it throws. */

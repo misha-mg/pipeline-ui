@@ -17,6 +17,11 @@ export type Config = {
   sessionBin: string
   /** How long one session may take before the driver ends it. */
   sessionTimeoutMs: number
+  /** The console's address. */
+  host: string
+  port: number
+  /** The built UI, served when it is there. */
+  uiDir: string
 }
 
 const DEFAULT_TIMEOUT_HOURS = 4
@@ -35,5 +40,8 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     envFile: env.PIPELINE_ENV ?? path.join(os.homedir(), '.config', 'webui-pipeline.env'),
     sessionBin: path.join(repo, 'bin', 'session'),
     sessionTimeoutMs: Number(env.PIPELINE_TIMEOUT_HOURS ?? DEFAULT_TIMEOUT_HOURS) * 3600 * 1000,
+    host: env.PIPELINE_HOST ?? '0.0.0.0',
+    port: Number(env.PIPELINE_PORT ?? 8787),
+    uiDir: path.join(repo, 'ui', 'dist'),
   }
 }

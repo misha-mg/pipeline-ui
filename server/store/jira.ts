@@ -21,8 +21,9 @@ export function jiraConfig(env: Record<string, string | undefined>): JiraConfig 
 export function jiraLookup(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (key: string) => Promise<Lookup> {
   let cloudId: string | undefined = config?.cloudId
   const get = (url: string, authenticated: boolean) => {
-    const auth = authenticated && config ? { Authorization: `Basic ${Buffer.from(`${config.email}:${config.token}`).toString('base64')}` } : {}
-    return fetchFn(url, { headers: { ...auth, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) })
+    const headers: Record<string, string> = { Accept: 'application/json' }
+    if (authenticated && config) headers.Authorization = `Basic ${Buffer.from(`${config.email}:${config.token}`).toString('base64')}`
+    return fetchFn(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) })
   }
   const unavailable = (error: string): Lookup => ({ kind: 'unavailable', error })
   return async (key) => {
