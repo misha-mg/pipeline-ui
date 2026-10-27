@@ -1,8 +1,8 @@
-// The real runner: starts webui's tools/ticket-pipeline/run.sh for a ticket the way batch.sh
-// does (the secrets sourced inside the child, the API key unset), with bin/session as the
-// session program and the events pipe on file descriptor 3; or the copy of run.sh the entry
-// point names (entry.ts), and the session told whether it may open a pull request. Cancelling sends SIGTERM to the
-// whole process group (run.sh, start.sh, the session and its CLI), then SIGKILL if it lingers.
+// The real runner: starts the entry point's prepare-worktree.sh (entry.ts) for a ticket the way
+// batch.sh does (the secrets sourced inside the child, the API key unset), with bin/session as
+// the session program, the events pipe on file descriptor 3, and the session told whether it
+// may open a pull request. Cancelling sends SIGTERM to the whole process group
+// (prepare-worktree.sh, launch-session.sh, the session and its CLI), then SIGKILL if it lingers.
 import { spawn } from 'node:child_process'
 import readline from 'node:readline'
 import type { Readable } from 'node:stream'
@@ -15,7 +15,7 @@ export type RunnerConfig = {
   sessionBin: string
   envFile: string
   sessionTimeoutMs: number
-  /** What run.sh to start; webui's own when absent. */
+  /** The prepare-worktree.sh to start; the checkout's own when absent. */
   entry?: Entry
   /** False: the session refuses every push and pull request. */
   pullRequests?: boolean
@@ -33,7 +33,7 @@ const SCRIPT = [
   'if [[ -f $PIPELINE_ENV ]]; then . "$PIPELINE_ENV"; fi',
   'set +a',
   'unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN',
-  'exec bash "$PIPELINE_RUN_SH" "$1"',
+  'exec bash "$PIPELINE_PREPARE_WORKTREE" "$1"',
 ].join('; ')
 
 export function createRunner(config: RunnerConfig): Runner {
@@ -46,7 +46,7 @@ export function createRunner(config: RunnerConfig): Runner {
         if (v !== undefined && k !== 'ANTHROPIC_API_KEY' && k !== 'ANTHROPIC_AUTH_TOKEN') env[k] = v
       }
       Object.assign(env, config.entry?.env ?? {}, {
-        PIPELINE_RUN_SH: config.entry?.runSh ?? 'tools/ticket-pipeline/run.sh',
+        PIPELINE_PREPARE_WORKTREE: config.entry?.prepareWorktree ?? 'tools/ticket-pipeline/prepare-worktree.sh',
         PIPELINE_SESSION_PULL_REQUESTS: config.pullRequests === false ? 'off' : 'on',
         PIPELINE_ENV: config.envFile,
         PIPELINE_SESSION: config.sessionBin,
@@ -95,7 +95,7 @@ export function createRunner(config: RunnerConfig): Runner {
         else if (line.trim()) handlers.onOutput(`[events] ${line}\n`)
       })
       child.on('error', (error) => {
-        handlers.onOutput(`[service] run.sh could not be started: ${error.message}\n`)
+        handlers.onOutput(`[service] prepare-worktree.sh could not be started: ${error.message}\n`)
         finish({ code: null, signal: null })
       })
       child.on('exit', (code, sig) => {

@@ -5,20 +5,20 @@ a time, the run in flight with its stage, and the history of runs under `webui/.
 What it is for and what it must do: [.about/prd/pipeline-web-ui.md](.about/prd/pipeline-web-ui.md).
 
 Lives next to `webui`; the only thing `webui` knows about it is the `PIPELINE_SESSION` entry point
-in `tools/ticket-pipeline/start.sh`.
+in `tools/ticket-pipeline/launch-session.sh` (`start.sh` before webui renamed it).
 
 Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossary.md).
 
 ## Parts
 
 - `server/session/` — drives one ticket's Claude Code session through the Claude Agent SDK.
-  `bin/session` is the program `start.sh` runs when `PIPELINE_SESSION` names it; it prints the
+  `bin/session` is the program `launch-session.sh` runs when `PIPELINE_SESSION` names it; it prints the
   session's events (stages, rate limits, turns, the ending) as JSON lines on the file descriptor
   `PIPELINE_EVENTS_FD` names, stdout by default.
 - `server/store/` — the SQLite database (`node:sqlite`): the queue, the loop's state, the runs
   the service started and their events; the Jira lookup for a queued ticket's summary.
-- `server/loop/` — the loop that takes the queue's head and runs it through `run.sh`
-  (`runner.ts`), records what the session reports and how the run ended, and stops itself on
+- `server/loop/` — the loop that takes the queue's head, checks the entry point (`entry.ts`) and
+  runs it through `prepare-worktree.sh` (`runner.ts`), records what the session reports and how the run ended, and stops itself on
   the usage limit.
 - `server/cli.ts`, `bin/pipeline` — the service (`pipeline serve`) and the commands that drive
   it through the database: `enqueue`, `remove`, `reorder`, `list`, `start`, `stop`, `cancel`,
@@ -35,17 +35,20 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
 
 ## Run the service
 
-`run.sh` makes each run's worktree from webui's `origin/master`, and an older `start.sh` there
-runs the plain CLI instead, unwatched and to a pull request. So before every run the service
-fetches origin and checks the `start.sh` the run would go through; without `PIPELINE_SESSION`
-in it no run starts, the loop stops and the console says why (ADR webui-entry-point).
+webui's `prepare-worktree.sh` makes each run's worktree from `origin/master` and hands over to
+that worktree's `launch-session.sh`; an older launch script runs the plain CLI instead, unwatched
+and to a pull request. So before every run the service fetches origin, copies `origin/master`'s
+prepare script into `data/entry/` and checks the launch script it hands over to; without
+`PIPELINE_SESSION` in it no run starts, the loop stops and the console says why (ADR
+webui-entry-point). Until the rename reaches `origin/master`, the scripts there are still
+`run.sh` and `start.sh`; both names are found.
 
-While `origin/master` lacks it (webui's code freeze), take `start.sh` from a branch that has it;
+While `origin/master` lacks it (webui's code freeze), take the launch script from a branch that has it;
 the worktree stays `origin/master`'s, and pull requests are off unless asked for, so a run ends
 before its push (`blocked:tooling`, the commits on the local ticket branch):
 
 ```bash
-PIPELINE_START_SH_REF=pipeline-improvements bin/pipeline serve   # PIPELINE_PULL_REQUESTS=off implied
+PIPELINE_LAUNCH_SESSION_REF=pipeline-improvements bin/pipeline serve   # PIPELINE_PULL_REQUESTS=off implied
 ```
 
 ```bash
@@ -62,19 +65,19 @@ ended by the restart, the queue is kept, and the loop waits for `start`.
 
 Where things are, each with a default for the server: `PIPELINE_WEBUI` (the webui checkout,
 `../webui`), `PIPELINE_DATA` (database and run logs, `./data`), `PIPELINE_ENV` (the secrets file),
-`PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_START_SH_REF` (none: webui's own `run.sh`),
+`PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_LAUNCH_SESSION_REF` (none: `origin/master`'s own launch script; `PIPELINE_START_SH_REF` is still read),
 `PIPELINE_PULL_REQUESTS` (`on`, or `off` when a ref is set). The secrets file is sourced inside the run, never
 printed.
 
 ## Run one session by hand
 
 The same way the service does, from the `webui` checkout, with the pipeline's secrets loaded.
-Mind that `run.sh` builds the worktree from `origin/master`: the worktree's `start.sh` must
-already know `PIPELINE_SESSION`, or the plain CLI runs the ticket instead (ADR webui-entry-point).
+Mind that `prepare-worktree.sh` builds the worktree from `origin/master`: the worktree's
+`launch-session.sh` must already know `PIPELINE_SESSION`, or the plain CLI runs the ticket instead (ADR webui-entry-point).
 
 ```bash
 set -a; . ~/.config/webui-pipeline.env; set +a; unset ANTHROPIC_API_KEY
-PIPELINE_SESSION=/home/cgs/npb/pipeline-ui/bin/session tools/ticket-pipeline/run.sh KAZ-1234
+PIPELINE_SESSION=/home/cgs/npb/pipeline-ui/bin/session tools/ticket-pipeline/prepare-worktree.sh KAZ-1234
 ```
 
 The console is at `http://<server>:8787/` (`PIPELINE_HOST`, `PIPELINE_PORT`) once the UI is

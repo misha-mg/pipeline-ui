@@ -38,7 +38,7 @@ export type StateView = {
   queue: QueueItem[]
   counts: { lastBatch: Counts; last7Days: Counts; allTime: Counts; lastBatchLabel: string }
   health: Health | null
-  /** How the service starts a run: which start.sh, and whether it may open a pull request. */
+  /** How the service starts a run: which launch script, and whether it may open a pull request. */
   setup: RunSetup | null
 }
 
@@ -78,7 +78,7 @@ export function shownRuns(src: ViewSources): ShownRun[] {
     const ending: ShownEnding = rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'completed' : flying?.key === h.key && !flying.runDir ? 'in-flight' : 'died')
     return { ...h, serviceRunId: rec?.id ?? null, ending, endingDetail: rec?.endingDetail ?? null, pr: h.prUrl ? prs.get(h.prUrl) ?? { url: h.prUrl, state: 'unknown', closedOn: null, fetchedAt: null, error: null } : null }
   })
-  // A run the service started whose directory never appeared (run.sh failed before the session).
+  // A run the service started whose directory never appeared (prepare-worktree.sh failed before the session).
   for (const rec of listRuns(src.db, 10_000)) {
     if (rec.runDir || rec.ending === null) continue
     runs.push({

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The service and its command line (server/cli.ts). The pipeline's secrets are read here so the
-# Jira lookup has them; run.sh's own environment is read again inside the run (runner.ts).
+# Jira lookup has them; the run's own environment is read again inside the run (runner.ts).
 set -euo pipefail
 envfile="${PIPELINE_ENV:-$HOME/.config/webui-pipeline.env}"
 if [[ -f $envfile ]]; then set -a; . "$envfile"; set +a; fi

@@ -44,7 +44,7 @@ const completed = ev({ type: 'ended', ending: { kind: 'completed', text: 'done',
 
 describe('loop', () => {
   it('checks the entry point before a run: a refusal stops the loop and leaves the queue as it was', async () => {
-    let refusal: string | null = 'origin/master\'s start.sh has no PIPELINE_SESSION'
+    let refusal: string | null = 'origin/master\'s tools/ticket-pipeline/start.sh has no PIPELINE_SESSION'
     let checks = 0
     const { db, fake, loop } = setup(async () => { checks += 1; return refusal })
     loop.tick()
@@ -91,7 +91,7 @@ describe('loop', () => {
     expect(inFlight(db)).toMatchObject({ stage: 'ticket-investigator', stageSince: at })
     handlers.onEvent(ev({ type: 'stage-stop', agent: 'ticket-investigator', agentId: 'a1' }))
     expect(inFlight(db)?.stage).toBeNull()
-    handlers.onOutput('some run.sh output\n')
+    handlers.onOutput('some prepare-worktree.sh output\n')
     const runDir = closeRun('KAZ-1', 1, 'done:nothing-to-build')
     handlers.onEvent(completed)
     fake.last().finish()
@@ -101,7 +101,7 @@ describe('loop', () => {
     expect(run).toMatchObject({ ending: 'completed', verdict: 'done:nothing-to-build', runDir, summary: 'from the assignment', stage: null })
     expect(run.endedAt).not.toBeNull()
     expect(listEvents(db, 1).map((e) => e.type)).toEqual(['stage-start', 'stage-stop', 'ended'])
-    expect(fs.readFileSync(run.logPath!, 'utf8')).toBe('some run.sh output\n')
+    expect(fs.readFileSync(run.logPath!, 'utf8')).toBe('some prepare-worktree.sh output\n')
     expect(inFlight(db)).toBeNull()
 
     loop.tick()

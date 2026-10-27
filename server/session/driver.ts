@@ -17,7 +17,7 @@ import type {
 
 export type SessionInput = {
   prompt: string
-  /** The settings JSON start.sh built (sandbox, permissions). */
+  /** The settings JSON launch-session.sh built (sandbox, permissions). */
   settings: string
   mcpServers: Record<string, McpServerConfig>
   /** The .pipeline-runs directory the session may write to. */
@@ -186,7 +186,7 @@ export function publishing(tool: string, input: unknown): string | null {
 }
 
 /**
- * start.sh's settings without the push and the pull request: their allow rules and the push's
+ * launch-session.sh's settings without the push and the pull request: their allow rules and the push's
  * exclusion from the sandbox removed, both denied. Settings that are not a JSON object are
  * returned as they are; the PreToolUse hook refuses either call regardless.
  */

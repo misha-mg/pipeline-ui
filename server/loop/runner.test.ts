@@ -8,12 +8,12 @@ import { createRunner, parseEvent } from './runner.ts'
 const temps: string[] = []
 afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }) })
 
-/** A fake webui checkout whose run.sh runs `body` with the key in $1. */
+/** A fake webui checkout whose prepare-worktree.sh runs `body` with the key in $1. */
 function fakeWebui(body: string) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-runner-'))
   temps.push(dir)
   fs.mkdirSync(path.join(dir, 'tools', 'ticket-pipeline'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'tools', 'ticket-pipeline', 'run.sh'), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 })
+  fs.writeFileSync(path.join(dir, 'tools', 'ticket-pipeline', 'prepare-worktree.sh'), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 })
   return dir
 }
 
@@ -24,7 +24,7 @@ function collect() {
 }
 
 describe('createRunner', () => {
-  it('runs run.sh with the key, the session env and the events pipe on fd 3, and reports the exit', async () => {
+  it('runs prepare-worktree.sh with the key, the session env and the events pipe on fd 3, and reports the exit', async () => {
     const webui = fakeWebui([
       'echo "key=$1 session=$PIPELINE_SESSION fd=$PIPELINE_EVENTS_FD api=${ANTHROPIC_API_KEY:-unset} secret=${FROM_ENV_FILE:-unset}"',
       'echo err >&2',
@@ -59,7 +59,7 @@ describe('createRunner', () => {
     expect(exit.code === 0 || exit.signal === 'SIGTERM').toBe(true)
   })
 
-  it('reports a run.sh that cannot start', async () => {
+  it('reports a prepare-worktree.sh that cannot start', async () => {
     const runner = createRunner({ webuiDir: '/nonexistent-webui', sessionBin: '/x', envFile: '/none', sessionTimeoutMs: 1000 })
     const c = collect()
     const exit = await runner('KAZ-1', c.handlers, new AbortController().signal)

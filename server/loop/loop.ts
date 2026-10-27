@@ -17,13 +17,13 @@ export type RunExit = { code: number | null; signal: string | null }
 
 export type RunnerHandlers = {
   onEvent: (event: SessionEvent) => void
-  /** run.sh's stdout and stderr, and any line on the events pipe that is not an event. */
+  /** prepare-worktree.sh's stdout and stderr, and any line on the events pipe that is not an event. */
   onOutput: (chunk: string) => void
   /** Where the session's raw SDK trace goes. */
   tracePath: string
 }
 
-/** Starts run.sh for the key and resolves when it has exited; the signal cancels it. */
+/** Starts prepare-worktree.sh for the key and resolves when it has exited; the signal cancels it. */
 export type Runner = (key: string, handlers: RunnerHandlers, signal: AbortSignal) => Promise<RunExit>
 
 export type LoopDeps = {
@@ -165,17 +165,17 @@ export function createLoop(deps: LoopDeps): Loop {
 }
 
 /**
- * The run's ending from why it was aborted, what the session reported and how run.sh exited.
- * A run that exits without one event means the session program never ran: the worktree's
- * start.sh has no PIPELINE_SESSION (it comes from origin/master), so the plain CLI ran the
- * ticket unwatched.
+ * The run's ending from why it was aborted, what the session reported and how
+ * prepare-worktree.sh exited. A run that exits without one event means the session program
+ * never ran: the launch script had no PIPELINE_SESSION, so the plain CLI ran the ticket
+ * unwatched.
  */
 export function endingOf(aborted: AbortCause | null, ended: SessionEnding | null, exit: RunExit, events = 1): { ending: Ending; detail: string | null } {
   if (aborted) return { ending: aborted, detail: ended ? `the session reported ${ended.kind}` : 'the session reported no ending' }
   if (!ended) {
     const how = exit.signal ? `signal ${exit.signal}` : `code ${exit.code ?? 'unknown'}`
-    const why = events === 0 ? '; no event arrived at all, so the session program was not run (start.sh without PIPELINE_SESSION?)' : ''
-    return { ending: 'exited', detail: `run.sh exited with ${how} before the session reported an ending${why}` }
+    const why = events === 0 ? '; no event arrived at all, so the session program was not run (launch-session.sh without PIPELINE_SESSION?)' : ''
+    return { ending: 'exited', detail: `prepare-worktree.sh exited with ${how} before the session reported an ending${why}` }
   }
   switch (ended.kind) {
     case 'completed':

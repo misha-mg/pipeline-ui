@@ -12,9 +12,9 @@ closed. Checked on 2026-10-27 with KAZ-7785 run-2: the subscription token works 
 the Workflow tool, the sandbox settings, the project's skills and agents load, every stage start
 and stop reached the hooks, and the session stayed alive across the background workflow.
 
-The session is a program of its own (`bin/session`, `server/session/main.ts`) that `start.sh`
+The session is a program of its own (`bin/session`, `server/session/main.ts`) that `launch-session.sh`
 runs in the ticket's worktree, not an SDK call inside the service: it gets the settings, MCP
-config and runs directory `start.sh` built, so the confinement stays in one place (ADR
+config and runs directory `launch-session.sh` built, so the confinement stays in one place (ADR
 webui-entry-point), and a session that hangs or crashes is a child process the service can kill
 and record, not a corrupted service.
 
@@ -29,7 +29,7 @@ workflow however long a stage takes.
   from screen scraping and the transcript's JSON, both unversioned formats; kept as the fallback
   if the subscription token were ever refused under the SDK.
 - **The SDK `query()` inside the service process** — the service would have to rebuild the
-  settings `start.sh` computes, and a session's crash would be the service's.
+  settings `launch-session.sh` computes, and a session's crash would be the service's.
 
 ## Consequences
 

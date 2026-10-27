@@ -3,7 +3,7 @@
 The words the service, its records and the console use. Instrumenta's "attempt", "Pick",
 "Minion" and "Foreman" are not used.
 
-**Run**: one start of the pipeline for one ticket, from `run.sh` to the session's end; a run
+**Run**: one start of the pipeline for one ticket, from `prepare-worktree.sh` to the session's end; a run
 directory `run-N` under `.pipeline-runs/<KEY>/`. _Avoid_: attempt, job.
 
 **Queue**: the tickets waiting to run, in order. The service takes the first one.
@@ -21,8 +21,9 @@ refused.
 `error`, `cancelled`, `timeout`, `restart`, `exited`, `no-result`. Every run the service started
 has one once it is over.
 
-**Entry point**: the `start.sh` a run goes through, and the `run.sh` that hands over to it:
-webui's own, or `start.sh` from the ref `PIPELINE_START_SH_REF` names. Checked before every run.
+**Entry point**: the `launch-session.sh` a run goes through, and the `prepare-worktree.sh`
+that hands over to it (`start.sh` and `run.sh` before webui renamed them): `origin/master`'s, or
+the launch script from the ref `PIPELINE_LAUNCH_SESSION_REF` names. Checked before every run.
 
 **Stage**: one agent's turn in a run (investigate, implement, diff, review, app-test, a rework
 round), as the session's hooks report it.

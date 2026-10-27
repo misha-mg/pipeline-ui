@@ -1,6 +1,6 @@
 # Web console for the ticket pipeline
 
-Status: in progress (2026-10-27: queue, loop, CLI, API and console built; first real run through the loop done, with start.sh from `pipeline-improvements` and pull requests off)
+Status: in progress (2026-10-27: queue, loop, CLI, API and console built; first real run through the loop done, with the launch script from `pipeline-improvements` and pull requests off)
 
 ## Problem
 
@@ -27,8 +27,8 @@ its queue. Checked by asking the operator at the end of that week.
 ## Scope
 
 A service of its own, in a repository next to `webui`, on the server the pipeline runs on. It
-owns the queue and starts each run with `tools/ticket-pipeline/run.sh`, as `batch.sh` does today;
-`webui` is not changed for it beyond one entry point in `start.sh`. Everything it shows comes
+owns the queue and starts each run with `tools/ticket-pipeline/prepare-worktree.sh`, as `batch.sh`
+does today; `webui` is not changed for it beyond one entry point in `launch-session.sh`. Everything it shows comes
 from the run directories under `.pipeline-runs/`, from the session it drives through the Claude
 Agent SDK, and from its own records.
 
@@ -60,7 +60,7 @@ Agent SDK, and from its own records.
   the network is the fence.
 - Replacing `pipeline-tui` or `batch.sh`: both stay as they are and are not developed further.
   `batch.sh` is for a server without the service; the two are not run at the same time.
-- Writing anything into `webui` beyond one entry point in `start.sh` for the service to start
+- Writing anything into `webui` beyond one entry point in `launch-session.sh` for the service to start
   the session itself: no queue file, no runner, no hook. The service reads what runs already
   leave and what the session reports to it.
 - More than one run at a time, or runs on more than one server.
@@ -126,20 +126,22 @@ What it shows:
 
 - Vocabulary: "run", "queue", "loop", "in flight", "verdict", "ending" are used here;
   Instrumenta's "attempt", "Pick", "Minion", "Foreman" are not. Settled in `.about/glossary.md`.
-- The service can only drive a session once `start.sh` with `PIPELINE_SESSION` is on webui's
-  `origin/master`: `run.sh` builds every worktree from there, and an older `start.sh` runs the
-  plain CLI unwatched, to a pull request (2026-10-27, KAZ-7785 run-3; ADR webui-entry-point).
-  Until then the service runs through `PIPELINE_START_SH_REF` (`start.sh` from a branch that
-  has the entry point, the worktree still `origin/master`'s) with pull requests off, so a run
-  ends before its push; and it refuses any run whose `start.sh` lacks the entry point (ADR
-  webui-entry-point, During the code freeze).
+- The service can only drive a session once `launch-session.sh` with `PIPELINE_SESSION` is on
+  webui's `origin/master`: `prepare-worktree.sh` builds every worktree from there, and an older
+  launch script runs the plain CLI unwatched, to a pull request (2026-10-27, KAZ-7785 run-3;
+  ADR webui-entry-point). Until then the service runs through `PIPELINE_LAUNCH_SESSION_REF` (the
+  launch script from a branch that has the entry point, the worktree still `origin/master`'s)
+  with pull requests off, so a run ends before its push; and it refuses any run whose launch
+  script lacks the entry point (ADR webui-entry-point, During the code freeze). webui renamed
+  `run.sh` and `start.sh` to these names on 2026-10-28; `origin/master` keeps the old ones until
+  the freeze ends, and the service finds both.
 - The session is driven through the Claude Agent SDK (stages from its SubagentStart/Stop hooks,
   endings from its typed result and rate-limit events) instead of a tmux window and the
   session's transcript. Checked on 2026-10-27 with one run of KAZ-7785 (run-2) through the SDK
   under the subscription's token: the token works, the Workflow tool, the sandbox settings, the
   project skills and agents load, every stage start and stop reached the hooks, and the session
   stayed alive across the background workflow. The first run through the loop (2026-10-27,
-  KAZ-7785 run-4, start.sh from `pipeline-improvements`) did the same end to end: the stage
+  KAZ-7785 run-4, the launch script, then named `start.sh`, from `pipeline-improvements`) did the same end to end: the stage
   showed in the console, the session woke after the workflow's 7-minute investigation and closed
   the run (`done:nothing-to-build`, the fix already on master), recorded `completed`. The
   refusal of the push and the pull request was checked in a live session and in a subagent,

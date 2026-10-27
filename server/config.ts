@@ -6,13 +6,13 @@ import { fileURLToPath } from 'node:url'
 export type Config = {
   /** This repository. */
   repo: string
-  /** The webui checkout whose tools/ticket-pipeline/run.sh starts a run. */
+  /** The webui checkout a run starts in (its origin/master's prepare-worktree.sh, entry.ts). */
   webuiDir: string
   runsDir: string
   dataDir: string
   dbPath: string
   logDir: string
-  /** The secrets file run.sh's environment is read from (never printed). */
+  /** The secrets file the run's environment is read from (never printed). */
   envFile: string
   sessionBin: string
   /** How long one session may take before the driver ends it. */
@@ -22,11 +22,11 @@ export type Config = {
   port: number
   /** The built UI, served when it is there. */
   uiDir: string
-  /** The ref whose start.sh runs instead of origin/master's (entry.ts); null for webui's run.sh. */
-  startShRef: string | null
-  /** Where the copies of run.sh and start.sh for that ref go. */
+  /** The ref whose launch-session.sh launches the session instead of origin/master's (entry.ts). */
+  launchSessionRef: string | null
+  /** Where the copies of the entry point's scripts go. */
   entryDir: string
-  /** Whether a run may push and open its pull request; off by default with a start.sh ref. */
+  /** Whether a run may push and open its pull request; off by default with a launch ref. */
   pullRequests: boolean
 }
 
@@ -36,7 +36,8 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   const webuiDir = env.PIPELINE_WEBUI ?? path.resolve(repo, '..', 'webui')
   const dataDir = env.PIPELINE_DATA ?? path.join(repo, 'data')
-  const startShRef = env.PIPELINE_START_SH_REF?.trim() || null
+  // PIPELINE_START_SH_REF is the name from before webui renamed start.sh; still read.
+  const launchSessionRef = env.PIPELINE_LAUNCH_SESSION_REF?.trim() || env.PIPELINE_START_SH_REF?.trim() || null
   const pr = env.PIPELINE_PULL_REQUESTS?.trim()
   if (pr && pr !== 'on' && pr !== 'off') throw new Error(`PIPELINE_PULL_REQUESTS is on or off, not ${pr}`)
   return {
@@ -52,9 +53,9 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     host: env.PIPELINE_HOST ?? '0.0.0.0',
     port: Number(env.PIPELINE_PORT ?? 8787),
     uiDir: path.join(repo, 'ui', 'dist'),
-    startShRef,
+    launchSessionRef,
     entryDir: path.join(dataDir, 'entry'),
-    // A start.sh from a branch is a workaround while origin/master lacks it: a test run, no PR.
-    pullRequests: pr ? pr === 'on' : startShRef === null,
+    // A launch script from a branch is a workaround while origin/master lacks it: a test run, no PR.
+    pullRequests: pr ? pr === 'on' : launchSessionRef === null,
   }
 }

@@ -1,7 +1,7 @@
-// The session program start.sh runs (PIPELINE_SESSION): argv is the prompt, the settings JSON,
-// the MCP config JSON and the runs directory, as start.sh passes them. Events go out as JSON
+// The session program launch-session.sh runs (PIPELINE_SESSION): argv is the prompt, the settings JSON,
+// the MCP config JSON and the runs directory, as launch-session.sh passes them. Events go out as JSON
 // lines on the file descriptor PIPELINE_EVENTS_FD names (stdout when unset), so the service
-// that started run.sh reads them through a pipe. PIPELINE_SESSION_TRACE names a file every raw
+// that started prepare-worktree.sh reads them through a pipe. PIPELINE_SESSION_TRACE names a file every raw
 // SDK message is appended to; PIPELINE_SESSION_TIMEOUT_MS bounds the session (the driver's default
 // otherwise); PIPELINE_SESSION_PULL_REQUESTS=off refuses every push and pull request. The exit code is 0 for a completed session, 1 for any other ending.
 import fs from 'node:fs'

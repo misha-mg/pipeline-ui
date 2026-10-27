@@ -94,13 +94,13 @@ describe('driveSession', () => {
 })
 
 describe('pull requests off', () => {
-  const START_SH_SETTINGS = JSON.stringify({
+  const LAUNCH_SETTINGS = JSON.stringify({
     permissions: { allow: ['Workflow', 'mcp__bitbucket__createPullRequest', 'Bash(git push origin KAZ-1)'], deny: ['Read(~/.ssh/**)'] },
     sandbox: { excludedCommands: ['git push origin KAZ-1'], filesystem: { allowWrite: ['/runs'] } },
   })
 
   it('takes the push and the pull request out of the settings and denies both', () => {
-    expect(JSON.parse(withoutPublishing(START_SH_SETTINGS))).toEqual({
+    expect(JSON.parse(withoutPublishing(LAUNCH_SETTINGS))).toEqual({
       permissions: { allow: ['Workflow'], deny: ['Read(~/.ssh/**)', 'Bash(git push:*)', 'mcp__bitbucket__createPullRequest'] },
       sandbox: { excludedCommands: [], filesystem: { allowWrite: ['/runs'] } },
     })
@@ -130,7 +130,7 @@ describe('pull requests off', () => {
         },
       }
     }
-    const { events } = await run(query, { settings: START_SH_SETTINGS, pullRequests: false })
+    const { events } = await run(query, { settings: LAUNCH_SETTINGS, pullRequests: false })
     expect(JSON.parse(options!.settings as string).permissions.deny).toContain('Bash(git push:*)')
     expect(decisions.map((d) => (d as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput?.permissionDecision ?? 'none')).toEqual(['deny', 'deny', 'none'])
     expect(events.filter((e) => e.type === 'refused')).toEqual([
@@ -141,8 +141,8 @@ describe('pull requests off', () => {
 
   it('leaves the settings and the hooks alone by default', async () => {
     let options: Parameters<QueryFn>[0]['options']
-    await run((params) => { options = params.options; return fakeQuery([result()])(params) }, { settings: START_SH_SETTINGS })
-    expect(options!.settings).toBe(START_SH_SETTINGS)
+    await run((params) => { options = params.options; return fakeQuery([result()])(params) }, { settings: LAUNCH_SETTINGS })
+    expect(options!.settings).toBe(LAUNCH_SETTINGS)
     expect(options!.hooks?.PreToolUse).toBeUndefined()
   })
 })
