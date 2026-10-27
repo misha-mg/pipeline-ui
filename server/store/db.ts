@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS loop (
   stopped_reason TEXT,
   stopped_at TEXT,
   usage_limit_resets_at INTEGER,
-  started_at TEXT
+  started_at TEXT,
+  stopped_detail TEXT
 );
 INSERT OR IGNORE INTO loop (id, wanted) VALUES (1, 'stopped');
 CREATE TABLE IF NOT EXISTS service (
@@ -68,6 +69,7 @@ export function openDb(file: string): Db {
 function migrate(db: Db): void {
   const columns = (table: string) => db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name as string)
   if (!columns('loop').includes('started_at')) db.exec('ALTER TABLE loop ADD COLUMN started_at TEXT')
+  if (!columns('loop').includes('stopped_detail')) db.exec('ALTER TABLE loop ADD COLUMN stopped_detail TEXT')
 }
 
 /** Runs `fn` in one transaction; rolls back when it throws. */

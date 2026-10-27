@@ -19,6 +19,7 @@ const loopNote = computed(() => {
   if (!l) return ''
   if (l.wanted === 'running') return inFlight.value ? 'Takes the next ticket when this run ends.' : 'Takes the next queued ticket.'
   if (l.stoppedReason === 'usage-limit') return `The subscription's usage limit was hit at ${fmtTime(l.stoppedAt)}${l.usageLimitResetsAt ? `, resets ${fmtTime(new Date(l.usageLimitResetsAt * 1000).toISOString())}` : ''}. The queue is untouched.`
+  if (l.stoppedReason === 'entry-point') return `Stopped at ${fmtTime(l.stoppedAt)} before a run: ${l.stoppedDetail ?? 'the entry point was refused'}. The queue is untouched.`
   if (l.stoppedReason === 'restart') return `Stopped by the service's restart at ${fmtTime(l.stoppedAt)}. Nothing starts until Start.`
   if (l.stoppedReason === 'operator') return `Stopped at ${fmtTime(l.stoppedAt)}. The run in flight, if any, finishes.`
   return 'Never started.'
@@ -96,6 +97,7 @@ const runNumber = (dir: string | null) => dir?.match(/run-(\d+)$/)?.[1] ?? null
           <button class="btn" style="height: 48px" :disabled="!loop || loop.wanted !== 'running'" @click="actions.stop()">Stop</button>
         </div>
         <p class="hint">Stop only prevents the next run. A run already in flight keeps going.</p>
+        <p v-if="state?.setup" class="hint">Each run: {{ state.setup.entry }}; pull requests {{ state.setup.pullRequests ? 'on' : 'off — the run ends before its push' }}.</p>
         <div class="block">
           <div class="label">Queue a ticket</div>
           <div class="ctl">

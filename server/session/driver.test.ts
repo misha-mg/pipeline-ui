@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
-import { driveSession, endingOf, sessionEnv, type QueryFn, type SessionEvent } from './driver.ts'
+import { driveSession, endingOf, publishing, sessionEnv, withoutPublishing, type QueryFn, type SessionEvent } from './driver.ts'
 
 const INPUT = {
   prompt: '/ticket-pipeline KAZ-1',
@@ -90,6 +90,60 @@ describe('driveSession', () => {
     const thrower: QueryFn = () => ({ async *[Symbol.asyncIterator]() { throw new Error('spawn failed') } })
     expect((await run(thrower)).ending).toEqual({ kind: 'error', reason: 'spawn failed' })
     expect((await run(fakeQuery([init]))).ending).toEqual({ kind: 'no-result' })
+  })
+})
+
+describe('pull requests off', () => {
+  const START_SH_SETTINGS = JSON.stringify({
+    permissions: { allow: ['Workflow', 'mcp__bitbucket__createPullRequest', 'Bash(git push origin KAZ-1)'], deny: ['Read(~/.ssh/**)'] },
+    sandbox: { excludedCommands: ['git push origin KAZ-1'], filesystem: { allowWrite: ['/runs'] } },
+  })
+
+  it('takes the push and the pull request out of the settings and denies both', () => {
+    expect(JSON.parse(withoutPublishing(START_SH_SETTINGS))).toEqual({
+      permissions: { allow: ['Workflow'], deny: ['Read(~/.ssh/**)', 'Bash(git push:*)', 'mcp__bitbucket__createPullRequest'] },
+      sandbox: { excludedCommands: [], filesystem: { allowWrite: ['/runs'] } },
+    })
+    expect(withoutPublishing('not json')).toBe('not json')
+  })
+
+  it('knows a push and a pull request from other calls', () => {
+    expect(publishing('mcp__bitbucket__createPullRequest', {})).toBe('open a pull request')
+    for (const command of ['git push origin KAZ-1', 'git -C /wt push', 'cd /wt && git push -u origin HEAD', 'git -c a=b push --force']) expect(publishing('Bash', { command })).not.toBeNull()
+    for (const command of ['git status', 'git commit -m "push the button"', 'echo git', 'npm run push']) expect(publishing('Bash', { command })).toBeNull()
+    expect(publishing('mcp__bitbucket__getPullRequest', {})).toBeNull()
+  })
+
+  it('refuses them through a PreToolUse hook and reports each refusal', async () => {
+    let options: Parameters<QueryFn>[0]['options']
+    const decisions: unknown[] = []
+    const query: QueryFn = (params) => {
+      options = params.options
+      return {
+        async *[Symbol.asyncIterator]() {
+          const hook = params.options?.hooks?.PreToolUse?.[0]?.hooks[0]
+          if (!hook) throw new Error('no PreToolUse hook')
+          for (const [tool_name, tool_input] of [['Bash', { command: 'git push origin KAZ-1' }], ['mcp__bitbucket__createPullRequest', {}], ['Bash', { command: 'git status' }]] as const) {
+            decisions.push(await hook({ hook_event_name: 'PreToolUse', tool_name, tool_input, tool_use_id: 'u', session_id: 's', transcript_path: '', cwd: '/wt' } as never, 'u', { signal: new AbortController().signal }))
+          }
+          yield result({ result: 'Failed run: blocked:tooling' })
+        },
+      }
+    }
+    const { events } = await run(query, { settings: START_SH_SETTINGS, pullRequests: false })
+    expect(JSON.parse(options!.settings as string).permissions.deny).toContain('Bash(git push:*)')
+    expect(decisions.map((d) => (d as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput?.permissionDecision ?? 'none')).toEqual(['deny', 'deny', 'none'])
+    expect(events.filter((e) => e.type === 'refused')).toEqual([
+      expect.objectContaining({ tool: 'Bash', detail: 'git push origin KAZ-1' }),
+      expect.objectContaining({ tool: 'mcp__bitbucket__createPullRequest', detail: 'open a pull request' }),
+    ])
+  })
+
+  it('leaves the settings and the hooks alone by default', async () => {
+    let options: Parameters<QueryFn>[0]['options']
+    await run((params) => { options = params.options; return fakeQuery([result()])(params) }, { settings: START_SH_SETTINGS })
+    expect(options!.settings).toBe(START_SH_SETTINGS)
+    expect(options!.hooks?.PreToolUse).toBeUndefined()
   })
 })
 

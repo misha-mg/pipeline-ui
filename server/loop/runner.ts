@@ -1,11 +1,13 @@
 // The real runner: starts webui's tools/ticket-pipeline/run.sh for a ticket the way batch.sh
 // does (the secrets sourced inside the child, the API key unset), with bin/session as the
-// session program and the events pipe on file descriptor 3. Cancelling sends SIGTERM to the
+// session program and the events pipe on file descriptor 3; or the copy of run.sh the entry
+// point names (entry.ts), and the session told whether it may open a pull request. Cancelling sends SIGTERM to the
 // whole process group (run.sh, start.sh, the session and its CLI), then SIGKILL if it lingers.
 import { spawn } from 'node:child_process'
 import readline from 'node:readline'
 import type { Readable } from 'node:stream'
 import type { SessionEvent } from '../session/driver.ts'
+import type { Entry } from './entry.ts'
 import type { Runner, RunExit } from './loop.ts'
 
 export type RunnerConfig = {
@@ -13,13 +15,17 @@ export type RunnerConfig = {
   sessionBin: string
   envFile: string
   sessionTimeoutMs: number
+  /** What run.sh to start; webui's own when absent. */
+  entry?: Entry
+  /** False: the session refuses every push and pull request. */
+  pullRequests?: boolean
   /** After SIGTERM, how long before SIGKILL. */
   killAfterMs?: number
   /** After the child exited, how long to wait for its pipes to drain. */
   drainMs?: number
 }
 
-const EVENT_TYPES = new Set<SessionEvent['type']>(['init', 'stage-start', 'stage-stop', 'rate-limit', 'api-retry', 'turn', 'ended'])
+const EVENT_TYPES = new Set<SessionEvent['type']>(['init', 'stage-start', 'stage-stop', 'rate-limit', 'api-retry', 'refused', 'turn', 'ended'])
 
 // The secrets never appear on a command line: the file is sourced by the child itself.
 const SCRIPT = [
@@ -27,7 +33,7 @@ const SCRIPT = [
   'if [[ -f $PIPELINE_ENV ]]; then . "$PIPELINE_ENV"; fi',
   'set +a',
   'unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN',
-  'exec tools/ticket-pipeline/run.sh "$1"',
+  'exec bash "$PIPELINE_RUN_SH" "$1"',
 ].join('; ')
 
 export function createRunner(config: RunnerConfig): Runner {
@@ -39,7 +45,9 @@ export function createRunner(config: RunnerConfig): Runner {
       for (const [k, v] of Object.entries(process.env)) {
         if (v !== undefined && k !== 'ANTHROPIC_API_KEY' && k !== 'ANTHROPIC_AUTH_TOKEN') env[k] = v
       }
-      Object.assign(env, {
+      Object.assign(env, config.entry?.env ?? {}, {
+        PIPELINE_RUN_SH: config.entry?.runSh ?? 'tools/ticket-pipeline/run.sh',
+        PIPELINE_SESSION_PULL_REQUESTS: config.pullRequests === false ? 'off' : 'on',
         PIPELINE_ENV: config.envFile,
         PIPELINE_SESSION: config.sessionBin,
         PIPELINE_EVENTS_FD: '3',

@@ -116,7 +116,7 @@ describe('api', () => {
     }
   })
 
-  it('serves the built UI with an index fallback and refuses paths outside it', async () => {
+  it('serves the built UI with an index fallback, refuses paths outside it and answers 404 for a file it does not have', async () => {
     const { deps } = sources()
     const ui = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-ui-dist-'))
     temps.push(ui)
@@ -134,6 +134,7 @@ describe('api', () => {
       const js = await get('/assets/a.js')
       expect(js.headers.get('content-type')).toContain('javascript')
       expect(await (await get('/../../etc/passwd')).text()).toBe('<html>ui</html>')
+      expect((await get('/assets/an-older-build.js')).status).toBe(404)
     } finally {
       await new Promise<void>((r) => server.close(() => r()))
     }

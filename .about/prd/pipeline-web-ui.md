@@ -129,7 +129,10 @@ What it shows:
 - The service can only drive a session once `start.sh` with `PIPELINE_SESSION` is on webui's
   `origin/master`: `run.sh` builds every worktree from there, and an older `start.sh` runs the
   plain CLI unwatched, to a pull request (2026-10-27, KAZ-7785 run-3; ADR webui-entry-point).
-  Until then the console is checked against the existing run directories only.
+  Until then the service runs through `PIPELINE_START_SH_REF` (`start.sh` from a branch that
+  has the entry point, the worktree still `origin/master`'s) with pull requests off, so a run
+  ends before its push; and it refuses any run whose `start.sh` lacks the entry point (ADR
+  webui-entry-point, During the code freeze).
 - The session is driven through the Claude Agent SDK (stages from its SubagentStart/Stop hooks,
   endings from its typed result and rate-limit events) instead of a tmux window and the
   session's transcript. Checked on 2026-10-27 with one run of KAZ-7785 (run-2) through the SDK

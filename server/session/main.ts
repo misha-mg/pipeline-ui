@@ -3,7 +3,7 @@
 // lines on the file descriptor PIPELINE_EVENTS_FD names (stdout when unset), so the service
 // that started run.sh reads them through a pipe. PIPELINE_SESSION_TRACE names a file every raw
 // SDK message is appended to; PIPELINE_SESSION_TIMEOUT_MS bounds the session (the driver's default
-// otherwise). The exit code is 0 for a completed session, 1 for any other ending.
+// otherwise); PIPELINE_SESSION_PULL_REQUESTS=off refuses every push and pull request. The exit code is 0 for a completed session, 1 for any other ending.
 import fs from 'node:fs'
 import { driveSession, type SessionEvent } from './driver.ts'
 
@@ -29,7 +29,7 @@ const mcpServers =
 
 const timeoutMs = Number(process.env.PIPELINE_SESSION_TIMEOUT_MS) || undefined
 const ending = await driveSession(
-  { prompt, settings, mcpServers, runsDir, cwd: process.cwd(), env: process.env, signal: controller.signal, timeoutMs },
+  { prompt, settings, mcpServers, runsDir, cwd: process.cwd(), env: process.env, signal: controller.signal, timeoutMs, pullRequests: process.env.PIPELINE_SESSION_PULL_REQUESTS !== 'off' },
   emit,
   { trace, stderr: (d) => process.stderr.write(d) },
 )

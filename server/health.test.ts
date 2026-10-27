@@ -10,7 +10,7 @@ function config(): Config {
   fs.mkdirSync(path.join(dir, 'webui', 'tools', 'device-mock'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'webui', 'tools', 'device-mock', 'rpc.sh'), '')
   fs.mkdirSync(path.join(dir, 'webui', '.pipeline-runs', 'KAZ-1'), { recursive: true })
-  return { repo: dir, webuiDir: path.join(dir, 'webui'), runsDir: path.join(dir, 'webui', '.pipeline-runs'), dataDir: dir, dbPath: '', logDir: '', envFile: '', sessionBin: '', sessionTimeoutMs: 0, host: '', port: 0, uiDir: '' }
+  return { repo: dir, webuiDir: path.join(dir, 'webui'), runsDir: path.join(dir, 'webui', '.pipeline-runs'), dataDir: dir, dbPath: '', logDir: '', envFile: '', sessionBin: '', sessionTimeoutMs: 0, host: '', port: 0, uiDir: '', startShRef: null, entryDir: '', pullRequests: true }
 }
 
 const okFetch = (async (url: string) => {

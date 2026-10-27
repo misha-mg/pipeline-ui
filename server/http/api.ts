@@ -95,7 +95,10 @@ function serveStatic(uiDir: string | undefined, pathname: string, res: http.Serv
   if (!uiDir) return send(res, 404, 'the UI is not built: npm run build')
   const root = path.resolve(uiDir)
   const wanted = path.resolve(root, '.' + decodeURIComponent(pathname))
-  const file = wanted.startsWith(root + path.sep) && fs.existsSync(wanted) && fs.statSync(wanted).isFile() ? wanted : path.join(root, 'index.html')
+  const found = wanted.startsWith(root + path.sep) && fs.existsSync(wanted) && fs.statSync(wanted).isFile()
+  // A file the build does not have (an asset of an older build) is not the page.
+  if (!found && path.extname(pathname)) return send(res, 404, 'not found')
+  const file = found ? wanted : path.join(root, 'index.html')
   if (!fs.existsSync(file)) return send(res, 404, 'the UI is not built: npm run build')
   res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream', 'cache-control': file.endsWith('index.html') ? 'no-cache' : 'max-age=31536000, immutable' })
   fs.createReadStream(file).pipe(res)

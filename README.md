@@ -35,9 +35,18 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
 
 ## Run the service
 
-Only once `tools/ticket-pipeline/start.sh` with `PIPELINE_SESSION` is on webui's `origin/master`:
-`run.sh` makes each run's worktree from there, and an older `start.sh` runs the plain CLI
-instead, unwatched and to a pull request (ADR webui-entry-point).
+`run.sh` makes each run's worktree from webui's `origin/master`, and an older `start.sh` there
+runs the plain CLI instead, unwatched and to a pull request. So before every run the service
+fetches origin and checks the `start.sh` the run would go through; without `PIPELINE_SESSION`
+in it no run starts, the loop stops and the console says why (ADR webui-entry-point).
+
+While `origin/master` lacks it (webui's code freeze), take `start.sh` from a branch that has it;
+the worktree stays `origin/master`'s, and pull requests are off unless asked for, so a run ends
+before its push (`blocked:tooling`, the commits on the local ticket branch):
+
+```bash
+PIPELINE_START_SH_REF=pipeline-improvements bin/pipeline serve   # PIPELINE_PULL_REQUESTS=off implied
+```
 
 ```bash
 bin/pipeline serve            # one per database; reads ~/.config/webui-pipeline.env itself
@@ -53,7 +62,8 @@ ended by the restart, the queue is kept, and the loop waits for `start`.
 
 Where things are, each with a default for the server: `PIPELINE_WEBUI` (the webui checkout,
 `../webui`), `PIPELINE_DATA` (database and run logs, `./data`), `PIPELINE_ENV` (the secrets file),
-`PIPELINE_TIMEOUT_HOURS` (one session, 4). The secrets file is sourced inside the run, never
+`PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_START_SH_REF` (none: webui's own `run.sh`),
+`PIPELINE_PULL_REQUESTS` (`on`, or `off` when a ref is set). The secrets file is sourced inside the run, never
 printed.
 
 ## Run one session by hand

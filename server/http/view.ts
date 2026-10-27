@@ -38,9 +38,13 @@ export type StateView = {
   queue: QueueItem[]
   counts: { lastBatch: Counts; last7Days: Counts; allTime: Counts; lastBatchLabel: string }
   health: Health | null
+  /** How the service starts a run: which start.sh, and whether it may open a pull request. */
+  setup: RunSetup | null
 }
 
-export type ViewSources = { db: Db; runsDir: string; health: () => Health | null; now?: () => Date }
+export type RunSetup = { entry: string; pullRequests: boolean }
+
+export type ViewSources = { db: Db; runsDir: string; health: () => Health | null; setup?: RunSetup; now?: () => Date }
 
 export function stateView(src: ViewSources): StateView {
   const now = (src.now ?? (() => new Date()))()
@@ -55,6 +59,7 @@ export function stateView(src: ViewSources): StateView {
     queue: listQueue(src.db),
     counts: counts(src, runs, now),
     health: src.health(),
+    setup: src.setup ?? null,
   }
 }
 

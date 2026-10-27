@@ -9,6 +9,7 @@ import { checkHealth, type Health } from './health.ts'
 import { bitbucketConfig, refreshPullRequests } from './history/bitbucket.ts'
 import { loadRuns } from './history/runs.ts'
 import { createServer } from './http/api.ts'
+import { entryLabel, entryOf, prepareEntry } from './loop/entry.ts'
 import { createLoop } from './loop/loop.ts'
 import { createRunner } from './loop/runner.ts'
 import { nowIso, openDb } from './store/db.ts'
@@ -23,15 +24,19 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   for (const run of markRestart(db)) log(`run ${run.id} ${run.key} was in flight when the service last stopped: ended by restart`)
   const startedAt = nowIso()
   serviceHeartbeat(db, process.pid, startedAt)
-  log(`service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; the loop is stopped`)
+  const entryConfig = { webuiDir: config.webuiDir, startShRef: config.startShRef, entryDir: config.entryDir }
+  const setup = { entry: entryLabel(entryConfig), pullRequests: config.pullRequests }
+  log(`service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; ${setup.entry}; pull requests ${setup.pullRequests ? 'on' : 'off'}; the loop is stopped`)
 
-  const runner = createRunner(config)
+  const runner = createRunner({ ...config, entry: entryOf(entryConfig), pullRequests: config.pullRequests })
   const loop = createLoop({
     db,
     runner,
     runsDir: config.runsDir,
     logDir: config.logDir,
     onChange: (what, run) => log(`run ${run.id} ${run.key} ${what}${run.ending ? `: ${run.ending}${run.verdict ? ` (${run.verdict})` : ''}` : ''}`),
+    preflight: () => prepareEntry(entryConfig),
+    onRefused: (why) => log(`loop stopped, no run started: ${why}`),
   })
   const timer = setInterval(() => {
     serviceHeartbeat(db, process.pid, startedAt)
@@ -39,14 +44,18 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   }, TICK_MS)
 
   let health: Health | null = null
+  let healthSaid = ''
   let rounding = false
   const round = async () => {
     if (rounding) return
     rounding = true
     try {
       health = await checkHealth(config)
+      // Said when it changes, not every minute.
       const notOk = Object.entries(health).filter(([, c]) => !c.ok).map(([n, c]) => `${n}: ${c.detail}`)
-      if (notOk.length) log(`health: ${notOk.join('; ')}`)
+      const said = notOk.length ? `health: ${notOk.join('; ')}` : 'health: every dependency is OK'
+      if (said !== healthSaid && (healthSaid || notOk.length)) log(said)
+      healthSaid = said
       const urls = loadRuns(config.runsDir).map((r) => r.prUrl).filter((u): u is string => u !== null)
       const read = await refreshPullRequests(db, urls, bitbucketConfig(process.env))
       if (read) log(`pull requests: ${read} read`)
@@ -60,7 +69,7 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   const rounds = setInterval(() => void round(), ROUND_MS)
 
   const uiDir = fs.existsSync(config.uiDir) ? config.uiDir : undefined
-  const server = createServer({ db, runsDir: config.runsDir, health: () => health, loop, lookup: jiraLookup(jiraConfig(process.env)), uiDir })
+  const server = createServer({ db, runsDir: config.runsDir, health: () => health, setup, loop, lookup: jiraLookup(jiraConfig(process.env)), uiDir })
   await new Promise<void>((resolve, reject) => server.once('error', reject).listen(config.port, config.host, resolve))
   log(`console at http://${config.host}:${config.port}/${uiDir ? '' : ' (API only: the UI is not built, npm run build)'}`)
 

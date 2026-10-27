@@ -1,13 +1,13 @@
 // The loop: while it is wanted running and nothing is in flight, takes the queue's head and runs
 // it; records every event the session reports and the run's ending; stops itself on the usage
-// limit. One tick does one step; the service ticks it every second and on each command, so a
+// limit, or when the entry point refuses a run (the ticket stays queued). One tick does one step; the service ticks it every second and on each command, so a
 // command written to the database by another process (the CLI) is acted on within a second.
 // See .about/adr/queue.md and .about/prd/pipeline-web-ui.md, Queue and loop.
 import fs from 'node:fs'
 import path from 'node:path'
 import type { SessionEnding, SessionEvent } from '../session/driver.ts'
 import { nowIso, type Db } from '../store/db.ts'
-import { takeHead } from '../store/queue.ts'
+import { queueHead, takeHead } from '../store/queue.ts'
 import {
   addEvent, getRun, insertRun, loopState, stopLoop, updateRun, type Ending, type RunRecord,
 } from '../store/runs.ts'
@@ -36,6 +36,10 @@ export type LoopDeps = {
   now?: () => string
   /** Called when a run starts or ends, for the service's log. */
   onChange?: (what: string, run: RunRecord) => void
+  /** Checked before each run, with the queue's head still queued: null, or why no run may start. */
+  preflight?: () => Promise<string | null>
+  /** Called when the preflight refused a run and stopped the loop. */
+  onRefused?: (why: string) => void
 }
 
 export type AbortCause = 'cancelled' | 'restart'
@@ -55,6 +59,7 @@ export function createLoop(deps: LoopDeps): Loop {
   const { db, runner, runsDir, logDir } = deps
   const now = deps.now ?? nowIso
   let current: { id: number; controller: AbortController; done: Promise<void> } | null = null
+  let checking = false
 
   function tick(): void {
     if (current) {
@@ -62,7 +67,25 @@ export function createLoop(deps: LoopDeps): Loop {
       if (run?.cancelRequestedAt && !current.controller.signal.aborted) current.controller.abort('cancelled' satisfies AbortCause)
       return
     }
-    if (loopState(db).wanted !== 'running') return
+    if (checking || loopState(db).wanted !== 'running' || !queueHead(db)) return
+    if (!deps.preflight) return begin()
+    checking = true
+    deps.preflight()
+      .catch((error: unknown) => `the entry point could not be checked: ${error instanceof Error ? error.message : String(error)}`)
+      .then((refused) => {
+        if (refused) {
+          stopLoop(db, 'entry-point', { now, detail: refused })
+          deps.onRefused?.(refused)
+        } else if (!current && loopState(db).wanted === 'running') {
+          begin()
+        }
+      })
+      .finally(() => {
+        checking = false
+      })
+  }
+
+  function begin(): void {
     const head = takeHead(db)
     if (!head) return
     const controller = new AbortController()
@@ -129,7 +152,10 @@ export function createLoop(deps: LoopDeps): Loop {
   return {
     tick,
     inFlightId: () => current?.id ?? null,
-    settled: () => current?.done ?? Promise.resolve(),
+    settled: async () => {
+      while (checking) await new Promise((r) => setTimeout(r, 5))
+      await (current?.done ?? Promise.resolve())
+    },
     shutdown: async () => {
       if (!current) return
       if (!current.controller.signal.aborted) current.controller.abort('restart' satisfies AbortCause)

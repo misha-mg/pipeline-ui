@@ -26,8 +26,10 @@ export type RunEvent = { id: number; runId: number; at: string; type: SessionEve
 
 export type LoopState = {
   wanted: 'running' | 'stopped'
-  stoppedReason: 'operator' | 'usage-limit' | 'restart' | null
+  stoppedReason: 'operator' | 'usage-limit' | 'restart' | 'entry-point' | null
   stoppedAt: string | null
+  /** Why the entry point refused a run, when that stopped the loop. */
+  stoppedDetail: string | null
   usageLimitResetsAt: number | null
   /** When the loop was last started; null before the first start. */
   startedAt: string | null
@@ -98,23 +100,24 @@ export function requestCancel(db: Db, now: () => string = nowIso): { ok: true; r
 }
 
 export function loopState(db: Db): LoopState {
-  const row = db.prepare('SELECT wanted, stopped_reason, stopped_at, usage_limit_resets_at, started_at FROM loop WHERE id = 1').get()!
+  const row = db.prepare('SELECT wanted, stopped_reason, stopped_at, stopped_detail, usage_limit_resets_at, started_at FROM loop WHERE id = 1').get()!
   return {
     wanted: row.wanted as LoopState['wanted'],
     stoppedReason: (row.stopped_reason as LoopState['stoppedReason']) ?? null,
     stoppedAt: (row.stopped_at as string | null) ?? null,
+    stoppedDetail: (row.stopped_detail as string | null) ?? null,
     usageLimitResetsAt: (row.usage_limit_resets_at as number | null) ?? null,
     startedAt: (row.started_at as string | null) ?? null,
   }
 }
 
 export function startLoop(db: Db, now: () => string = nowIso): void {
-  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = NULL, stopped_at = NULL, usage_limit_resets_at = NULL, started_at = ? WHERE id = 1').run('running', now())
+  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = NULL, stopped_at = NULL, stopped_detail = NULL, usage_limit_resets_at = NULL, started_at = ? WHERE id = 1').run('running', now())
 }
 
-export function stopLoop(db: Db, reason: NonNullable<LoopState['stoppedReason']>, opts: { now?: () => string; usageLimitResetsAt?: number } = {}): void {
-  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = ?, stopped_at = ?, usage_limit_resets_at = ? WHERE id = 1')
-    .run('stopped', reason, (opts.now ?? nowIso)(), opts.usageLimitResetsAt ?? null)
+export function stopLoop(db: Db, reason: NonNullable<LoopState['stoppedReason']>, opts: { now?: () => string; usageLimitResetsAt?: number; detail?: string } = {}): void {
+  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = ?, stopped_at = ?, stopped_detail = ?, usage_limit_resets_at = ? WHERE id = 1')
+    .run('stopped', reason, (opts.now ?? nowIso)(), opts.detail ?? null, opts.usageLimitResetsAt ?? null)
 }
 
 /**

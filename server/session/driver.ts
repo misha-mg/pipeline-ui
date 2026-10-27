@@ -1,11 +1,14 @@
 // Drives one ticket-pipeline session through the Claude Agent SDK and reports what happens in it
 // as typed events: the stages (from the SubagentStart/SubagentStop hooks), rate limits, API
 // retries, each turn's result, and one ending. Everything else the SDK streams is passed to the
-// optional trace sink and otherwise ignored. See .about/prd/pipeline-web-ui.md.
+// optional trace sink and otherwise ignored. With pull requests off, the session may not push or
+// open a pull request: the settings deny both and a PreToolUse hook refuses them whatever the
+// settings say (ADR webui-entry-point, During the code freeze). See .about/prd/pipeline-web-ui.md.
 import { USAGE_LIMIT_ERROR_PREFIXES, query as sdkQuery } from '@anthropic-ai/claude-agent-sdk'
 import type {
   HookCallback,
   HookCallbackMatcher,
+  HookJSONOutput,
   McpServerConfig,
   SDKMessage,
   SDKRateLimitInfo,
@@ -26,6 +29,8 @@ export type SessionInput = {
   /** Cancels the session; the ending is then `aborted`. */
   signal?: AbortSignal
   timeoutMs?: number
+  /** False: every push and every pull request is refused, so the run ends before one. */
+  pullRequests?: boolean
 }
 
 export type SessionEvent =
@@ -34,6 +39,7 @@ export type SessionEvent =
   | { type: 'stage-stop'; at: string; agent: string; agentId: string }
   | { type: 'rate-limit'; at: string; status: SDKRateLimitInfo['status']; resetsAt?: number; rateLimitType?: string }
   | { type: 'api-retry'; at: string; attempt: number; error?: string }
+  | { type: 'refused'; at: string; tool: string; detail: string }
   | { type: 'turn'; at: string; subtype: SDKResultMessage['subtype']; isError: boolean; turns: number; costUsd: number; text: string }
   | { type: 'ended'; at: string; ending: SessionEnding }
 
@@ -57,6 +63,9 @@ export type SessionDeps = {
 
 const DEFAULT_TIMEOUT_MS = 120 * 60 * 1000
 const TEXT_LIMIT = 2000
+const PR_TOOL = 'mcp__bitbucket__createPullRequest'
+const PUSH_RULE = 'Bash(git push:*)'
+export const PULL_REQUESTS_OFF = 'pull requests are off for this service (PIPELINE_PULL_REQUESTS=off): the run keeps its commits on the local ticket branch and ends without a push or a pull request'
 
 /**
  * Runs the session to its end and returns its ending; events arrive through `emit` as they
@@ -89,6 +98,14 @@ export async function driveSession(
     return {}
   }
   const matcher: HookCallbackMatcher = { hooks: [onAgent] }
+  const onTool: HookCallback = async (hookInput): Promise<HookJSONOutput> => {
+    if (hookInput.hook_event_name !== 'PreToolUse') return {}
+    const refused = publishing(hookInput.tool_name, hookInput.tool_input)
+    if (!refused) return {}
+    emit({ type: 'refused', at: now(), tool: hookInput.tool_name, detail: refused })
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: PULL_REQUESTS_OFF } }
+  }
+  const pullRequests = input.pullRequests ?? true
 
   let lastResult: SDKResultMessage | null = null
   let lastRateLimit: SDKRateLimitInfo | null = null
@@ -98,11 +115,11 @@ export async function driveSession(
       prompt: input.prompt,
       options: {
         cwd: input.cwd,
-        settings: input.settings,
+        settings: pullRequests ? input.settings : withoutPublishing(input.settings),
         mcpServers: input.mcpServers,
         permissionMode: 'dontAsk',
         additionalDirectories: [input.runsDir],
-        hooks: { SubagentStart: [matcher], SubagentStop: [matcher] },
+        hooks: { SubagentStart: [matcher], SubagentStop: [matcher], ...(pullRequests ? {} : { PreToolUse: [{ hooks: [onTool] }] }) },
         env: sessionEnv(input.env),
         abortController: controller,
         stderr: deps.stderr,
@@ -158,6 +175,35 @@ export function sessionEnv(base: Record<string, string | undefined>): Record<str
   }
   env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '0'
   return env
+}
+
+/** What a tool call would publish, when it pushes or opens a pull request; null otherwise. */
+export function publishing(tool: string, input: unknown): string | null {
+  if (tool === PR_TOOL) return 'open a pull request'
+  if (tool !== 'Bash') return null
+  const command = typeof input === 'object' && input !== null && 'command' in input ? String((input as { command: unknown }).command) : ''
+  return /\bgit\b(?:\s+-\S+(?:\s+\S+)?)*\s+push\b/.test(command) ? command.slice(0, 200) : null
+}
+
+/**
+ * start.sh's settings without the push and the pull request: their allow rules and the push's
+ * exclusion from the sandbox removed, both denied. Settings that are not a JSON object are
+ * returned as they are; the PreToolUse hook refuses either call regardless.
+ */
+export function withoutPublishing(settings: string): string {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(settings)
+  } catch {
+    return settings
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return settings
+  const s = parsed as { permissions?: { allow?: unknown; deny?: unknown }; sandbox?: { excludedCommands?: unknown } }
+  const isPublishing = (rule: unknown) => typeof rule === 'string' && (rule === PR_TOOL || /^Bash\(git push\b/.test(rule) || /^git push\b/.test(rule))
+  const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
+  s.permissions = { ...s.permissions, allow: list(s.permissions?.allow).filter((r) => !isPublishing(r)), deny: [...list(s.permissions?.deny), PUSH_RULE, PR_TOOL] }
+  if (s.sandbox?.excludedCommands !== undefined) s.sandbox.excludedCommands = list(s.sandbox.excludedCommands).filter((c) => !isPublishing(c))
+  return JSON.stringify(s)
 }
 
 /** The ending the last turn's result and the last rate-limit event give, when nothing aborted. */

@@ -20,13 +20,13 @@ function fakeRunner() {
 const temps: string[] = []
 afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }) })
 
-function setup() {
+function setup(preflight?: () => Promise<string | null>) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-loop-'))
   temps.push(dir)
   const db = openDb(':memory:')
   const fake = fakeRunner()
   const runsDir = path.join(dir, 'runs')
-  const loop = createLoop({ db, runner: fake.runner, runsDir, logDir: path.join(dir, 'logs') })
+  const loop = createLoop({ db, runner: fake.runner, runsDir, logDir: path.join(dir, 'logs'), preflight })
   const closeRun = (key: string, n: number, verdict: string) => {
     const runDir = path.join(runsDir, key, `run-${n}`)
     fs.mkdirSync(runDir, { recursive: true })
@@ -43,6 +43,34 @@ const ev = (e: Bare) => ({ ...e, at }) as SessionEvent
 const completed = ev({ type: 'ended', ending: { kind: 'completed', text: 'done', costUsd: 0 } })
 
 describe('loop', () => {
+  it('checks the entry point before a run: a refusal stops the loop and leaves the queue as it was', async () => {
+    let refusal: string | null = 'origin/master\'s start.sh has no PIPELINE_SESSION'
+    let checks = 0
+    const { db, fake, loop } = setup(async () => { checks += 1; return refusal })
+    loop.tick()
+    startLoop(db)
+    loop.tick()
+    expect(checks).toBe(0) // nothing queued, nothing to check
+    await enqueue(db, 'KAZ-1')
+    loop.tick()
+    loop.tick() // one check at a time
+    await loop.settled()
+    expect(checks).toBe(1)
+    expect(fake.calls).toHaveLength(0)
+    expect(loopState(db)).toMatchObject({ wanted: 'stopped', stoppedReason: 'entry-point', stoppedDetail: refusal })
+    expect(listQueue(db).map((i) => i.key)).toEqual(['KAZ-1'])
+
+    refusal = null
+    startLoop(db)
+    expect(loopState(db).stoppedDetail).toBeNull()
+    loop.tick()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(fake.last().key).toBe('KAZ-1')
+    expect(listQueue(db)).toEqual([])
+    fake.last().finish()
+    await loop.settled()
+  })
+
   it('starts nothing until started, then takes the queue head, records the stages, the ending and the verdict', async () => {
     const { db, fake, loop, closeRun } = setup()
     await enqueue(db, 'KAZ-1')

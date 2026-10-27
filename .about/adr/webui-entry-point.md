@@ -26,8 +26,38 @@ them as they are and asks for no new field.
 - `run.sh` makes the worktree from `origin/master`, and the worktree's own `start.sh` is what
   runs: until the `PIPELINE_SESSION` change is on `origin/master`, every run the service starts
   is run by the plain CLI, unwatched, to its pull request. Seen on 2026-10-27 (KAZ-7785 run-3,
-  PR #665): the service records such a run as `exited` with no event at all. The service must
-  not be started against a webui whose `origin/master` lacks that entry point.
+  PR #665): the service records such a run as `exited` with no event at all. Since then the
+  service checks before every run (below) instead of relying on the operator.
 
 - A change to `start.sh`'s arguments or to the run files is a change to the service; webui's
   ADR ticket-pipeline names those files as a contract.
+
+## During the code freeze (2026-10-27, amended)
+
+webui's code freeze keeps the `PIPELINE_SESSION` change (10a2022ee) off `origin/master` for
+about a week, and `origin/dev` is the same commit as `origin/master`. Instead of waiting, the
+service can take `start.sh` from another ref while the worktree stays `origin/master`'s:
+
+- Before every run, with the queue's head still queued, the service fetches origin and checks
+  the `start.sh` the run would go through. When it has no `PIPELINE_SESSION`, no run starts: the
+  loop stops with the reason `entry-point`, the console says why, the queue is untouched.
+- `PIPELINE_START_SH_REF=<ref>` (e.g. `pipeline-improvements`): the service writes
+  `origin/master`'s `run.sh` into `data/entry/` with its last line,
+  `exec tools/ticket-pipeline/start.sh "$@"`, pointed at that ref's `start.sh`, copied beside it.
+  The worktree, its branch, the agents, the skills and the confinement are still
+  `origin/master`'s; only the entry point is the ref's. If `run.sh` ever ends differently the
+  check refuses the run rather than guess.
+- `PIPELINE_PULL_REQUESTS=off`, the default while a ref is set: the session's settings lose the
+  push and the pull request (their allow rules and the push's sandbox exclusion; both denied)
+  and a PreToolUse hook refuses `git push` and `mcp__bitbucket__createPullRequest` whatever the
+  settings say, reporting each refusal as a `refused` event. A run then ends before its push,
+  `blocked:tooling` naming the refused call, with its commits on the local ticket branch: a
+  test run that cannot reach a pull request, as the freeze requires.
+
+Nothing is written into webui's tracked files, and webui's `master` gets no commit. Once
+`start.sh` with `PIPELINE_SESSION` is on `origin/master`, unset both variables: the check
+passes for webui's own `run.sh` and pull requests are on again.
+
+Considered: a branch pushed to origin with the entry point and `run.sh` started from it —
+`run.sh` takes the worktree from `origin/master` whatever branch it is run from, and a pushed
+branch is a change to webui during the freeze.
