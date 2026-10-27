@@ -1,6 +1,6 @@
 # Web console for the ticket pipeline
 
-Status: in progress (2026-10-27: queue, loop, CLI, API and console built; waiting for one real run through the loop)
+Status: in progress (2026-10-27: queue, loop, CLI, API and console built; first real run through the loop done, with start.sh from `pipeline-improvements` and pull requests off)
 
 ## Problem
 
@@ -138,7 +138,12 @@ What it shows:
   session's transcript. Checked on 2026-10-27 with one run of KAZ-7785 (run-2) through the SDK
   under the subscription's token: the token works, the Workflow tool, the sandbox settings, the
   project skills and agents load, every stage start and stop reached the hooks, and the session
-  stayed alive across the background workflow. Left open: the print-mode wait ceiling
+  stayed alive across the background workflow. The first run through the loop (2026-10-27,
+  KAZ-7785 run-4, start.sh from `pipeline-improvements`) did the same end to end: the stage
+  showed in the console, the session woke after the workflow's 7-minute investigation and closed
+  the run (`done:nothing-to-build`, the fix already on master), recorded `completed`. The
+  refusal of the push and the pull request was checked in a live session and in a subagent,
+  not yet in a run that reaches its push. Left open: the print-mode wait ceiling
   (`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, set to 0 in the run) was not exercised, since the
   session's idle wait was under 10 minutes; the service sets it to 0 and a longer run shows
   whether that is enough (a `turn` event arriving before the stage's stop would show it cut
