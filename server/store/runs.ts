@@ -29,6 +29,8 @@ export type LoopState = {
   stoppedReason: 'operator' | 'usage-limit' | 'restart' | null
   stoppedAt: string | null
   usageLimitResetsAt: number | null
+  /** When the loop was last started; null before the first start. */
+  startedAt: string | null
 }
 
 export type ServiceInfo = { pid: number; startedAt: string; seenAt: string }
@@ -96,17 +98,18 @@ export function requestCancel(db: Db, now: () => string = nowIso): { ok: true; r
 }
 
 export function loopState(db: Db): LoopState {
-  const row = db.prepare('SELECT wanted, stopped_reason, stopped_at, usage_limit_resets_at FROM loop WHERE id = 1').get()!
+  const row = db.prepare('SELECT wanted, stopped_reason, stopped_at, usage_limit_resets_at, started_at FROM loop WHERE id = 1').get()!
   return {
     wanted: row.wanted as LoopState['wanted'],
     stoppedReason: (row.stopped_reason as LoopState['stoppedReason']) ?? null,
     stoppedAt: (row.stopped_at as string | null) ?? null,
     usageLimitResetsAt: (row.usage_limit_resets_at as number | null) ?? null,
+    startedAt: (row.started_at as string | null) ?? null,
   }
 }
 
-export function startLoop(db: Db): void {
-  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = NULL, stopped_at = NULL, usage_limit_resets_at = NULL WHERE id = 1').run('running')
+export function startLoop(db: Db, now: () => string = nowIso): void {
+  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = NULL, stopped_at = NULL, usage_limit_resets_at = NULL, started_at = ? WHERE id = 1').run('running', now())
 }
 
 export function stopLoop(db: Db, reason: NonNullable<LoopState['stoppedReason']>, opts: { now?: () => string; usageLimitResetsAt?: number } = {}): void {

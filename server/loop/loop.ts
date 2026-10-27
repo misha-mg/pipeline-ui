@@ -84,12 +84,19 @@ export function createLoop(deps: LoopDeps): Loop {
     const log = fs.openSync(logPath, 'a')
     let ended: SessionEnding | null = null
     let events = 0
+    let runDir: string | null = null
     const handlers: RunnerHandlers = {
       tracePath,
       onOutput: (chunk) => fs.writeSync(log, chunk),
       onEvent: (event) => {
         events += 1
         addEvent(db, id, event)
+        // The run directory appears once the session has started: learn it early, so the
+        // console can show the run in flight beside its history entry.
+        if (!runDir) {
+          runDir = newRunDir(runsDir, key, before)
+          if (runDir) updateRun(db, id, { runDir })
+        }
         if (event.type === 'stage-start') updateRun(db, id, { stage: event.agent, stageSince: event.at })
         else if (event.type === 'stage-stop') updateRun(db, id, { stage: null, stageSince: null })
         else if (event.type === 'ended') ended = event.ending
@@ -105,7 +112,7 @@ export function createLoop(deps: LoopDeps): Loop {
     fs.closeSync(log)
     const aborted = controller.signal.aborted ? (controller.signal.reason as AbortCause) : null
     const { ending, detail } = endingOf(aborted, ended, exit, events)
-    const runDir = newRunDir(runsDir, key, before)
+    runDir ??= newRunDir(runsDir, key, before)
     const patch: Parameters<typeof updateRun>[2] = { ending, endingDetail: detail, endedAt: now(), runDir, stage: null, stageSince: null }
     if (runDir) {
       patch.verdict = readVerdict(runDir)

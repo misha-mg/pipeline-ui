@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS loop (
   wanted TEXT NOT NULL,
   stopped_reason TEXT,
   stopped_at TEXT,
-  usage_limit_resets_at INTEGER
+  usage_limit_resets_at INTEGER,
+  started_at TEXT
 );
 INSERT OR IGNORE INTO loop (id, wanted) VALUES (1, 'stopped');
 CREATE TABLE IF NOT EXISTS service (
