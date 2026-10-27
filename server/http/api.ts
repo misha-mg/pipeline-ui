@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 import type { Loop } from '../loop/loop.ts'
+import type { JiraSearch } from '../store/jira.ts'
 import type { Lookup } from '../store/queue.ts'
 import { enqueue, remove, reorder } from '../store/queue.ts'
 import { requestCancel, startLoop, stopLoop } from '../store/runs.ts'
@@ -14,6 +15,8 @@ import { historyView, runView, stateView, type ViewSources } from './view.ts'
 export type ApiDeps = ViewSources & {
   loop?: Pick<Loop, 'tick'>
   lookup?: (key: string) => Promise<Lookup>
+  /** The ticket search; without it the search answers that Jira is not configured. */
+  search?: (query: string) => Promise<JiraSearch>
   /** The directory with the built UI; nothing is served without it. */
   uiDir?: string
 }
@@ -59,6 +62,12 @@ async function handleApi(deps: ApiDeps, method: string, url: URL, body: unknown)
   if (method === 'GET' && segs.length === 4 && segs[1] === 'runs') {
     const run = runView(deps, segs[2]!, Number(segs[3]))
     return run ? ok(run) : bad('no such run', 404)
+  }
+  if (method === 'GET' && p === '/api/jira/search') {
+    const q = url.searchParams.get('q') ?? ''
+    if (q.length > 200) return bad('the query is longer than 200 characters')
+    if (!deps.search) return ok({ kind: 'unavailable', error: 'the ticket search is not set up' } satisfies JiraSearch)
+    return ok(await deps.search(q))
   }
   if (method === 'POST' && p === '/api/queue') {
     const { key, front } = asObject(body)

@@ -140,3 +140,29 @@ describe('api', () => {
     }
   })
 })
+
+describe('the ticket search', () => {
+  it('answers what the search found, refuses a long query, and says when it is not set up', async () => {
+    const { deps } = sources()
+    const asked: string[] = []
+    const search = async (q: string) => {
+      asked.push(q)
+      return { kind: 'found' as const, issues: [{ key: 'KAZ-1', summary: 'one', status: 'Open', statusCategory: 'new', type: 'Bug', priority: null, assignee: null, updated: null }] }
+    }
+    const api = await serve({ ...deps, search })
+    try {
+      const found = await api.call('GET', `/api/jira/search?q=${encodeURIComponent('search pane')}`)
+      expect(found).toMatchObject({ status: 200, body: { kind: 'found', issues: [{ key: 'KAZ-1' }] } })
+      expect(asked).toEqual(['search pane'])
+      expect((await api.call('GET', `/api/jira/search?q=${'x'.repeat(201)}`)).status).toBe(400)
+    } finally {
+      await api.close()
+    }
+    const bare = await serve(deps)
+    try {
+      expect(await bare.call('GET', '/api/jira/search?q=abc')).toMatchObject({ status: 200, body: { kind: 'unavailable' } })
+    } finally {
+      await bare.close()
+    }
+  })
+})

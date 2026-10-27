@@ -16,7 +16,8 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
   session's events (stages, rate limits, turns, the ending) as JSON lines on the file descriptor
   `PIPELINE_EVENTS_FD` names, stdout by default.
 - `server/store/` — the SQLite database (`node:sqlite`): the queue, the loop's state, the runs
-  the service started and their events; the Jira lookup for a queued ticket's summary.
+  the service started and their events; Jira (`jira.ts`): a queued ticket's summary and the
+  ticket search, read only.
 - `server/loop/` — the loop that takes the queue's head, checks the entry point (`entry.ts`) and
   runs it through `prepare-worktree.sh` (`runner.ts`), records what the session reports and how the run ended, and stops itself on
   the usage limit.
@@ -27,10 +28,11 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
   reads them), and the pull requests' states from Bitbucket, kept in the database.
 - `server/health.ts` — what the console depends on: `.pipeline-runs/`, the tmux session
   `batch.sh` uses, Jira, the device mock, Bitbucket.
-- `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`, the queue, loop
-  and cancel actions) and the built UI.
+- `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`,
+  `/api/jira/search?q=`, the queue, loop and cancel actions) and the built UI.
 - `ui/` — the console, Vue 3 + Vite: the loop and its Start/Stop, the run in flight, the queue,
-  the runs with counts and filters, each run's reports, the dependencies. It polls the API
+  the runs with counts and filters, each run's reports, the dependencies, the Jira search with
+  its results queued at the end or the front. It polls the API
   every 2 s (the history every 10 s), so two browsers show the same within 5 s.
 
 ## Run the service
@@ -68,6 +70,10 @@ Where things are, each with a default for the server: `PIPELINE_WEBUI` (the webu
 `PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_LAUNCH_SESSION_REF` (none: `origin/master`'s own launch script; `PIPELINE_START_SH_REF` is still read),
 `PIPELINE_PULL_REQUESTS` (`on`, or `off` when a ref is set). The secrets file is sourced inside the run, never
 printed.
+
+pipeline-ui's own secrets go in `.env` at the repository's root (gitignored; `.env.example`
+names them), read by `bin/pipeline` after the pipeline's file, so its values win: `JIRA_EMAIL`
+and `JIRA_API_TOKEN` for the summary lookup and the ticket search. Each machine keeps its own.
 
 ## Run one session by hand
 

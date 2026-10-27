@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import Frame from '../components/Frame.vue'
 import { fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageName, verdictClass, type Counts } from '../api.ts'
 import { actions, history, state } from '../console.ts'
+import { clearSearch, query, results, searchError, searching, searchNow, typed } from '../search.ts'
 
 const key = ref('')
 const loop = computed(() => state.value?.loop ?? null)
@@ -51,6 +52,24 @@ function move(index: number, by: number) {
   void actions.reorder(keys)
 }
 const runNumber = (dir: string | null) => dir?.match(/run-(\d+)$/)?.[1] ?? null
+
+// The search's rows beside what the console knows of each ticket: its place in the queue, the
+// run in flight, its latest run.
+const found = computed(() => (results.value ?? []).map((issue) => {
+  const position = queue.value.findIndex((q) => q.key === issue.key)
+  const lastRun = history.value?.runs.find((r) => r.key === issue.key) ?? null
+  return { issue, position: position === -1 ? null : position + 1, inFlight: inFlight.value?.key === issue.key, lastRun }
+}))
+const searchNote = computed(() => {
+  if (searchError.value) return `Jira cannot be searched: ${searchError.value}`
+  if (searching.value) return 'Searching Jira…'
+  if (results.value) return results.value.length ? `${results.value.length} found, the latest updated first${results.value.length === 20 ? '; the first 20 shown' : ''}.` : 'Nothing found.'
+  return 'A ticket key, or words from its summary, description or comments.'
+})
+const statusClass = (category: string | null) => (category === 'done' ? 'ok' : category === 'indeterminate' ? 'slate' : '')
+function queueFound(key: string, front: boolean) {
+  void actions.enqueue(key, front)
+}
 </script>
 
 <template>
@@ -117,7 +136,11 @@ const runNumber = (dir: string | null) => dir?.match(/run-(\d+)$/)?.[1] ?? null
         </div>
         <div class="block">
           <div class="label">Search tickets</div>
-          <input class="field" placeholder="Jira search — coming" disabled />
+          <div class="ctl">
+            <input id="jira-search" v-model="query" class="field" placeholder="KAZ-7785 or search pane" autocomplete="off" @input="typed()" @keyup.enter="searchNow()" @keyup.esc="clearSearch()" />
+            <button v-if="query" class="btn" @click="clearSearch()">Clear</button>
+          </div>
+          <p class="hint" :class="{ 'hint-bad': searchError }">{{ searchNote }}</p>
         </div>
       </Frame>
 
@@ -138,6 +161,31 @@ const runNumber = (dir: string | null) => dir?.match(/run-(\d+)$/)?.[1] ?? null
     </div>
 
     <div class="stack">
+      <Frame v-if="results && results.length" title="Jira search" :count="`${results.length} found`" note="Queue a ticket from here; its summary is read from Jira again as it is added.">
+        <template #right><button class="btn tiny" @click="clearSearch()">Clear</button></template>
+        <table class="sheet-table">
+          <thead><tr><th>Key</th><th>Summary</th><th>Status</th><th>Type</th><th>Assignee</th><th>Last run</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="row in found" :key="row.issue.key">
+              <td class="key"><a :href="`https://cgstowernetworks.atlassian.net/browse/${row.issue.key}`" target="_blank" rel="noopener">{{ row.issue.key }}</a></td>
+              <td class="summary">{{ row.issue.summary }}</td>
+              <td><span v-if="row.issue.status" class="pill" :class="statusClass(row.issue.statusCategory)">{{ row.issue.status }}</span></td>
+              <td class="dim">{{ row.issue.type ?? '' }}</td>
+              <td class="dim">{{ row.issue.assignee ?? '' }}</td>
+              <td><template v-if="row.lastRun"><a v-if="row.lastRun.path" :href="`#/runs/${row.lastRun.key}/${row.lastRun.number}`" class="pill" :class="verdictClass(row.lastRun.verdict)" style="text-decoration: none">{{ row.lastRun.verdict ?? row.lastRun.ending }}</a><span v-else class="pill">{{ row.lastRun.ending }}</span></template><span v-else class="dim">never run</span></td>
+              <td><div class="actions">
+                <span v-if="row.inFlight" class="pill slate">in flight</span>
+                <span v-if="row.position !== null" class="pill">queued #{{ row.position }}</span>
+                <template v-else>
+                  <button class="btn tiny" @click="queueFound(row.issue.key, false)">To end</button>
+                  <button class="btn tiny" @click="queueFound(row.issue.key, true)">To front</button>
+                </template>
+              </div></td>
+            </tr>
+          </tbody>
+        </table>
+      </Frame>
+
       <Frame title="Queue" :count="queue.length ? `${queue.length} queued` : 'empty'" note="In order; the loop takes the first one. A ticket already in flight or finished can be queued again and gets a new run.">
         <table v-if="queue.length" class="sheet-table">
           <thead><tr><th>#</th><th>Key</th><th>Summary</th><th></th></tr></thead>

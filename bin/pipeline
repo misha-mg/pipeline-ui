@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# The service and its command line (server/cli.ts). The pipeline's secrets are read here so the
-# Jira lookup has them; the run's own environment is read again inside the run (runner.ts).
+# The service and its command line (server/cli.ts). The pipeline's secrets (PIPELINE_ENV) are read
+# here, then pipeline-ui's own .env, whose values win: Jira for the summary lookup and the ticket
+# search. The run's own environment is read again inside the run (runner.ts).
 set -euo pipefail
+repo="$(dirname "$(readlink -f "$0")")/.."
 envfile="${PIPELINE_ENV:-$HOME/.config/webui-pipeline.env}"
 if [[ -f $envfile ]]; then set -a; . "$envfile"; set +a; fi
+if [[ -f $repo/.env ]]; then set -a; . "$repo/.env"; set +a; fi
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-exec node --no-warnings=ExperimentalWarning "$(dirname "$(readlink -f "$0")")/../server/cli.ts" "$@"
+exec node --no-warnings=ExperimentalWarning "$repo/server/cli.ts" "$@"
