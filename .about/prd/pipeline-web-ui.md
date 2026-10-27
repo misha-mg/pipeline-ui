@@ -28,9 +28,9 @@ its queue. Checked by asking the operator at the end of that week.
 
 A service of its own, in a repository next to `webui`, on the server the pipeline runs on. It
 owns the queue and starts each run with `tools/ticket-pipeline/run.sh`, as `batch.sh` does today;
-`webui` is not changed for it beyond one entry point in `start.sh`. Everything it shows comes from the run directories under
-`.pipeline-runs/`, from the session it drives through the Claude Agent SDK, and from its own
-records.
+`webui` is not changed for it beyond one entry point in `start.sh`. Everything it shows comes
+from the run directories under `.pipeline-runs/`, from the session it drives through the Claude
+Agent SDK, and from its own records.
 
 - A queue of tickets, in order, that the service takes from one at a time, one run at a time. The
   queue outlives the service and the server's reboot.
