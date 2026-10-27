@@ -23,5 +23,11 @@ them as they are and asks for no new field.
 
 ## Consequences
 
+- `run.sh` makes the worktree from `origin/master`, and the worktree's own `start.sh` is what
+  runs: until the `PIPELINE_SESSION` change is on `origin/master`, every run the service starts
+  is run by the plain CLI, unwatched, to its pull request. Seen on 2026-10-27 (KAZ-7785 run-3,
+  PR #665): the service records such a run as `exited` with no event at all. The service must
+  not be started against a webui whose `origin/master` lacks that entry point.
+
 - A change to `start.sh`'s arguments or to the run files is a change to the service; webui's
   ADR ticket-pipeline names those files as a contract.

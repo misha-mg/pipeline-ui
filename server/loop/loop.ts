@@ -83,10 +83,12 @@ export function createLoop(deps: LoopDeps): Loop {
     const before = runDirsOf(runsDir, key)
     const log = fs.openSync(logPath, 'a')
     let ended: SessionEnding | null = null
+    let events = 0
     const handlers: RunnerHandlers = {
       tracePath,
       onOutput: (chunk) => fs.writeSync(log, chunk),
       onEvent: (event) => {
+        events += 1
         addEvent(db, id, event)
         if (event.type === 'stage-start') updateRun(db, id, { stage: event.agent, stageSince: event.at })
         else if (event.type === 'stage-stop') updateRun(db, id, { stage: null, stageSince: null })
@@ -102,7 +104,7 @@ export function createLoop(deps: LoopDeps): Loop {
     }
     fs.closeSync(log)
     const aborted = controller.signal.aborted ? (controller.signal.reason as AbortCause) : null
-    const { ending, detail } = endingOf(aborted, ended, exit)
+    const { ending, detail } = endingOf(aborted, ended, exit, events)
     const runDir = newRunDir(runsDir, key, before)
     const patch: Parameters<typeof updateRun>[2] = { ending, endingDetail: detail, endedAt: now(), runDir, stage: null, stageSince: null }
     if (runDir) {
@@ -129,12 +131,18 @@ export function createLoop(deps: LoopDeps): Loop {
   }
 }
 
-/** The run's ending from why it was aborted, what the session reported and how run.sh exited. */
-export function endingOf(aborted: AbortCause | null, ended: SessionEnding | null, exit: RunExit): { ending: Ending; detail: string | null } {
+/**
+ * The run's ending from why it was aborted, what the session reported and how run.sh exited.
+ * A run that exits without one event means the session program never ran: the worktree's
+ * start.sh has no PIPELINE_SESSION (it comes from origin/master), so the plain CLI ran the
+ * ticket unwatched.
+ */
+export function endingOf(aborted: AbortCause | null, ended: SessionEnding | null, exit: RunExit, events = 1): { ending: Ending; detail: string | null } {
   if (aborted) return { ending: aborted, detail: ended ? `the session reported ${ended.kind}` : 'the session reported no ending' }
   if (!ended) {
     const how = exit.signal ? `signal ${exit.signal}` : `code ${exit.code ?? 'unknown'}`
-    return { ending: 'exited', detail: `run.sh exited with ${how} before the session reported an ending` }
+    const why = events === 0 ? '; no event arrived at all, so the session program was not run (start.sh without PIPELINE_SESSION?)' : ''
+    return { ending: 'exited', detail: `run.sh exited with ${how} before the session reported an ending${why}` }
   }
   switch (ended.kind) {
     case 'completed':

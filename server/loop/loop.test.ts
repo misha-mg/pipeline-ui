@@ -152,7 +152,7 @@ describe('loop', () => {
     expect(fake.last().key).toBe('KAZ-4')
     expect(getRun(db, 1)).toMatchObject({ ending: 'error', endingDetail: 'API Error: 529' })
     expect(getRun(db, 2)).toMatchObject({ ending: 'timeout' })
-    expect(getRun(db, 3)).toMatchObject({ ending: 'exited', endingDetail: expect.stringContaining('code 2') })
+    expect(getRun(db, 3)).toMatchObject({ ending: 'exited', endingDetail: expect.stringMatching(/code 2.*no event arrived/) })
   })
 
   it('cancel aborts the run in flight on the next tick, records it cancelled with its stage, and the next starts', async () => {
@@ -210,5 +210,6 @@ describe('endingOf', () => {
     expect(endingOf(null, { kind: 'no-result' }, exit0)).toMatchObject({ ending: 'no-result' })
     expect(endingOf(null, { kind: 'aborted', reason: 'cancelled' }, exit0)).toMatchObject({ ending: 'cancelled' })
     expect(endingOf(null, null, { code: null, signal: 'SIGKILL' })).toMatchObject({ ending: 'exited', detail: expect.stringContaining('SIGKILL') })
+    expect(endingOf(null, null, { code: 0, signal: null }, 0).detail).toContain('session program was not run')
   })
 })

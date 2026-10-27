@@ -26,6 +26,10 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
 
 ## Run the service
 
+Only once `tools/ticket-pipeline/start.sh` with `PIPELINE_SESSION` is on webui's `origin/master`:
+`run.sh` makes each run's worktree from there, and an older `start.sh` runs the plain CLI
+instead, unwatched and to a pull request (ADR webui-entry-point).
+
 ```bash
 bin/pipeline serve            # one per database; reads ~/.config/webui-pipeline.env itself
 bin/pipeline enqueue KAZ-1234 # the summary comes from Jira (JIRA_EMAIL, JIRA_API_TOKEN)
