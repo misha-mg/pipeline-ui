@@ -37,17 +37,34 @@ export const api = {
 }
 
 export function fmtDuration(seconds: number | null): string {
-  if (seconds === null) return '-'
+  if (seconds === null) return '—'
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   const s = seconds % 60
   return h ? `${h}h ${String(m).padStart(2, '0')}m` : m ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`
 }
 
+/** Local time as `2026-10-14 21:00`. */
 export function fmtTime(iso: string | null): string {
-  if (!iso) return '-'
+  if (!iso) return '—'
   const d = new Date(iso)
-  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+export function fmtClock(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+export function verdictClass(v: string | null): string {
+  if (!v) return 'verdict-none'
+  return v.startsWith('done') ? 'verdict-done' : v.startsWith('blocked') ? 'verdict-blocked' : v.startsWith('failed') ? 'verdict-failed' : 'verdict-none'
+}
+
+export function prNumber(url: string): string {
+  return url.match(/(\d+)$/)?.[1] ?? ''
 }
 
 export function fmtAgo(iso: string | null, now: string): string {

@@ -18,6 +18,8 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.311"
   },
   "devDependencies": {
+    "@fontsource/barlow": "^5.3.0",
+    "@fontsource/barlow-condensed": "^5.3.0",
     "@types/node": "^24",
     "@vitejs/plugin-vue": "^6.0.10",
     "typescript": "^5.9",
