@@ -41,7 +41,7 @@ export function createServer(deps: ApiDeps): http.Server {
   })
 }
 
-export async function handleApi(deps: ApiDeps, method: string, url: URL, body: unknown): Promise<Reply> {
+async function handleApi(deps: ApiDeps, method: string, url: URL, body: unknown): Promise<Reply> {
   const p = url.pathname
   const ok = (body: unknown): Reply => ({ status: 200, body })
   const bad = (message: string, status = 400): Reply => ({ status, body: { message } })

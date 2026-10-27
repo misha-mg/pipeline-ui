@@ -16,7 +16,7 @@ export type PullRequestState = {
 
 export type BitbucketConfig = { token: string }
 
-export const MAX_AGE_MS = 10 * 60 * 1000
+const MAX_AGE_MS = 10 * 60 * 1000
 const TIMEOUT_MS = 10_000
 const PER_ROUND = 50
 const PR_URL = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/pull-requests\/(\d+)$/
@@ -25,7 +25,7 @@ export function bitbucketConfig(env: Record<string, string | undefined>): Bitbuc
   return env.BITBUCKET_TOKEN ? { token: env.BITBUCKET_TOKEN } : null
 }
 
-export function ensurePullRequestTable(db: Db): void {
+function ensurePullRequestTable(db: Db): void {
   db.exec(`CREATE TABLE IF NOT EXISTS pull_requests (
     url TEXT PRIMARY KEY, state TEXT NOT NULL, closed_on TEXT, fetched_at TEXT, error TEXT
   )`)
@@ -38,7 +38,7 @@ export function pullRequestStates(db: Db): Map<string, PullRequestState> {
   return new Map(rows.map((r) => [r.url as string, { url: r.url as string, state: r.state as string, closedOn: (r.closed_on as string | null) ?? null, fetchedAt: (r.fetched_at as string | null) ?? null, error: (r.error as string | null) ?? null }]))
 }
 
-export function isFinal(state: string): boolean {
+function isFinal(state: string): boolean {
   return state === 'MERGED' || state === 'DECLINED' || state === 'SUPERSEDED'
 }
 

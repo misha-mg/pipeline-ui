@@ -100,7 +100,7 @@ export function runView(src: ViewSources, key: string, number: number): (ShownRu
 }
 
 /** `done`, `blocked`, `failed`: the part before the colon. */
-export function verdictFamily(verdict: string | null): string | null {
+function verdictFamily(verdict: string | null): string | null {
   return verdict ? verdict.split(':')[0]! : null
 }
 

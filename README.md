@@ -58,7 +58,9 @@ printed.
 
 ## Run one session by hand
 
-The same way the service will, from the `webui` checkout, with the pipeline's secrets loaded:
+The same way the service does, from the `webui` checkout, with the pipeline's secrets loaded.
+Mind that `run.sh` builds the worktree from `origin/master`: the worktree's `start.sh` must
+already know `PIPELINE_SESSION`, or the plain CLI runs the ticket instead (ADR webui-entry-point).
 
 ```bash
 set -a; . ~/.config/webui-pipeline.env; set +a; unset ANTHROPIC_API_KEY

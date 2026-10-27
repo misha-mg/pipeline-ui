@@ -51,7 +51,7 @@ export function loadRuns(runsDir: string): HistoryRun[] {
   return runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.number - a.number)
 }
 
-export function loadRun(runDir: string, key: string, number: number): HistoryRun {
+function loadRun(runDir: string, key: string, number: number): HistoryRun {
   const files = safeReaddir(runDir)
   const assignment = readText(path.join(runDir, '00-assignment.md'))
   const state = readText(path.join(runDir, 'state.md'))

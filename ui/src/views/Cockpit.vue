@@ -76,6 +76,11 @@ const runNumber = (dir: string | null) => dir?.match(/run-(\d+)$/)?.[1] ?? null
       <div class="note">{{ state ? breakdown(state.counts.lastBatch) : '' }}</div>
     </Frame>
     <Frame class="card">
+      <div class="label">Last 7 days</div>
+      <div class="value">{{ state ? total(state.counts.last7Days) : '—' }}</div>
+      <div class="note">{{ state ? breakdown(state.counts.last7Days) : '' }}</div>
+    </Frame>
+    <Frame class="card">
       <div class="label">Runs to date</div>
       <div class="value">{{ allTime.n }}</div>
       <div class="note">{{ fmtDuration(allTime.total) }} in all · avg {{ fmtDuration(allTime.avg) }}<br />Every run under .pipeline-runs, verdict as state.md says.</div>

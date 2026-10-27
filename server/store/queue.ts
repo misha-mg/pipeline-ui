@@ -13,9 +13,9 @@ export type QueueRefusal =
 
 export type Lookup = { kind: 'found'; summary: string } | { kind: 'not-found' } | { kind: 'unavailable'; error: string }
 
-export const TICKET_KEY = /^[A-Z]+-\d+$/
+const TICKET_KEY = /^[A-Z]+-\d+$/
 
-export function isTicketKey(key: string): boolean {
+function isTicketKey(key: string): boolean {
   return TICKET_KEY.test(key)
 }
 
@@ -28,7 +28,7 @@ export function queueHead(db: Db): QueueItem | null {
   return row ? itemOf(row) : null
 }
 
-export function isQueued(db: Db, key: string): boolean {
+function isQueued(db: Db, key: string): boolean {
   return db.prepare('SELECT 1 FROM queue WHERE key = ?').get(key) !== undefined
 }
 

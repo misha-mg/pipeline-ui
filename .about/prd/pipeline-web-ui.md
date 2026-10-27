@@ -1,6 +1,6 @@
 # Web console for the ticket pipeline
 
-Status: proposed
+Status: in progress (2026-10-27: queue, loop, CLI, API and console built; waiting for one real run through the loop)
 
 ## Problem
 
@@ -125,8 +125,11 @@ What it shows:
 ## Open questions
 
 - Vocabulary: "run", "queue", "loop", "in flight", "verdict", "ending" are used here;
-  Instrumenta's "attempt", "Pick", "Minion", "Foreman" are not. Settled in the service's own
-  glossary when it is built.
+  Instrumenta's "attempt", "Pick", "Minion", "Foreman" are not. Settled in `.about/glossary.md`.
+- The service can only drive a session once `start.sh` with `PIPELINE_SESSION` is on webui's
+  `origin/master`: `run.sh` builds every worktree from there, and an older `start.sh` runs the
+  plain CLI unwatched, to a pull request (2026-10-27, KAZ-7785 run-3; ADR webui-entry-point).
+  Until then the console is checked against the existing run directories only.
 - The session is driven through the Claude Agent SDK (stages from its SubagentStart/Stop hooks,
   endings from its typed result and rate-limit events) instead of a tmux window and the
   session's transcript. Checked on 2026-10-27 with one run of KAZ-7785 (run-2) through the SDK
@@ -135,5 +138,6 @@ What it shows:
   stayed alive across the background workflow. Left open: the print-mode wait ceiling
   (`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, set to 0 in the run) was not exercised, since the
   session's idle wait was under 10 minutes; the service sets it to 0 and a longer run shows
-  whether that is enough. If the token were ever refused, the fallback is a tmux window and the
+  whether that is enough (a `turn` event arriving before the stage's stop would show it cut
+  the wait short). If the token were ever refused, the fallback is a tmux window and the
   transcript, as `batch.sh` does today.

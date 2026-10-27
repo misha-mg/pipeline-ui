@@ -13,7 +13,7 @@ export const offline = ref(false)
 let stateTimer: ReturnType<typeof setInterval> | undefined
 let historyTimer: ReturnType<typeof setInterval> | undefined
 
-export async function refreshState(): Promise<void> {
+async function refreshState(): Promise<void> {
   try {
     state.value = await api.state()
     offline.value = false
@@ -22,7 +22,7 @@ export async function refreshState(): Promise<void> {
   }
 }
 
-export async function refreshHistory(): Promise<void> {
+async function refreshHistory(): Promise<void> {
   try {
     history.value = await api.runs({ verdict: filter.value.verdict || undefined, ending: filter.value.ending || undefined })
   } catch {
@@ -43,7 +43,7 @@ export function stopPolling(): void {
 }
 
 /** Runs an action, shows its refusal or warning, and refreshes what it changed. */
-export async function act(fn: () => Promise<unknown>): Promise<void> {
+async function act(fn: () => Promise<unknown>): Promise<void> {
   error.value = null
   try {
     const result = (await fn()) as { warning?: string } | undefined
