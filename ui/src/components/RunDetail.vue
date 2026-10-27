@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { api, fmtDuration, fmtTime, type RunFiles } from '../api.ts'
 
 const props = defineProps<{ target: { key: string; number: number } }>()
 const emit = defineEmits<{ close: [] }>()
+const root = ref<HTMLElement | null>(null)
 const run = ref<RunFiles | null>(null)
 const error = ref<string | null>(null)
 
@@ -12,6 +13,8 @@ watch(() => props.target, async (t) => {
   error.value = null
   try {
     run.value = await api.run(t.key, t.number)
+    await nextTick()
+    root.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   } catch (e) {
     error.value = String(e)
   }
@@ -19,7 +22,7 @@ watch(() => props.target, async (t) => {
 </script>
 
 <template>
-  <div>
+  <div ref="root">
     <div class="row">
       <h2 style="margin: 0">{{ target.key }} run-{{ target.number }}</h2>
       <span style="flex: 1" />
@@ -36,7 +39,7 @@ watch(() => props.target, async (t) => {
         <span v-if="run.reason" class="muted">reason: {{ run.reason }}</span>
       </div>
       <div class="stages" style="margin-bottom: 10px">
-        <span v-for="(s, i) in run.stages" :key="i" class="pill" :title="s.agent ?? ''">{{ s.label }}<template v-if="s.seconds !== null"> {{ fmtDuration(s.seconds) }}</template><template v-if="s.result"> · {{ s.result }}</template></span>
+        <span v-for="(s, i) in run.stages" :key="i" class="pill" :title="s.agent ?? ''">{{ s.label }}<template v-if="s.seconds !== null">&nbsp;{{ fmtDuration(s.seconds) }}</template><template v-if="s.result">&nbsp;· {{ s.result }}</template></span>
       </div>
       <div v-if="run.path" class="muted" style="margin-bottom: 8px">{{ run.path }}</div>
       <details v-for="f in run.files" :key="f.name" :open="f.name === 'state.md'">

@@ -18,7 +18,7 @@ export type BitbucketConfig = { token: string }
 
 export const MAX_AGE_MS = 10 * 60 * 1000
 const TIMEOUT_MS = 10_000
-const PER_ROUND = 20
+const PER_ROUND = 50
 const PR_URL = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/pull-requests\/(\d+)$/
 
 export function bitbucketConfig(env: Record<string, string | undefined>): BitbucketConfig | null {

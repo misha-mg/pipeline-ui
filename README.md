@@ -23,6 +23,15 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
 - `server/cli.ts`, `bin/pipeline` — the service (`pipeline serve`) and the commands that drive
   it through the database: `enqueue`, `remove`, `reorder`, `list`, `start`, `stop`, `cancel`,
   `status`, `runs`, `events`.
+- `server/history/` — every run under `.pipeline-runs/` as its files tell it (as `pipeline-tui`
+  reads them), and the pull requests' states from Bitbucket, kept in the database.
+- `server/health.ts` — what the console depends on: `.pipeline-runs/`, the tmux session
+  `batch.sh` uses, Jira, the device mock, Bitbucket.
+- `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`, the queue, loop
+  and cancel actions) and the built UI.
+- `ui/` — the console, Vue 3 + Vite: the loop and its Start/Stop, the run in flight, the queue,
+  the runs with counts and filters, each run's reports, the dependencies. It polls the API
+  every 2 s (the history every 10 s), so two browsers show the same within 5 s.
 
 ## Run the service
 
@@ -56,11 +65,16 @@ set -a; . ~/.config/webui-pipeline.env; set +a; unset ANTHROPIC_API_KEY
 PIPELINE_SESSION=/home/cgs/npb/pipeline-ui/bin/session tools/ticket-pipeline/run.sh KAZ-1234
 ```
 
+The console is at `http://<server>:8787/` (`PIPELINE_HOST`, `PIPELINE_PORT`) once the UI is
+built with `npm run build`; without the build the service serves the API alone. `npm run dev`
+serves the UI from Vite with the API proxied to a running service.
+
 ## Checks
 
 ```bash
-npm run check   # tsc
+npm run check   # tsc for the server, vue-tsc for the UI
 npm test        # vitest
+npm run build   # the UI into ui/dist, which the service serves
 ```
 
 Node 24 runs the TypeScript directly; there is no build step for the server.
