@@ -4,7 +4,7 @@ import type { HistoryFilter, ShownRun, StateView } from '../../server/http/view.
 import type { JiraSearch } from '../../server/store/jira.ts'
 
 export type { Counts, ShownRun, StateView } from '../../server/http/view.ts'
-export type { JiraIssue, JiraSearch } from '../../server/store/jira.ts'
+export type { JiraIssue, JiraSearch, SearchScope } from '../../server/store/jira.ts'
 export type RunFiles = ShownRun & { files: { name: string; text: string }[] }
 export type History = { runs: ShownRun[]; verdicts: Record<string, number>; endings: Record<string, number> }
 
@@ -30,7 +30,7 @@ export const api = {
     return call<History>('GET', `/api/runs${q.size ? `?${q}` : ''}`)
   },
   run: (key: string, number: number) => call<RunFiles>('GET', `/api/runs/${key}/${number}`),
-  search: (q: string) => call<JiraSearch>('GET', `/api/jira/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, next?: string) => call<JiraSearch>('GET', `/api/jira/search?q=${encodeURIComponent(q)}${next ? `&next=${encodeURIComponent(next)}` : ''}`),
   enqueue: (key: string, front: boolean) => call<{ ok: true; warning?: string }>('POST', '/api/queue', { key, front }),
   remove: (key: string) => call<{ ok: true }>('DELETE', `/api/queue/${key}`),
   reorder: (keys: string[]) => call<{ ok: true }>('PUT', '/api/queue/order', { keys }),

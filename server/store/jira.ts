@@ -21,12 +21,27 @@ export type JiraIssue = {
   updated: string | null
 }
 
-export type JiraSearch = { kind: 'found'; issues: JiraIssue[] } | { kind: 'unavailable'; error: string }
+/** What was typed, as the search reads it: one ticket, or words, in one project or in all. */
+export type SearchScope = { key: string } | { project: string | null; words: string | null }
+
+export type JiraSearch =
+  | {
+      kind: 'found'
+      scope: SearchScope | null
+      issues: JiraIssue[]
+      /** How many tickets match, as Jira counts them; null when it could not say. */
+      total: number | null
+      /** The token for the next page; null on the last one. */
+      next: string | null
+    }
+  | { kind: 'unavailable'; error: string }
 
 const DEFAULT_SITE_URL = 'https://cgstowernetworks.atlassian.net'
 const TIMEOUT_MS = 10_000
 const SEARCH_LIMIT = 20
 const SEARCH_FIELDS = ['summary', 'status', 'issuetype', 'priority', 'assignee', 'updated']
+/** How long the list of project keys is kept before it is read again. */
+const PROJECTS_MAX_AGE_MS = 60 * 60 * 1000
 const KEY = /^[A-Za-z][A-Za-z0-9]*-\d+$/
 /** What Jira's text search treats as syntax; a query is searched for as words. */
 const TEXT_SYNTAX = /[+\-&|!(){}[\]^~*?\\:"/]/g
@@ -85,31 +100,70 @@ export function jiraLookup(config: JiraConfig | null, fetchFn: typeof fetch = fe
 }
 
 /**
- * The JQL for what was typed: a ticket key finds that ticket, anything else is searched for as
- * words in the summary, description and comments; the most recently updated first. Null when
- * there is nothing to search for.
+ * What was typed, read against Jira's project keys: a ticket key is that ticket; a project key
+ * first (`KAZ`, `kaz search pane`) keeps the search to that project, with the words after it if
+ * any; anything else is words searched in every project. Null when there is nothing to search.
  */
-export function searchJql(query: string): string | null {
+export function searchScope(query: string, projects: ReadonlySet<string>): SearchScope | null {
   const q = query.trim()
-  if (KEY.test(q)) return `key = ${q.toUpperCase()}`
-  const words = q.replace(TEXT_SYNTAX, ' ').replace(/\s+/g, ' ').trim()
-  if (words.length < 2) return null
-  return `text ~ "${words}" ORDER BY updated DESC`
+  if (KEY.test(q)) return { key: q.toUpperCase() }
+  const [first = '', ...rest] = q.split(/\s+/)
+  const project = projects.has(first.toUpperCase()) ? first.toUpperCase() : null
+  const text = (project ? rest.join(' ') : q).replace(TEXT_SYNTAX, ' ').replace(/\s+/g, ' ').trim()
+  const words = text.length >= 2 ? text : null
+  if (!project && !words) return null
+  return { project, words }
 }
 
-export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (query: string) => Promise<JiraSearch> {
+/** The JQL for a scope: the most recently updated first. */
+export function scopeJql(scope: SearchScope): string {
+  if ('key' in scope) return `key = ${scope.key}`
+  const where = [scope.project ? `project = ${scope.project}` : null, scope.words ? `text ~ "${scope.words}"` : null].filter(Boolean)
+  return `${where.join(' AND ')} ORDER BY updated DESC`
+}
+
+export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (query: string, next?: string) => Promise<JiraSearch> {
   const call = jiraClient(config, fetchFn)
-  return async (query) => {
-    const jql = searchJql(query)
-    if (!jql) return { kind: 'found', issues: [] }
-    const res = await call('/search/jql', { method: 'POST', body: { jql, fields: SEARCH_FIELDS, maxResults: SEARCH_LIMIT } })
+  let projects: { keys: Set<string>; at: number } | null = null
+  const projectKeys = async (): Promise<Set<string>> => {
+    if (projects && Date.now() - projects.at < PROJECTS_MAX_AGE_MS) return projects.keys
+    const res = await call('/project/search?maxResults=100&fields=key')
+    if (typeof res === 'string' || !res.ok) return projects?.keys ?? new Set()
+    try {
+      const body = (await res.json()) as { values?: { key?: unknown }[] }
+      const keys = new Set((body.values ?? []).map((v) => v.key).filter((k): k is string => typeof k === 'string'))
+      projects = { keys, at: Date.now() }
+      return keys
+    } catch {
+      return projects?.keys ?? new Set()
+    }
+  }
+  const count = async (jql: string): Promise<number | null> => {
+    const res = await call('/search/approximate-count', { method: 'POST', body: { jql: jql.replace(/ ORDER BY .*$/, '') } })
+    if (typeof res === 'string' || !res.ok) return null
+    try {
+      const body = (await res.json()) as { count?: unknown }
+      return typeof body.count === 'number' ? body.count : null
+    } catch {
+      return null
+    }
+  }
+  return async (query, next) => {
+    const scope = searchScope(query, await projectKeys())
+    if (!scope) return { kind: 'found', scope: null, issues: [], total: 0, next: null }
+    const jql = scopeJql(scope)
+    const body: Record<string, unknown> = { jql, fields: SEARCH_FIELDS, maxResults: SEARCH_LIMIT }
+    if (next) body.nextPageToken = next
+    const [res, total] = await Promise.all([call('/search/jql', { method: 'POST', body }), 'key' in scope || next ? Promise.resolve(null) : count(jql)])
     if (typeof res === 'string') return { kind: 'unavailable', error: res }
     // A key Jira does not know is a 400 for `key = ...`: nothing found, not an outage.
-    if (res.status === 400 && jql.startsWith('key = ')) return { kind: 'found', issues: [] }
+    if (res.status === 400 && 'key' in scope) return { kind: 'found', scope, issues: [], total: 0, next: null }
     if (!res.ok) return { kind: 'unavailable', error: `Jira answered ${res.status}` }
     try {
-      const body = (await res.json()) as { issues?: unknown }
-      return { kind: 'found', issues: Array.isArray(body.issues) ? body.issues.map(issueOf).filter((i): i is JiraIssue => i !== null) : [] }
+      const page = (await res.json()) as { issues?: unknown; nextPageToken?: unknown; isLast?: unknown }
+      const issues = Array.isArray(page.issues) ? page.issues.map(issueOf).filter((i): i is JiraIssue => i !== null) : []
+      const token = typeof page.nextPageToken === 'string' && page.isLast !== true ? page.nextPageToken : null
+      return { kind: 'found', scope, issues, total: 'key' in scope ? issues.length : total, next: token }
     } catch (error) {
       return { kind: 'unavailable', error: error instanceof Error ? error.message : String(error) }
     }

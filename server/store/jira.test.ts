@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { jiraLookup, jiraSearch, searchJql, type JiraConfig } from './jira.ts'
+import { jiraLookup, jiraSearch, scopeJql, searchScope, type JiraConfig } from './jira.ts'
 
 const CONFIG: JiraConfig = { siteUrl: 'https://site.example', email: 'e@x', token: 't' }
 
@@ -23,23 +23,47 @@ const issue = (key: string, over: Record<string, unknown> = {}) => ({
   },
 })
 
-describe('searchJql', () => {
-  it('finds a key as that ticket and anything else as words, without Jira\'s text syntax', () => {
-    expect(searchJql(' kaz-7785 ')).toBe('key = KAZ-7785')
-    expect(searchJql('search pane')).toBe('text ~ "search pane" ORDER BY updated DESC')
-    expect(searchJql('can\'t "search" (ranges) a-b*')).toBe('text ~ "can\'t search ranges a b" ORDER BY updated DESC')
-    expect(searchJql('')).toBeNull()
-    expect(searchJql(' x ')).toBeNull()
-    expect(searchJql('***')).toBeNull()
+const PROJECTS = new Set(['KAZ', 'RPG'])
+
+describe('searchScope', () => {
+  it('reads a key as that ticket, a project key first as that project, and the rest as words without Jira\'s text syntax', () => {
+    expect(searchScope(' kaz-7785 ', PROJECTS)).toEqual({ key: 'KAZ-7785' })
+    expect(searchScope('KAZ', PROJECTS)).toEqual({ project: 'KAZ', words: null })
+    expect(searchScope('rpg search pane', PROJECTS)).toEqual({ project: 'RPG', words: 'search pane' })
+    expect(searchScope('search pane', PROJECTS)).toEqual({ project: null, words: 'search pane' })
+    expect(searchScope('DM', PROJECTS)).toEqual({ project: null, words: 'DM' })
+    expect(searchScope('can\'t "search" (ranges) a-b*', PROJECTS)).toEqual({ project: null, words: 'can\'t search ranges a b' })
+    expect(searchScope('', PROJECTS)).toBeNull()
+    expect(searchScope(' x ', PROJECTS)).toBeNull()
+    expect(searchScope('***', PROJECTS)).toBeNull()
+  })
+
+  it('makes the JQL, the latest updated first', () => {
+    expect(scopeJql({ key: 'KAZ-1' })).toBe('key = KAZ-1')
+    expect(scopeJql({ project: 'KAZ', words: null })).toBe('project = KAZ ORDER BY updated DESC')
+    expect(scopeJql({ project: 'KAZ', words: 'search pane' })).toBe('project = KAZ AND text ~ "search pane" ORDER BY updated DESC')
+    expect(scopeJql({ project: null, words: 'search pane' })).toBe('text ~ "search pane" ORDER BY updated DESC')
   })
 })
 
+/** A Jira with the projects KAZ and RPG, a count of 201, and `search` answering /search/jql. */
+const searchingJira = (search: (body: Record<string, unknown>) => Response, count: () => Response = () => Response.json({ count: 201 })) =>
+  fakeJira((p, init) => {
+    if (p.startsWith('/project/search')) return Response.json({ values: [{ key: 'KAZ' }, { key: 'RPG' }] })
+    if (p === '/search/approximate-count') return count()
+    if (p === '/search/jql') return search(JSON.parse(String(init.body)) as Record<string, unknown>)
+    return new Response('', { status: 404 })
+  })
+
 describe('jiraSearch', () => {
-  it('posts the JQL through the cloud id and lists the issues with their status, type and assignee', async () => {
-    const jira = fakeJira((p) => (p === '/search/jql' ? Response.json({ issues: [issue('KAZ-1'), issue('KAZ-2', { assignee: null, status: null })] }) : new Response('', { status: 404 })))
+  it('posts the JQL through the cloud id and lists the issues with their status, type and assignee, the count and the next page', async () => {
+    const jira = searchingJira(() => Response.json({ issues: [issue('KAZ-1'), issue('KAZ-2', { assignee: null, status: null })], nextPageToken: 'p2', isLast: false }))
     const found = await jiraSearch(CONFIG, jira.fetchFn)('search pane')
     expect(found).toEqual({
       kind: 'found',
+      scope: { project: null, words: 'search pane' },
+      total: 201,
+      next: 'p2',
       issues: [
         { key: 'KAZ-1', summary: 'summary of KAZ-1', status: 'In Progress', statusCategory: 'indeterminate', type: 'Bug', priority: 'High', assignee: 'A Person', updated: '2026-10-27T10:00:00.000+0000' },
         { key: 'KAZ-2', summary: 'summary of KAZ-2', status: null, statusCategory: null, type: 'Bug', priority: 'High', assignee: null, updated: '2026-10-27T10:00:00.000+0000' },
@@ -48,19 +72,36 @@ describe('jiraSearch', () => {
     const post = jira.calls.find((c) => c.url.endsWith('/search/jql'))!
     expect(post.init.method).toBe('POST')
     expect(JSON.parse(String(post.init.body))).toMatchObject({ jql: 'text ~ "search pane" ORDER BY updated DESC', maxResults: 20 })
+    expect(JSON.parse(String(jira.calls.find((c) => c.url.endsWith('/approximate-count'))!.init.body))).toEqual({ jql: 'text ~ "search pane"' })
     expect((post.init.headers as Record<string, string>).Authorization).toBe(`Basic ${Buffer.from('e@x:t').toString('base64')}`)
   })
 
-  it('finds nothing for a key Jira does not know, and nothing without asking for a query too short', async () => {
-    const jira = fakeJira(() => Response.json({ errorMessages: ['An issue with key \'KAZ-999999\' does not exist'] }, { status: 400 }))
-    expect(await jiraSearch(CONFIG, jira.fetchFn)('KAZ-999999')).toEqual({ kind: 'found', issues: [] })
-    const before = jira.calls.length
-    expect(await jiraSearch(CONFIG, jira.fetchFn)('a')).toEqual({ kind: 'found', issues: [] })
-    expect(jira.calls.length).toBe(before)
+  it('keeps a project key to its project, asks for the next page by its token, and reads the projects once', async () => {
+    const bodies: Record<string, unknown>[] = []
+    const jira = searchingJira((b) => { bodies.push(b); return Response.json({ issues: [issue('KAZ-3')], isLast: true }) })
+    const search = jiraSearch(CONFIG, jira.fetchFn)
+    expect(await search('kaz')).toMatchObject({ scope: { project: 'KAZ', words: null }, total: 201, next: null })
+    expect(await search('KAZ search pane', 'p2')).toMatchObject({ scope: { project: 'KAZ', words: 'search pane' }, total: null })
+    expect(bodies).toEqual([
+      expect.objectContaining({ jql: 'project = KAZ ORDER BY updated DESC' }),
+      expect.objectContaining({ jql: 'project = KAZ AND text ~ "search pane" ORDER BY updated DESC', nextPageToken: 'p2' }),
+    ])
+    expect(jira.calls.filter((c) => c.url.includes('/project/search'))).toHaveLength(1)
+    expect(jira.calls.filter((c) => c.url.endsWith('/approximate-count'))).toHaveLength(1) // not for a next page
+  })
+
+  it('finds nothing for a key Jira does not know, nothing without asking for a query too short, and no count when Jira cannot say', async () => {
+    const jira = searchingJira(() => Response.json({ errorMessages: ['An issue with key \'KAZ-999999\' does not exist'] }, { status: 400 }))
+    expect(await jiraSearch(CONFIG, jira.fetchFn)('KAZ-999999')).toEqual({ kind: 'found', scope: { key: 'KAZ-999999' }, issues: [], total: 0, next: null })
+    const before = jira.calls.filter((c) => c.url.endsWith('/search/jql')).length
+    expect(await jiraSearch(CONFIG, jira.fetchFn)('a')).toMatchObject({ kind: 'found', issues: [] })
+    expect(jira.calls.filter((c) => c.url.endsWith('/search/jql')).length).toBe(before)
+    const uncounted = searchingJira(() => Response.json({ issues: [issue('KAZ-1')] }), () => new Response('', { status: 403 }))
+    expect(await jiraSearch(CONFIG, uncounted.fetchFn)('search pane')).toMatchObject({ kind: 'found', total: null })
   })
 
   it('says Jira is unavailable when it fails, cannot be reached or has no credentials', async () => {
-    expect(await jiraSearch(CONFIG, fakeJira(() => new Response('', { status: 500 })).fetchFn)('search pane')).toEqual({ kind: 'unavailable', error: 'Jira answered 500' })
+    expect(await jiraSearch(CONFIG, searchingJira(() => new Response('', { status: 500 })).fetchFn)('search pane')).toEqual({ kind: 'unavailable', error: 'Jira answered 500' })
     expect(await jiraSearch(CONFIG, fakeJira(() => { throw new Error('ECONNRESET') }).fetchFn)('search pane')).toEqual({ kind: 'unavailable', error: 'ECONNRESET' })
     expect(await jiraSearch(null)('search pane')).toEqual({ kind: 'unavailable', error: 'JIRA_EMAIL and JIRA_API_TOKEN are not set' })
   })

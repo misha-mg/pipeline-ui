@@ -5,7 +5,7 @@ import { computed, ref } from 'vue'
 import Frame from '../components/Frame.vue'
 import { fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageName, verdictClass, type Counts } from '../api.ts'
 import { actions, history, state } from '../console.ts'
-import { clearSearch, query, results, searchError, searching, searchNow, typed } from '../search.ts'
+import { clearSearch, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, total as foundTotal, typed } from '../search.ts'
 
 const key = ref('')
 const loop = computed(() => state.value?.loop ?? null)
@@ -60,11 +60,29 @@ const found = computed(() => (results.value ?? []).map((issue) => {
   const lastRun = history.value?.runs.find((r) => r.key === issue.key) ?? null
   return { issue, position: position === -1 ? null : position + 1, inFlight: inFlight.value?.key === issue.key, lastRun }
 }))
+// Where the search looked, as a phrase: "in KAZ", "in KAZ with “search pane”", "in every project with …".
+const scopeText = computed(() => {
+  const s = scope.value
+  if (!s) return ''
+  if ('key' in s) return s.key
+  const where = s.project ? `in ${s.project}` : 'in every project'
+  return s.words ? `${where} with “${s.words}”` : where
+})
+const shownCount = computed(() => {
+  const shown = results.value?.length ?? 0
+  return foundTotal.value !== null && foundTotal.value > shown ? `${shown} of ${foundTotal.value.toLocaleString('en-US')}` : `${shown} found`
+})
 const searchNote = computed(() => {
   if (searchError.value) return `Jira cannot be searched: ${searchError.value}`
   if (searching.value) return 'Searching Jira…'
-  if (results.value) return results.value.length ? `${results.value.length} found, the latest updated first${results.value.length === 20 ? '; the first 20 shown' : ''}.` : 'Nothing found.'
-  return 'A ticket key, or words from its summary, description or comments.'
+  if (results.value) {
+    if (!results.value.length) return scope.value && 'key' in scope.value ? `Jira has no ${scope.value.key}.` : `Nothing ${scopeText.value}.`
+    if (scope.value && 'key' in scope.value) return `${scope.value.key} found.`
+    const shown = results.value.length
+    const many = foundTotal.value === null ? `${shown} shown ${scopeText.value}` : foundTotal.value > shown ? `${foundTotal.value.toLocaleString('en-US')} ${scopeText.value}, ${shown} shown` : `${foundTotal.value.toLocaleString('en-US')} ${scopeText.value}`
+    return `${many}, the latest updated first.`
+  }
+  return 'A ticket key; a project key (KAZ, RPG) to list the project, with words after it to search in it; or words to search every project.'
 })
 const statusClass = (category: string | null) => (category === 'done' ? 'ok' : category === 'indeterminate' ? 'slate' : '')
 function queueFound(key: string, front: boolean) {
@@ -161,7 +179,7 @@ function queueFound(key: string, front: boolean) {
     </div>
 
     <div class="stack">
-      <Frame v-if="results && results.length" title="Jira search" :count="`${results.length} found`" note="Queue a ticket from here; its summary is read from Jira again as it is added.">
+      <Frame v-if="results && results.length" title="Jira search" :count="shownCount" :note="`${scopeText ? `${scopeText.charAt(0).toUpperCase()}${scopeText.slice(1)}, the latest updated first. ` : ''}Queue a ticket from here; its summary is read from Jira again as it is added.`">
         <template #right><button class="btn tiny" @click="clearSearch()">Clear</button></template>
         <table class="sheet-table">
           <thead><tr><th>Key</th><th>Summary</th><th>Status</th><th>Type</th><th>Assignee</th><th>Last run</th><th></th></tr></thead>
@@ -184,6 +202,7 @@ function queueFound(key: string, front: boolean) {
             </tr>
           </tbody>
         </table>
+        <div v-if="next" class="more"><button class="btn" :disabled="loadingMore" @click="loadMore()">{{ loadingMore ? 'Loading…' : 'Show 20 more' }}</button></div>
       </Frame>
 
       <Frame title="Queue" :count="queue.length ? `${queue.length} queued` : 'empty'" note="In order; the loop takes the first one. A ticket already in flight or finished can be queued again and gets a new run.">

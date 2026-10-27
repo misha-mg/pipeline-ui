@@ -48,17 +48,18 @@ Agent SDK, and from its own records.
 - A queued ticket's summary, read from Jira when it is added; a key Jira does not know is refused.
 - The state of what the console depends on: `.pipeline-runs/`, the tmux session, Jira, the device
   mock, Bitbucket (for pull-request state).
-- A ticket search (added 2026-10-28, first planned as a PRD of its own): a key or words from a
-  ticket's summary, description or comments, searched in Jira, the latest updated first, at most
-  20; each found ticket with its status, type, assignee, its place in the queue or the run in
+- A ticket search (added 2026-10-28, first planned as a PRD of its own): a ticket key finds that
+  ticket; a project key first (`KAZ`, `KAZ search pane`) keeps the search to that project, with
+  the words after it if any; other words are searched in the summary, description and comments
+  of every project. The latest updated first, 20 at a time with more on request, beside how
+  many Jira counts in all; each found ticket with its status, type, assignee, its place in the queue or the run in
   flight, and its latest run; queued from the result at the end or the front, by the same rules
   as a key typed in.
 
 ## Non-goals
 
 - Choosing tickets from Jira by a query (Instrumenta's "Pick"): people fill the queue; the search
-  only helps them find a ticket. Saved queries, filters by project or status, and paging past
-  the first 20 are not in it.
+  only helps them find a ticket. Saved queries and filters by status or assignee are not in it.
 - A budget or cost per run, in money or tokens: runs go under a subscription, and nobody reads
   the number.
 - Access control: anyone who reaches the console's address (Tailscale or the office LAN) may act;
@@ -123,7 +124,9 @@ What it shows:
   shown as not OK with the error, and what does not depend on it keeps working; without Jira a
   ticket is still queued, with its key alone.
 - The operator types a key or two words or more into the search: within 2 s the tickets Jira
-  finds are listed; a key Jira does not know lists nothing; one character asks nothing. Queuing
+  finds are listed, with how many there are in all; `KAZ` lists only KAZ tickets, `KAZ search
+  pane` only KAZ tickets with those words; a key Jira does not know lists nothing; one character
+  asks nothing; "Show 20 more" adds the next 20. Queuing
   a found ticket puts it in the queue with its summary and marks its row queued; a ticket
   already queued or in flight cannot be queued from the search again. The state polls leave the
   results as they are. Without Jira the search says why it cannot search and the rest works.

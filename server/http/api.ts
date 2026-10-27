@@ -16,7 +16,7 @@ export type ApiDeps = ViewSources & {
   loop?: Pick<Loop, 'tick'>
   lookup?: (key: string) => Promise<Lookup>
   /** The ticket search; without it the search answers that Jira is not configured. */
-  search?: (query: string) => Promise<JiraSearch>
+  search?: (query: string, next?: string) => Promise<JiraSearch>
   /** The directory with the built UI; nothing is served without it. */
   uiDir?: string
 }
@@ -67,7 +67,9 @@ async function handleApi(deps: ApiDeps, method: string, url: URL, body: unknown)
     const q = url.searchParams.get('q') ?? ''
     if (q.length > 200) return bad('the query is longer than 200 characters')
     if (!deps.search) return ok({ kind: 'unavailable', error: 'the ticket search is not set up' } satisfies JiraSearch)
-    return ok(await deps.search(q))
+    const next = url.searchParams.get('next') ?? undefined
+    if (next !== undefined && next.length > 2000) return bad('the page token is too long')
+    return ok(await deps.search(q, next))
   }
   if (method === 'POST' && p === '/api/queue') {
     const { key, front } = asObject(body)
