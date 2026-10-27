@@ -38,6 +38,6 @@ const where = computed(() => `console · ${location.host}`)
     <div v-if="error" class="notice">{{ error }} <button class="btn tiny" @click="error = null">dismiss</button></div>
     <Cockpit v-if="route.page === 'cockpit'" />
     <RunsView v-else-if="route.page === 'runs'" />
-    <RunView v-else :target="{ key: route.key, number: route.number }" />
+    <RunView v-else :ticket="route.key" :number="route.number" />
   </main>
 </template>

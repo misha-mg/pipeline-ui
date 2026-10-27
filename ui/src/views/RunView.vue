@@ -1,27 +1,31 @@
 <script setup lang="ts">
-// One run: its stages and every report as the files read, state.md included.
+// One run: its stages and every report as the files read, state.md included. Loaded when the
+// page opens and when it is pointed at another run; the console's polls re-render the page
+// every 2 s, so the run is watched by its key and number, not by an object made anew each time.
 import { ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
 import { api, fmtDuration, fmtTime, prNumber, type RunFiles } from '../api.ts'
 
-const props = defineProps<{ target: { key: string; number: number } }>()
+const props = defineProps<{ ticket: string; number: number }>()
 const run = ref<RunFiles | null>(null)
 const error = ref<string | null>(null)
 
-watch(() => props.target, async (t) => {
+watch(() => [props.ticket, props.number] as const, async ([ticket, number]) => {
   run.value = null
   error.value = null
   try {
-    run.value = await api.run(t.key, t.number)
+    const loaded = await api.run(ticket, number)
+    // Another run may have been opened while this one loaded.
+    if (props.ticket === ticket && props.number === number) run.value = loaded
   } catch (e) {
     error.value = String(e)
   }
-}, { immediate: true, deep: true })
+}, { immediate: true })
 </script>
 
 <template>
   <div class="page-head">
-    <h1>{{ target.key }} · run {{ target.number }}</h1>
+    <h1>{{ ticket }} · run {{ number }}</h1>
     <span v-if="run" class="stats">{{ run.summary ?? '' }} · started {{ fmtTime(run.startedAt) }} · {{ fmtDuration(run.seconds) }}</span>
     <a class="action" href="#/runs">All runs</a>
   </div>
