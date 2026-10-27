@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# The session program webui's tools/ticket-pipeline/start.sh runs when PIPELINE_SESSION names it:
+# drives the ticket's Claude Code session through the Agent SDK in the worktree start.sh prepared.
+exec node "$(dirname "$(readlink -f "$0")")/../server/session/main.ts" "$@"
