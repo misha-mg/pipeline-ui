@@ -158,7 +158,7 @@ function queueFound(key: string, front: boolean) {
             <input id="jira-search" v-model="query" class="field" placeholder="KAZ-7785 or search pane" autocomplete="off" @input="typed()" @keyup.enter="searchNow()" @keyup.esc="clearSearch()" />
             <button v-if="query" class="btn" @click="clearSearch()">Clear</button>
           </div>
-          <p class="hint" :class="{ 'hint-bad': searchError }">{{ searchNote }}</p>
+          <p class="hint" :class="{ err: searchError }">{{ searchNote }}</p>
         </div>
       </Frame>
 
@@ -181,7 +181,7 @@ function queueFound(key: string, front: boolean) {
     <div class="stack">
       <Frame v-if="results && results.length" title="Jira search" :count="shownCount" :note="`${scopeText ? `${scopeText.charAt(0).toUpperCase()}${scopeText.slice(1)}, the latest updated first. ` : ''}Queue a ticket from here; its summary is read from Jira again as it is added.`">
         <template #right><button class="btn tiny" @click="clearSearch()">Clear</button></template>
-        <table class="sheet-table">
+        <table>
           <thead><tr><th>Key</th><th>Summary</th><th>Status</th><th>Type</th><th>Assignee</th><th>Last run</th><th></th></tr></thead>
           <tbody>
             <tr v-for="row in found" :key="row.issue.key">
@@ -206,7 +206,7 @@ function queueFound(key: string, front: boolean) {
       </Frame>
 
       <Frame title="Queue" :count="queue.length ? `${queue.length} queued` : 'empty'" note="In order; the loop takes the first one. A ticket already in flight or finished can be queued again and gets a new run.">
-        <table v-if="queue.length" class="sheet-table">
+        <table v-if="queue.length">
           <thead><tr><th>#</th><th>Key</th><th>Summary</th><th></th></tr></thead>
           <tbody>
             <tr v-for="(item, i) in queue" :key="item.key">
@@ -226,8 +226,8 @@ function queueFound(key: string, front: boolean) {
       </Frame>
 
       <Frame title="Recent runs" note="From .pipeline-runs and the service's own records.">
-        <template #right><a class="small-link" href="#/runs" style="font: 600 11px/1 var(--cond); letter-spacing: 0.16em; text-transform: uppercase">All runs</a></template>
-        <table v-if="recent.length" class="sheet-table">
+        <template #right><a class="small-link" href="#/runs">All runs</a></template>
+        <table v-if="recent.length">
           <thead><tr><th>Ticket</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR</th><th>Duration</th><th>Started</th></tr></thead>
           <tbody>
             <tr v-for="run in recent" :key="run.path || run.serviceRunId || run.key">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// The console: a masthead with the two pages (cockpit, runs) and the sheet under it. The
-// page comes from the hash, so a run's address can be shared.
+// The console: a masthead with the two pages (cockpit, runs) and the light/dark switch
+// (public/theme.js handles it), and the sheet under it. The page comes from the hash, so a
+// run's address can be shared.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Cockpit from './views/Cockpit.vue'
 import RunsView from './views/RunsView.vue'
@@ -26,13 +27,14 @@ const where = computed(() => `console · ${location.host}`)
     <a class="brand" href="#/">Pipeline</a>
     <span class="divider" />
     <span class="where">{{ where }}</span>
-    <span v-if="state && !state.service.alive" class="offline" style="margin-left: 18px">service not running</span>
-    <span v-if="offline" class="offline" style="margin-left: 18px">console cannot reach the service</span>
+    <span v-if="state && !state.service.alive" class="offline">service not running</span>
+    <span v-if="offline" class="offline">console cannot reach the service</span>
     <span class="spacer" />
     <nav>
       <a class="btn" :class="{ active: route.page === 'cockpit' }" href="#/">Cockpit</a>
       <a class="btn" :class="{ active: route.page !== 'cockpit' }" href="#/runs">Runs</a>
     </nav>
+    <button class="btn theme" type="button" aria-label="Switch between light and dark" />
   </header>
   <main class="sheet">
     <div v-if="error" class="notice">{{ error }} <button class="btn tiny" @click="error = null">dismiss</button></div>

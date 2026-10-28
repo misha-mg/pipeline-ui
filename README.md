@@ -34,6 +34,9 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
   the runs with counts and filters, each run's reports, the dependencies, the Jira search with
   its results queued at the end or the front. It polls the API
   every 2 s (the history every 10 s), so two browsers show the same within 5 s.
+  Its look is the drafting sheet, light or dark (`ui/public/theme.js`): the tokens and parts are
+  `ui/src/sheet.css`, the same file as bug-validator's `src/ui/static/sheet.css` (an edit to one
+  is copied to the other); `ui/src/style.css` only lays out the console's pages.
 
 ## Run the service
 

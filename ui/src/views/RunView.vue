@@ -31,7 +31,7 @@ watch(() => [props.ticket, props.number] as const, async ([ticket, number]) => {
   </div>
   <div v-if="error" class="notice">{{ error }}</div>
   <template v-else-if="run">
-    <div class="stages" style="margin-bottom: 26px">
+    <div class="stages">
       <span class="pill strong">{{ run.ending }}</span>
       <span v-if="run.verdict" class="pill strong">{{ run.verdict }}</span>
       <a v-if="run.pr" class="pill slate" :href="run.pr.url" target="_blank" rel="noopener" style="text-decoration: none">PR #{{ prNumber(run.pr.url) }} · {{ run.pr.state.toLowerCase() }}</a>

@@ -27,14 +27,14 @@ function prState(run: ShownRun): string {
     <h1>Run history</h1>
     <span class="stats">{{ stats }}</span>
   </div>
-  <div class="chips">
+  <div class="chips runs-filters">
     <button class="chip" :class="{ on: !filter.verdict }" @click="setFilter({ ...filter, verdict: '' })">All</button>
     <button v-for="[v, n] in verdicts" :key="v" class="chip" :class="{ on: filter.verdict === v }" @click="setFilter({ ...filter, verdict: filter.verdict === v ? '' : v })">{{ v }} <b>{{ n }}</b></button>
     <span style="width: 12px" />
     <button v-for="[e, n] in endings" :key="e" class="chip" :class="{ on: filter.ending === e }" @click="setFilter({ ...filter, ending: filter.ending === e ? '' : e })">{{ e }} <b>{{ n }}</b></button>
   </div>
   <Frame>
-    <table class="sheet-table">
+    <table>
       <thead><tr><th>Ticket</th><th>Run</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR · state</th><th>Started</th><th>Finished</th><th>Duration</th><th>Detail</th></tr></thead>
       <tbody>
         <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key">
