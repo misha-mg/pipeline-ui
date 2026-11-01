@@ -1,10 +1,21 @@
 /* The console's own layout, on the drafting sheet (sheet.css): the cockpit's cards and columns,
    the dependencies, a run's stages and reports. */
 
-/* Cockpit: six cards across, the controls left of the queue and the runs. */
-.cards { grid-template-columns: repeat(6, 1fr); }
+/* Cockpit: a strip of four compact cards, the controls left of the queue and the runs. */
+.cards { grid-template-columns: repeat(4, 1fr); margin-bottom: 30px; }
+.cards .card { padding: 16px 20px 18px; }
+.cards .label { margin-bottom: 8px; }
+.cards .card .value { font-size: 30px; }
+.cards .card .value.branch { text-transform: none; }
+.cards .card .value.live { color: var(--moss); }
+.cards .card .note { margin-top: 6px; }
+.cards .card .note.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cards .card .note.err { color: var(--rust); }
+.cards .acts { display: flex; gap: 6px; margin-top: 10px; }
+.btn.wide { width: 100%; }
+.ctl.gap { margin-top: 8px; }
+.ctl.gap .btn { flex: 1; }
 .cockpit { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: var(--gap); align-items: start; }
-@media (max-width: 1300px) { .cards { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 1100px) { .cards { grid-template-columns: repeat(2, 1fr); } .cockpit { grid-template-columns: 1fr; } }
 .block { margin-top: 24px; }
 .more { display: flex; justify-content: center; padding-top: 16px; }
@@ -12,6 +23,19 @@ td.summary { max-width: 520px; }
 td .actions { display: flex; gap: 6px; justify-content: flex-end; }
 .verdict-done { color: var(--moss); } .verdict-blocked { color: var(--rust); } .verdict-failed { color: var(--rust); } .verdict-none { color: var(--faint); }
 .runs-filters { margin: -8px 0 26px; }
+
+/* State sources: folded to a lamp and a word, opened to one line per source. */
+.sources { padding-block: 16px; cursor: pointer; }
+.sources:hover .chevron, .sources:hover .fold .label { color: var(--text); }
+.fold { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; }
+.fold .label { margin: 0; }
+.fold .state { font-size: 12px; color: var(--muted); flex: 1; }
+.fold .state.err { color: var(--rust); }
+.fold .chevron { font: 500 18px/1 var(--cond); color: var(--muted); }
+.lamp { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--faint); }
+.lamp.ok { background: var(--moss); box-shadow: 0 0 0 3px color-mix(in srgb, var(--moss) 22%, transparent); }
+.lamp.bad { background: var(--rust); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rust) 22%, transparent); }
+.sources .deps { margin-top: 12px; }
 
 /* Dependencies: one line each, its detail cut to the width. */
 .dep { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); min-width: 0; }

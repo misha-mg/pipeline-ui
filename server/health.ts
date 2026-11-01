@@ -1,17 +1,17 @@
 // The state of what the console depends on: the runs directory, the tmux session batch.sh
-// uses (the service and a batch never run at the same time), Jira, the device mock and
-// Bitbucket. Each check says ok or not with a detail; what does not depend on a failed one
-// keeps working. The service runs the checks in the background and serves the last result.
+// uses (the service and a batch never run at the same time) and Jira. Each check says ok or not
+// with a detail; what does not depend on a failed one keeps working. The service runs the checks
+// in the background and serves the last result. The device mock is not checked (the agents switch
+// its board while they work, so its state says nothing about the console), nor Bitbucket (a
+// pull request's state shows as unknown in the runs without it).
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
-import path from 'node:path'
 import { promisify } from 'node:util'
 import type { Config } from './config.ts'
-import { bitbucketConfig } from './history/bitbucket.ts'
 import { jiraConfig, jiraLookup } from './store/jira.ts'
 
 export type Check = { ok: boolean; detail: string; checkedAt: string }
-export type Health = Record<'runsDir' | 'tmux' | 'jira' | 'mock' | 'bitbucket', Check>
+export type Health = Record<'runsDir' | 'tmux' | 'jira', Check>
 
 const exec = promisify(execFile)
 const TIMEOUT_MS = 15_000
@@ -29,16 +29,14 @@ export async function checkHealth(config: Config, deps: HealthDeps = {}): Promis
   const fetchFn = deps.fetch ?? fetch
   const run = deps.run ?? defaultRun
   const now = deps.now ?? (() => new Date().toISOString())
-  const [runsDir, tmux, jira, mock, bitbucket] = await Promise.all([
+  const [runsDir, tmux, jira] = await Promise.all([
     checkRunsDir(config.runsDir),
     checkTmux(run),
     checkJira(env, fetchFn),
-    checkMock(config.webuiDir, run),
-    checkBitbucket(env, fetchFn),
   ])
   const at = now()
   const stamp = (c: Omit<Check, 'checkedAt'>): Check => ({ ...c, checkedAt: at })
-  return { runsDir: stamp(runsDir), tmux: stamp(tmux), jira: stamp(jira), mock: stamp(mock), bitbucket: stamp(bitbucket) }
+  return { runsDir: stamp(runsDir), tmux: stamp(tmux), jira: stamp(jira) }
 }
 
 async function checkRunsDir(runsDir: string): Promise<Omit<Check, 'checkedAt'>> {
@@ -63,27 +61,6 @@ async function checkJira(env: Record<string, string | undefined>, fetchFn: typeo
   const probe = await jiraLookup(config, fetchFn)('KAZ-1')
   if (probe.kind === 'unavailable') return { ok: false, detail: probe.error }
   return { ok: true, detail: config.siteUrl }
-}
-
-async function checkMock(webuiDir: string, run: NonNullable<HealthDeps['run']>): Promise<Omit<Check, 'checkedAt'>> {
-  const rpc = path.join(webuiDir, 'tools', 'device-mock', 'rpc.sh')
-  if (!fs.existsSync(rpc)) return { ok: false, detail: `${rpc} is not there` }
-  const board = await run(rpc, ['board'], webuiDir)
-  const type = board.output.match(/BOARD-TYPE[^A-Za-z0-9]*([A-Za-z0-9-]+)/)?.[1]
-  if (type) return { ok: true, detail: `board ${type}` }
-  return { ok: false, detail: `the mock does not answer: ${board.output.trim().split('\n')[0] ?? ''}`.trim() }
-}
-
-async function checkBitbucket(env: Record<string, string | undefined>, fetchFn: typeof fetch): Promise<Omit<Check, 'checkedAt'>> {
-  const config = bitbucketConfig(env)
-  const workspace = env.BITBUCKET_WORKSPACE
-  if (!config || !workspace) return { ok: false, detail: 'BITBUCKET_TOKEN or BITBUCKET_WORKSPACE is not set: pull-request states are unknown' }
-  try {
-    const res = await fetchFn(`https://api.bitbucket.org/2.0/repositories/${workspace}/webui?fields=full_name`, { headers: { Authorization: `Bearer ${config.token}`, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) })
-    return res.ok ? { ok: true, detail: `${workspace}/webui` } : { ok: false, detail: `Bitbucket answered ${res.status}` }
-  } catch (error) {
-    return { ok: false, detail: message(error) }
-  }
 }
 
 async function defaultRun(file: string, args: string[], cwd?: string): Promise<{ ok: boolean; output: string }> {

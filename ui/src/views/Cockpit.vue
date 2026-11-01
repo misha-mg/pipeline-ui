@@ -1,48 +1,62 @@
 <script setup lang="ts">
-// The cockpit: the loop's state, what is in flight and what is next, the controls, the queue,
-// the latest runs and the dependencies, on one sheet.
-import { computed, ref } from 'vue'
+// The cockpit: a strip with the loop, what is in flight, what is next and where runs go; the
+// controls; the queue, the latest runs and the state sources. One field queues a ticket by its
+// key or searches Jira; the run in flight is cancelled from its own card. Explanations sit in
+// tooltips, so the sheet says only what is happening.
+import { computed, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
-import { fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageName, verdictClass, type Counts } from '../api.ts'
+import { fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageName, verdictClass } from '../api.ts'
 import { actions, history, state } from '../console.ts'
 import { clearSearch, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, total as foundTotal, typed } from '../search.ts'
 
-const key = ref('')
 const loop = computed(() => state.value?.loop ?? null)
+const running = computed(() => loop.value?.wanted === 'running')
 const inFlight = computed(() => state.value?.inFlight ?? null)
 const queue = computed(() => state.value?.queue ?? [])
 const recent = computed(() => history.value?.runs.slice(0, 8) ?? [])
 const health = computed(() => state.value?.health ?? null)
-const names: Record<string, string> = { runsDir: '.pipeline-runs', tmux: 'tmux — batch.sh', jira: 'Jira', mock: 'Device mock', bitbucket: 'Bitbucket — PR state' }
+const setup = computed(() => state.value?.setup ?? null)
+const names: Record<string, string> = { runsDir: '.pipeline-runs', tmux: 'tmux — batch.sh', jira: 'Jira' }
+// The state sources fold into one lamp: green when every source is ok, rust naming the ones that
+// are not. A click anywhere on the frame opens or closes it (the button inside is there for the
+// keyboard; its click reaches the frame). Whether it is open is remembered in this browser.
+const failing = computed(() => (health.value ? Object.entries(health.value).filter(([, c]) => !c.ok).map(([n]) => names[n] ?? n) : []))
+const SOURCES_OPEN = 'pipeline-ui.sources-open'
+const sourcesOpen = ref((() => { try { return localStorage.getItem(SOURCES_OPEN) === '1' } catch { return false } })())
+watch(sourcesOpen, (open) => { try { localStorage.setItem(SOURCES_OPEN, open ? '1' : '0') } catch { /* not kept */ } })
 
+/** The clock alone for today, the date too otherwise. */
+function when(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toDateString() === new Date().toDateString() ? fmtClock(iso) : fmtTime(iso)
+}
+// One line under the loop's state: why it stopped, or what it does next.
 const loopNote = computed(() => {
   const l = loop.value
   if (!l) return ''
-  if (l.wanted === 'running') return inFlight.value ? 'Takes the next ticket when this run ends.' : 'Takes the next queued ticket.'
-  if (l.stoppedReason === 'usage-limit') return `The subscription's usage limit was hit at ${fmtTime(l.stoppedAt)}${l.usageLimitResetsAt ? `, resets ${fmtTime(new Date(l.usageLimitResetsAt * 1000).toISOString())}` : ''}. The queue is untouched.`
-  if (l.stoppedReason === 'entry-point') return `Stopped at ${fmtTime(l.stoppedAt)} before a run: ${l.stoppedDetail ?? 'the entry point was refused'}. The queue is untouched.`
-  if (l.stoppedReason === 'restart') return `Stopped by the service's restart at ${fmtTime(l.stoppedAt)}. Nothing starts until Start.`
-  if (l.stoppedReason === 'operator') return `Stopped at ${fmtTime(l.stoppedAt)}. The run in flight, if any, finishes.`
-  return 'Never started.'
+  if (l.wanted === 'running') return inFlight.value ? 'next ticket when this run ends' : queue.value.length ? 'taking the next ticket' : 'waiting for a ticket'
+  if (l.stoppedReason === 'usage-limit') return `usage limit at ${when(l.stoppedAt)}${l.usageLimitResetsAt ? `, resets ${when(new Date(l.usageLimitResetsAt * 1000).toISOString())}` : ''}`
+  if (l.stoppedReason === 'entry-point') return `entry point refused at ${when(l.stoppedAt)}`
+  if (l.stoppedReason === 'restart') return `by the service's restart, ${when(l.stoppedAt)}`
+  if (l.stoppedReason === 'operator') return `by Stop, ${when(l.stoppedAt)}`
+  return 'never started'
 })
-const allTime = computed(() => {
-  const runs = history.value?.runs ?? []
-  const closed = runs.filter((r) => r.seconds !== null)
-  const total = closed.reduce((s, r) => s + (r.seconds ?? 0), 0)
-  return { n: runs.length, total, avg: closed.length ? Math.round(total / closed.length) : null }
+const loopProblem = computed(() => (loop.value?.wanted === 'stopped' && loop.value.stoppedReason === 'entry-point' ? loop.value.stoppedDetail : null))
+const inFlightNote = computed(() => {
+  const r = inFlight.value
+  if (!r) return ''
+  const parts = [`${fmtDuration(r.seconds)} so far`]
+  if (r.stageSince) parts.push(`${stageName(r.stage)} ${fmtAgo(r.stageSince, state.value!.now)}`)
+  if (r.rework) parts.push(`rework ${r.rework}`)
+  return parts.join(' · ')
 })
-function breakdown(c: Counts): string {
-  const entries = Object.entries(c).sort((a, b) => b[1] - a[1])
-  return entries.length ? entries.map(([v, n]) => `${n} ${v}`).join(' · ') : 'no runs'
-}
-function total(c: Counts): number {
-  return Object.values(c).reduce((a, b) => a + b, 0)
-}
-function add(front: boolean) {
-  const k = key.value.trim().toUpperCase()
-  if (!k) return
-  void actions.enqueue(k, front)
-  key.value = ''
+
+// The one field: a ticket key queues at once, anything else is a Jira search (search.ts).
+const typedKey = computed(() => (/^\s*[A-Za-z][A-Za-z0-9]*-\d+\s*$/.test(query.value) ? query.value.trim().toUpperCase() : null))
+function queueTyped(front: boolean) {
+  if (!typedKey.value) return
+  void actions.enqueue(typedKey.value, front)
+  clearSearch()
 }
 function move(index: number, by: number) {
   const keys = queue.value.map((q) => q.key)
@@ -72,18 +86,14 @@ const shownCount = computed(() => {
   const shown = results.value?.length ?? 0
   return foundTotal.value !== null && foundTotal.value > shown ? `${shown} of ${foundTotal.value.toLocaleString('en-US')}` : `${shown} found`
 })
+// Under the field only what the results frame cannot say: searching, nothing found, an error.
 const searchNote = computed(() => {
   if (searchError.value) return `Jira cannot be searched: ${searchError.value}`
   if (searching.value) return 'Searching Jira…'
-  if (results.value) {
-    if (!results.value.length) return scope.value && 'key' in scope.value ? `Jira has no ${scope.value.key}.` : `Nothing ${scopeText.value}.`
-    if (scope.value && 'key' in scope.value) return `${scope.value.key} found.`
-    const shown = results.value.length
-    const many = foundTotal.value === null ? `${shown} shown ${scopeText.value}` : foundTotal.value > shown ? `${foundTotal.value.toLocaleString('en-US')} ${scopeText.value}, ${shown} shown` : `${foundTotal.value.toLocaleString('en-US')} ${scopeText.value}`
-    return `${many}, the latest updated first.`
-  }
-  return 'A ticket key; a project key (KAZ, RPG) to list the project, with words after it to search in it; or words to search every project.'
+  if (results.value && !results.value.length) return scope.value && 'key' in scope.value ? `Jira has no ${scope.value.key}.` : `Nothing ${scopeText.value}.`
+  return ''
 })
+const fieldHelp = 'A ticket key queues it (To end, To front). A project key (KAZ, RPG) lists the project, with words after it to search in it; other words search every project. The summary is read from Jira as a ticket is queued; a key Jira does not know is refused.'
 const statusClass = (category: string | null) => (category === 'done' ? 'ok' : category === 'indeterminate' ? 'slate' : '')
 function queueFound(key: string, front: boolean) {
   void actions.enqueue(key, front)
@@ -93,35 +103,35 @@ function queueFound(key: string, front: boolean) {
 <template>
   <div class="cards">
     <Frame class="card">
-      <div class="label">Loop state</div>
-      <div class="value">{{ loop ? loop.wanted : '—' }} <small v-if="loop?.wanted === 'stopped'">no new runs</small></div>
-      <div class="note">{{ loopNote }}</div>
+      <div class="label">Loop</div>
+      <div class="value" :class="{ live: running }">{{ loop ? loop.wanted : '—' }}</div>
+      <div class="note one" :title="loopNote">{{ loopNote }}</div>
+      <div v-if="loopProblem" class="note err" :title="loopProblem">{{ loopProblem }}</div>
     </Frame>
     <Frame class="card">
       <div class="label">In flight</div>
       <div class="value">{{ inFlight?.key ?? '—' }} <small v-if="inFlight">{{ stageName(inFlight.stage) }}</small></div>
-      <div v-if="inFlight" class="note">{{ inFlight.summary ?? 'no summary' }}<br />{{ fmtDuration(inFlight.seconds) }} so far<template v-if="inFlight.stageSince">, {{ stageName(inFlight.stage) }} for {{ fmtAgo(inFlight.stageSince, state!.now) }}</template><template v-if="inFlight.rework">, rework round {{ inFlight.rework }}</template><template v-if="inFlight.cancelRequestedAt">, cancelling</template></div>
-      <div v-else class="note">Nothing in flight.</div>
+      <template v-if="inFlight">
+        <div class="note one" :title="inFlight.summary ?? ''">{{ inFlight.summary ?? 'no summary' }}</div>
+        <div class="note one">{{ inFlightNote }}<template v-if="inFlight.cancelRequestedAt"> · <span class="err">cancelling</span></template></div>
+        <div class="acts">
+          <a v-if="runNumber(inFlight.runDir)" class="btn tiny" :href="`#/runs/${inFlight.key}/${runNumber(inFlight.runDir)}`">Reports</a>
+          <button class="btn tiny danger" :disabled="!!inFlight.cancelRequestedAt" title="Ends the session within 30 s. The run is recorded cancelled with the stage it was in; its worktree and reports stay." @click="actions.cancel()">Cancel</button>
+        </div>
+      </template>
+      <div v-else class="note">nothing running</div>
     </Frame>
     <Frame class="card">
-      <div class="label">Queued next</div>
-      <div class="value">{{ queue[0]?.key ?? '—' }} <small v-if="queue.length">{{ queue.length }} queued</small></div>
-      <div class="note">{{ queue[0] ? queue[0].summary ?? 'no summary' : 'The queue is empty: add a ticket below.' }}</div>
+      <div class="label">Next</div>
+      <div class="value">{{ queue[0]?.key ?? '—' }} <small v-if="queue.length > 1">+{{ queue.length - 1 }} queued</small></div>
+      <div class="note one" :title="queue[0]?.summary ?? ''">{{ queue[0] ? queue[0].summary ?? 'no summary' : 'queue empty' }}</div>
     </Frame>
     <Frame class="card">
-      <div class="label">Last batch</div>
-      <div class="value">{{ state ? total(state.counts.lastBatch) : '—' }} <small v-if="state">{{ state.counts.lastBatchLabel.replace('batch-', '').replace(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/, '$1-$2-$3 $4:$5') }}</small></div>
-      <div class="note">{{ state ? breakdown(state.counts.lastBatch) : '' }}</div>
-    </Frame>
-    <Frame class="card">
-      <div class="label">Last 7 days</div>
-      <div class="value">{{ state ? total(state.counts.last7Days) : '—' }}</div>
-      <div class="note">{{ state ? breakdown(state.counts.last7Days) : '' }}</div>
-    </Frame>
-    <Frame class="card">
-      <div class="label">Runs to date</div>
-      <div class="value">{{ allTime.n }}</div>
-      <div class="note">{{ fmtDuration(allTime.total) }} in all · avg {{ fmtDuration(allTime.avg) }}<br />Every run under .pipeline-runs, verdict as state.md says.</div>
+      <div class="label">Target branch</div>
+      <div class="value branch">{{ setup?.baseBranch ?? '—' }}</div>
+      <div v-if="setup" class="note one" :title="`Each run: ${setup.entry}.`">
+        pull requests <span :class="setup.pullRequests ? 'ok' : 'warn'">{{ setup.pullRequests ? `on, into ${setup.baseBranch}` : 'off' }}</span>
+      </div>
     </Frame>
   </div>
 
@@ -129,42 +139,30 @@ function queueFound(key: string, front: boolean) {
     <div class="stack">
       <Frame>
         <div class="label">Control</div>
-        <div class="ctl">
-          <button class="btn primary big" :disabled="!loop || loop.wanted === 'running' || !state?.service.alive" @click="actions.start()">Start</button>
-          <button class="btn" style="height: 48px" :disabled="!loop || loop.wanted !== 'running'" @click="actions.stop()">Stop</button>
-        </div>
-        <p class="hint">Stop only prevents the next run. A run already in flight keeps going.</p>
-        <p v-if="state?.setup" class="hint">Each run: {{ state.setup.entry }}; pull requests {{ state.setup.pullRequests ? 'on' : 'off — the run ends before its push' }}.</p>
+        <button v-if="!running" class="btn primary big wide" :disabled="!loop || !state?.service.alive" title="The loop takes the queued tickets one at a time." @click="actions.start()">Start</button>
+        <button v-else class="btn big wide" title="No new run starts; the run in flight keeps going." @click="actions.stop()">Stop</button>
         <div class="block">
-          <div class="label">Queue a ticket</div>
+          <div class="label">Add a ticket</div>
           <div class="ctl">
-            <input v-model="key" class="field" placeholder="KAZ-1234" @keyup.enter="add(false)" />
-            <button class="btn" :disabled="!key.trim()" @click="add(false)">To end</button>
-            <button class="btn" :disabled="!key.trim()" @click="add(true)">To front</button>
+            <input id="jira-search" v-model="query" class="field" placeholder="KAZ-1234, KAZ or words" autocomplete="off" :title="fieldHelp" @input="typed()" @keyup.enter="searchNow()" @keyup.esc="clearSearch()" />
+            <button v-if="query && !typedKey" class="btn" @click="clearSearch()">Clear</button>
           </div>
-          <p class="hint">The summary is read from Jira; a key Jira does not know is refused, a ticket already queued is refused.</p>
-        </div>
-        <div class="block">
-          <div class="label">Run in flight</div>
-          <div class="ctl">
-            <button class="btn danger" :disabled="!inFlight || !!inFlight.cancelRequestedAt" @click="actions.cancel()">Cancel {{ inFlight?.key ?? '' }}</button>
-            <a v-if="inFlight && runNumber(inFlight.runDir)" class="btn" :href="`#/runs/${inFlight.key}/${runNumber(inFlight.runDir)}`">Reports</a>
+          <div v-if="typedKey" class="ctl gap">
+            <button class="btn" @click="queueTyped(false)">To end</button>
+            <button class="btn" @click="queueTyped(true)">To front</button>
           </div>
-          <p class="hint">Ends the session within 30 s. The run is recorded cancelled with the stage it was in; its worktree and reports stay. The next queued ticket starts if the loop is running.</p>
-        </div>
-        <div class="block">
-          <div class="label">Search tickets</div>
-          <div class="ctl">
-            <input id="jira-search" v-model="query" class="field" placeholder="KAZ-7785 or search pane" autocomplete="off" @input="typed()" @keyup.enter="searchNow()" @keyup.esc="clearSearch()" />
-            <button v-if="query" class="btn" @click="clearSearch()">Clear</button>
-          </div>
-          <p class="hint" :class="{ err: searchError }">{{ searchNote }}</p>
+          <p v-if="searchNote" class="hint" :class="{ err: searchError }">{{ searchNote }}</p>
         </div>
       </Frame>
 
-      <Frame>
-        <div class="label">State sources</div>
-        <div v-if="health" class="deps">
+      <Frame class="sources" @click="sourcesOpen = !sourcesOpen">
+        <button class="fold" type="button" :aria-expanded="sourcesOpen">
+          <span class="label">State sources</span>
+          <span class="lamp" :class="!health ? 'unknown' : failing.length ? 'bad' : 'ok'" />
+          <span class="state" :class="{ err: failing.length }">{{ !health ? 'not checked yet' : failing.length ? `${failing.join(', ')} not OK` : 'all OK' }}</span>
+          <span class="chevron">{{ sourcesOpen ? '−' : '+' }}</span>
+        </button>
+        <div v-if="sourcesOpen && health" class="deps">
           <div v-for="(check, name) in health" :key="name" class="dep">
             <div class="text">
               <div class="name">{{ names[name] ?? name }}</div>
@@ -172,9 +170,8 @@ function queueFound(key: string, front: boolean) {
             </div>
             <span class="pill" :class="check.ok ? 'ok' : 'bad'">{{ check.ok ? 'OK' : 'not OK' }}</span>
           </div>
-          <p class="hint">Checked at {{ fmtClock(health.runsDir.checkedAt) }}, once a minute. What does not depend on a failed source keeps working: without Jira a ticket is queued with its key alone, without Bitbucket a pull request's state is unknown.</p>
+          <p class="hint">Checked at {{ fmtClock(health.runsDir.checkedAt) }}, once a minute. What does not depend on a failed source keeps working: without Jira a ticket is queued with its key alone.</p>
         </div>
-        <p v-else class="hint">Not checked yet.</p>
       </Frame>
     </div>
 

@@ -28,7 +28,7 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
 - `server/history/` — every run under `.pipeline-runs/` as its files tell it (as `pipeline-tui`
   reads them), and the pull requests' states from Bitbucket, kept in the database.
 - `server/health.ts` — what the console depends on: `.pipeline-runs/`, the tmux session
-  `batch.sh` uses, Jira, the device mock, Bitbucket.
+  `batch.sh` uses, Jira.
 - `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`,
   `/api/jira/search?q=`, the queue, loop and cancel actions) and the built UI.
 - `ui/` — the console, Vue 3 + Vite: the loop and its Start/Stop, the run in flight, the queue,

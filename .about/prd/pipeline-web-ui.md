@@ -42,12 +42,15 @@ Agent SDK, and from its own records.
 - Run history: every run under `.pipeline-runs/`, runs from before the console included, with
   ticket, summary, verdict, start, duration, pull request and its state as Bitbucket last reported
   it, and each stage's report; filterable by verdict and ending.
-- Counts of runs by verdict for the last batch, the last 7 days and all time.
+- Counts of runs by verdict for the last batch, the last 7 days and all time (the API still has
+  them; the cockpit stopped showing them on 2026-11-01, they wait for a statistics page of their own).
+- The webui branch a run starts from and its pull request goes to, and whether pull requests are on.
 - Actions: start and stop the service's loop; add a ticket at the end or at the front of the
   queue; remove or reorder queued tickets; cancel the run in flight; run a finished ticket again.
 - A queued ticket's summary, read from Jira when it is added; a key Jira does not know is refused.
-- The state of what the console depends on: `.pipeline-runs/`, the tmux session, Jira, the device
-  mock, Bitbucket (for pull-request state).
+- The state of what the console depends on: `.pipeline-runs/`, the tmux session, Jira. Not the
+  device mock (the agents switch its board while they work) nor Bitbucket (dropped 2026-11-01:
+  a pull request's state shows as unknown in the runs without it).
 - A ticket search (added 2026-10-28, first planned as a PRD of its own): a ticket key finds that
   ticket; a project key first (`KAZ`, `KAZ search pane`) keeps the search to that project, with
   the words after it if any; other words are searched in the summary, description and comments
@@ -120,7 +123,7 @@ What it shows:
 - A run with a pull request: the console shows the PR's state (open, merged, declined) and the
   time it was read from Bitbucket; without a Bitbucket token it says the state is unknown and the
   rest works.
-- Each dependency the console cannot reach (`.pipeline-runs/`, tmux, Jira, mock, Bitbucket) is
+- Each dependency the console cannot reach (`.pipeline-runs/`, tmux, Jira) is
   shown as not OK with the error, and what does not depend on it keeps working; without Jira a
   ticket is still queued, with its key alone.
 - The operator types a key or two words or more into the search: within 2 s the tickets Jira

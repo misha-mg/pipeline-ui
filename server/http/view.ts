@@ -42,7 +42,8 @@ export type StateView = {
   setup: RunSetup | null
 }
 
-export type RunSetup = { entry: string; pullRequests: boolean }
+/** How each run is set up: the entry point as the console shows it, the webui branch it starts from and its pull request goes to, and whether it may open one. */
+export type RunSetup = { entry: string; baseBranch: string; pullRequests: boolean }
 
 export type ViewSources = { db: Db; runsDir: string; health: () => Health | null; setup?: RunSetup; now?: () => Date }
 
