@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { openDb } from './db.ts'
 import { enqueue, listQueue, queueHead, remove, reorder, takeHead, type Lookup } from './queue.ts'
-import { jiraConfig, jiraLookup } from './jira.ts'
+import { jiraLookup } from './jira.ts'
 
 const keys = (db: ReturnType<typeof openDb>) => listQueue(db).map((i) => i.key)
 const found = (summary: string) => async (): Promise<Lookup> => ({ kind: 'found', summary })
@@ -110,10 +110,5 @@ describe('jiraLookup', () => {
     const thrower = (async () => { throw new Error('ECONNREFUSED') }) as unknown as typeof fetch
     expect(await jiraLookup(config, thrower)('KAZ-1')).toEqual({ kind: 'unavailable', error: 'ECONNREFUSED' })
     expect(await jiraLookup(null)('KAZ-1')).toMatchObject({ kind: 'unavailable' })
-  })
-
-  it('reads the config from the environment', () => {
-    expect(jiraConfig({})).toBeNull()
-    expect(jiraConfig({ JIRA_EMAIL: 'e', JIRA_API_TOKEN: 't', JIRA_BASE_URL: 'https://x.test/' })).toEqual({ siteUrl: 'https://x.test', email: 'e', token: 't', cloudId: undefined })
   })
 })

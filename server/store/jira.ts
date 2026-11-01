@@ -1,5 +1,5 @@
-// Jira Cloud's REST API, with the same JIRA_EMAIL and JIRA_API_TOKEN the pipeline's MCP server
-// uses: a ticket's summary when it is queued, and the console's ticket search. The token is a
+// Jira Cloud's REST API on the site JIRA_BASE_URL names, with the same JIRA_EMAIL and
+// JIRA_API_TOKEN the pipeline's MCP server uses: a ticket's summary when it is queued, and the console's ticket search. The token is a
 // scoped API token, which Jira accepts only through api.atlassian.com with the site's cloud id
 // (the MCP server does the same); the id comes from the site's /_edge/tenant_info, or
 // JIRA_CLOUD_ID. Read only: nothing is written to Jira. Never throws: a Jira that cannot be
@@ -36,7 +36,6 @@ export type JiraSearch =
     }
   | { kind: 'unavailable'; error: string }
 
-const DEFAULT_SITE_URL = 'https://cgstowernetworks.atlassian.net'
 const TIMEOUT_MS = 10_000
 const SEARCH_LIMIT = 20
 const SEARCH_FIELDS = ['summary', 'status', 'issuetype', 'priority', 'assignee', 'updated']
@@ -46,12 +45,29 @@ const KEY = /^[A-Za-z][A-Za-z0-9]*-\d+$/
 /** What Jira's text search treats as syntax; a query is searched for as words. */
 const TEXT_SYNTAX = /[+\-&|!(){}[\]^~*?\\:"/]/g
 
-/** The Jira config from the environment; null when the credentials are not there. */
+/** What jiraConfig needs from the environment, named for the messages that say it is missing. */
+export const JIRA_SETTINGS = 'JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN'
+
+/** The Jira site (JIRA_BASE_URL) without its trailing slash; null when it is not set, or is not
+ *  an http(s) URL (a bare host would make every ticket link relative and every call fail). */
+export function jiraSiteUrl(env: Record<string, string | undefined>): string | null {
+  const site = env.JIRA_BASE_URL?.trim().replace(/\/+$/, '')
+  if (!site) return null
+  try {
+    const { protocol } = new URL(site)
+    return protocol === 'https:' || protocol === 'http:' ? site : null
+  } catch {
+    return null
+  }
+}
+
+/** The Jira config from the environment; null when the site or the credentials are not there. */
 export function jiraConfig(env: Record<string, string | undefined>): JiraConfig | null {
+  const siteUrl = jiraSiteUrl(env)
   const email = env.JIRA_EMAIL
   const token = env.JIRA_API_TOKEN
-  if (!email || !token) return null
-  return { siteUrl: (env.JIRA_BASE_URL ?? DEFAULT_SITE_URL).replace(/\/$/, ''), email, token, cloudId: env.JIRA_CLOUD_ID || undefined }
+  if (!siteUrl || !email || !token) return null
+  return { siteUrl, email, token, cloudId: env.JIRA_CLOUD_ID || undefined }
 }
 
 type Call = (path: string, init?: { method?: string; body?: unknown }) => Promise<Response | string>
@@ -66,7 +82,7 @@ function jiraClient(config: JiraConfig | null, fetchFn: typeof fetch): Call {
     return fetchFn(url, { method: init.method ?? 'GET', headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: AbortSignal.timeout(TIMEOUT_MS) })
   }
   return async (apiPath, init) => {
-    if (!config) return 'JIRA_EMAIL and JIRA_API_TOKEN are not set'
+    if (!config) return `${JIRA_SETTINGS} are not all set`
     try {
       if (!cloudId) {
         const res = await request(`${config.siteUrl}/_edge/tenant_info`, false)

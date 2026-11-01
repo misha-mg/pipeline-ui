@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import { promisify } from 'node:util'
 import type { Config } from './config.ts'
-import { jiraConfig, jiraLookup } from './store/jira.ts'
+import { JIRA_SETTINGS, jiraConfig, jiraLookup } from './store/jira.ts'
 
 export type Check = { ok: boolean; detail: string; checkedAt: string }
 export type Health = Record<'runsDir' | 'tmux' | 'jira', Check>
@@ -57,7 +57,7 @@ async function checkTmux(run: NonNullable<HealthDeps['run']>): Promise<Omit<Chec
 
 async function checkJira(env: Record<string, string | undefined>, fetchFn: typeof fetch): Promise<Omit<Check, 'checkedAt'>> {
   const config = jiraConfig(env)
-  if (!config) return { ok: false, detail: 'JIRA_EMAIL and JIRA_API_TOKEN are not set: tickets are queued without a summary' }
+  if (!config) return { ok: false, detail: `${JIRA_SETTINGS} are not all set: tickets are queued without a summary` }
   const probe = await jiraLookup(config, fetchFn)('KAZ-1')
   if (probe.kind === 'unavailable') return { ok: false, detail: probe.error }
   return { ok: true, detail: config.siteUrl }

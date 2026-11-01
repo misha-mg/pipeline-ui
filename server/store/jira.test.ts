@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { jiraLookup, jiraSearch, scopeJql, searchScope, type JiraConfig } from './jira.ts'
+import { jiraConfig, jiraLookup, jiraSearch, jiraSiteUrl, scopeJql, searchScope, type JiraConfig } from './jira.ts'
 
 const CONFIG: JiraConfig = { siteUrl: 'https://site.example', email: 'e@x', token: 't' }
 
@@ -103,7 +103,7 @@ describe('jiraSearch', () => {
   it('says Jira is unavailable when it fails, cannot be reached or has no credentials', async () => {
     expect(await jiraSearch(CONFIG, searchingJira(() => new Response('', { status: 500 })).fetchFn)('search pane')).toEqual({ kind: 'unavailable', error: 'Jira answered 500' })
     expect(await jiraSearch(CONFIG, fakeJira(() => { throw new Error('ECONNRESET') }).fetchFn)('search pane')).toEqual({ kind: 'unavailable', error: 'ECONNRESET' })
-    expect(await jiraSearch(null)('search pane')).toEqual({ kind: 'unavailable', error: 'JIRA_EMAIL and JIRA_API_TOKEN are not set' })
+    expect(await jiraSearch(null)('search pane')).toEqual({ kind: 'unavailable', error: 'JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN are not all set' })
   })
 })
 
@@ -114,5 +114,22 @@ describe('jiraLookup', () => {
     expect(await lookup('KAZ-1')).toEqual({ kind: 'found', summary: 'one' })
     expect(await lookup('KAZ-2')).toEqual({ kind: 'not-found' })
     expect(await jiraLookup(CONFIG, fakeJira(() => new Response('', { status: 503 })).fetchFn)('KAZ-1')).toEqual({ kind: 'unavailable', error: 'Jira answered 503' })
+  })
+})
+
+describe('jiraConfig', () => {
+  const creds = { JIRA_EMAIL: 'e@x', JIRA_API_TOKEN: 't' }
+
+  it('takes the site from JIRA_BASE_URL, without a trailing slash, and has no default', () => {
+    expect(jiraSiteUrl({ JIRA_BASE_URL: ' https://site.example/ ' })).toBe('https://site.example')
+    expect(jiraSiteUrl({})).toBeNull()
+    expect(jiraSiteUrl({ JIRA_BASE_URL: 'site.atlassian.net' })).toBeNull()
+    expect(jiraSiteUrl({ JIRA_BASE_URL: 'ftp://site.example' })).toBeNull()
+    expect(jiraConfig({ ...creds, JIRA_BASE_URL: 'https://site.example/' })).toEqual({ siteUrl: 'https://site.example', email: 'e@x', token: 't', cloudId: undefined })
+  })
+
+  it('is off without the site or without the credentials', () => {
+    expect(jiraConfig(creds)).toBeNull()
+    expect(jiraConfig({ JIRA_BASE_URL: 'https://site.example', JIRA_EMAIL: 'e@x' })).toBeNull()
   })
 })

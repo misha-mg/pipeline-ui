@@ -4,7 +4,7 @@
 import { computed } from 'vue'
 import Frame from '../components/Frame.vue'
 import { fmtClock, fmtDuration, fmtTime, prNumber, verdictClass, type ShownRun } from '../api.ts'
-import { actions, filter, history, setFilter } from '../console.ts'
+import { actions, filter, history, setFilter, ticketUrl } from '../console.ts'
 
 const runs = computed(() => history.value?.runs ?? [])
 const verdicts = computed(() => Object.entries(history.value?.verdicts ?? {}).sort())
@@ -38,7 +38,7 @@ function prState(run: ShownRun): string {
       <thead><tr><th>Ticket</th><th>Run</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR · state</th><th>Started</th><th>Finished</th><th>Duration</th><th>Detail</th></tr></thead>
       <tbody>
         <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key">
-          <td class="key"><a :href="`https://cgstowernetworks.atlassian.net/browse/${run.key}`" target="_blank" rel="noopener">{{ run.key }}</a></td>
+          <td class="key"><a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener">{{ run.key }}</a><span v-else>{{ run.key }}</span></td>
           <td class="num dim">{{ run.number || '—' }}</td>
           <td class="summary">{{ run.summary ?? '' }}</td>
           <td><span class="pill" :class="verdictClass(run.verdict)">{{ run.verdict ?? '—' }}</span></td>

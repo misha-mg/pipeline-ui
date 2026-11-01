@@ -8,7 +8,25 @@ Lives next to `webui`; the only things `webui` knows about it are the `PIPELINE_
 point in `tools/ticket-pipeline/launch-session.sh` and the `PIPELINE_BASE_BRANCH` a run starts
 from.
 
-Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossary.md).
+Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossary.md). How to
+work on it: [CLAUDE.md](CLAUDE.md).
+
+## Install
+
+Node 24 or later (it runs the server's TypeScript directly), git, and a `webui` checkout next to
+this repository (or `PIPELINE_WEBUI` pointing at one), with the pipeline's secrets file
+(`~/.config/webui-pipeline.env`, or `PIPELINE_ENV`).
+
+```bash
+npm ci
+cp .env.example .env   # then fill in the Jira site and credentials
+npm run build          # the console, into ui/dist
+npm test
+bin/pipeline serve     # the console at http://<host>:8787/
+```
+
+Every machine (a laptop, the pipeline's server) is the same clone with its own `.env`; nothing
+in the repository names a machine, a user or a site.
 
 ## Parts
 
@@ -31,9 +49,12 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
   `batch.sh` uses, Jira.
 - `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`,
   `/api/jira/search?q=`, the queue, loop and cancel actions) and the built UI.
-- `ui/` — the console, Vue 3 + Vite: the loop and its Start/Stop, the run in flight, the queue,
-  the runs with counts and filters, each run's reports, the dependencies, the Jira search with
-  its results queued at the end or the front. It polls the API
+- `ui/` — the console, Vue 3 + Vite. The cockpit: a strip with the loop, the run in flight (its
+  reports, Cancel), the next ticket and the target branch with whether pull requests are on; one
+  Start or Stop button; one field that queues a ticket key at the end or the front and searches
+  Jira for anything else; the queue; the latest runs; the state sources folded into one lamp.
+  The runs page: every run with filters and counts, and each run's reports. A ticket key links
+  to `JIRA_BASE_URL`. It polls the API
   every 2 s (the history every 10 s), so two browsers show the same within 5 s.
   Its look is the drafting sheet, light or dark (`ui/public/theme.js`): the tokens and parts are
   `ui/src/sheet.css`, the same file as bug-validator's `src/ui/static/sheet.css` (an edit to one
@@ -51,9 +72,9 @@ a base other than `master` meets a prepare script without `PIPELINE_BASE_BRANCH`
 the worktree from `master` and open the pull request there), no run starts, the loop stops and
 the console says why (ADR webui-entry-point).
 
-During webui's code freeze, while `master` lacks the entry point, run from `dev`; add
-`PIPELINE_PULL_REQUESTS=off` for a test run that must end before its push (`blocked:tooling`,
-the commits on the local ticket branch):
+To run from another branch, for instance while `master` is frozen or does not have the entry
+point yet, name it; add `PIPELINE_PULL_REQUESTS=off` for test runs that must end before their
+push (`blocked:tooling`, the commits on the local ticket branch):
 
 ```bash
 PIPELINE_BASE_BRANCH=dev bin/pipeline serve
@@ -61,7 +82,7 @@ PIPELINE_BASE_BRANCH=dev bin/pipeline serve
 
 ```bash
 bin/pipeline serve            # one per database; reads ~/.config/webui-pipeline.env itself
-bin/pipeline enqueue KAZ-1234 # the summary comes from Jira (JIRA_EMAIL, JIRA_API_TOKEN)
+bin/pipeline enqueue KAZ-1234 # the summary comes from Jira (JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN)
 bin/pipeline start            # the loop takes the next ticket within a second
 bin/pipeline status
 bin/pipeline cancel           # the run in flight ends within 30 s and is recorded cancelled
@@ -82,6 +103,9 @@ pipeline-ui's own secrets go in `.env` at the repository's root (gitignored; `.e
 names them), read by `bin/pipeline` after the pipeline's file, so its values win: `JIRA_EMAIL`
 and `JIRA_API_TOKEN` for the summary lookup and the ticket search, and any of the settings above
 that stay with a machine, such as `PIPELINE_PULL_REQUESTS=off` on one that only makes test runs.
+`JIRA_BASE_URL` is the Jira site (`https://<site>.atlassian.net`): it has no default, and without
+it, or without the credentials, tickets are queued by key alone, the search is off and keys are
+not linked.
 Each machine keeps its own.
 
 ## Run one session by hand
@@ -93,7 +117,7 @@ or the plain CLI runs the ticket instead (ADR webui-entry-point).
 
 ```bash
 set -a; . ~/.config/webui-pipeline.env; set +a; unset ANTHROPIC_API_KEY
-PIPELINE_BASE_BRANCH=dev PIPELINE_SESSION=/home/cgs/npb/pipeline-ui/bin/session tools/ticket-pipeline/prepare-worktree.sh KAZ-1234
+PIPELINE_BASE_BRANCH=dev PIPELINE_SESSION=/path/to/pipeline-ui/bin/session tools/ticket-pipeline/prepare-worktree.sh KAZ-1234
 ```
 
 The console is at `http://<server>:8787/` (`PIPELINE_HOST`, `PIPELINE_PORT`) once the UI is
@@ -109,3 +133,7 @@ npm run build   # the UI into ui/dist, which the service serves
 ```
 
 Node 24 runs the TypeScript directly; there is no build step for the server.
+
+## License
+
+Proprietary, all rights reserved: see [LICENSE](LICENSE).

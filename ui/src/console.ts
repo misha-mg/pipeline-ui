@@ -54,6 +54,12 @@ async function act(fn: () => Promise<unknown>): Promise<void> {
   await Promise.all([refreshState(), refreshHistory()])
 }
 
+/** A ticket's page on the Jira site the service is set up with; null when it has none. */
+export function ticketUrl(key: string): string | null {
+  const site = state.value?.jiraSite
+  return site ? `${site}/browse/${encodeURIComponent(key)}` : null
+}
+
 export function setFilter(next: { verdict: string; ending: string }): void {
   filter.value = next
   void refreshHistory()

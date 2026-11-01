@@ -40,12 +40,14 @@ export type StateView = {
   health: Health | null
   /** How the service starts a run: which launch script, and whether it may open a pull request. */
   setup: RunSetup | null
+  /** The Jira site a ticket key links to (JIRA_BASE_URL); null when it is not set. */
+  jiraSite: string | null
 }
 
 /** How each run is set up: the entry point as the console shows it, the webui branch it starts from and its pull request goes to, and whether it may open one. */
 export type RunSetup = { entry: string; baseBranch: string; pullRequests: boolean }
 
-export type ViewSources = { db: Db; runsDir: string; health: () => Health | null; setup?: RunSetup; now?: () => Date }
+export type ViewSources = { db: Db; runsDir: string; health: () => Health | null; setup?: RunSetup; jiraSite?: string | null; now?: () => Date }
 
 export function stateView(src: ViewSources): StateView {
   const now = (src.now ?? (() => new Date()))()
@@ -61,6 +63,7 @@ export function stateView(src: ViewSources): StateView {
     counts: counts(src, runs, now),
     health: src.health(),
     setup: src.setup ?? null,
+    jiraSite: src.jiraSite ?? null,
   }
 }
 

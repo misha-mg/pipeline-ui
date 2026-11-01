@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
 import { fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageName, verdictClass } from '../api.ts'
-import { actions, history, state } from '../console.ts'
+import { actions, history, state, ticketUrl } from '../console.ts'
 import { clearSearch, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, total as foundTotal, typed } from '../search.ts'
 
 const loop = computed(() => state.value?.loop ?? null)
@@ -182,7 +182,7 @@ function queueFound(key: string, front: boolean) {
           <thead><tr><th>Key</th><th>Summary</th><th>Status</th><th>Type</th><th>Assignee</th><th>Last run</th><th></th></tr></thead>
           <tbody>
             <tr v-for="row in found" :key="row.issue.key">
-              <td class="key"><a :href="`https://cgstowernetworks.atlassian.net/browse/${row.issue.key}`" target="_blank" rel="noopener">{{ row.issue.key }}</a></td>
+              <td class="key"><a v-if="ticketUrl(row.issue.key)" :href="ticketUrl(row.issue.key)!" target="_blank" rel="noopener">{{ row.issue.key }}</a><span v-else>{{ row.issue.key }}</span></td>
               <td class="summary">{{ row.issue.summary }}</td>
               <td><span v-if="row.issue.status" class="pill" :class="statusClass(row.issue.statusCategory)">{{ row.issue.status }}</span></td>
               <td class="dim">{{ row.issue.type ?? '' }}</td>
@@ -208,7 +208,7 @@ function queueFound(key: string, front: boolean) {
           <tbody>
             <tr v-for="(item, i) in queue" :key="item.key">
               <td class="num dim">{{ i + 1 }}</td>
-              <td class="key"><a :href="`https://cgstowernetworks.atlassian.net/browse/${item.key}`" target="_blank" rel="noopener">{{ item.key }}</a></td>
+              <td class="key"><a v-if="ticketUrl(item.key)" :href="ticketUrl(item.key)!" target="_blank" rel="noopener">{{ item.key }}</a><span v-else>{{ item.key }}</span></td>
               <td class="summary">{{ item.summary ?? '' }}</td>
               <td><div class="actions">
                 <button class="btn tiny" :disabled="i === 0" title="Move up" @click="move(i, -1)">↑</button>

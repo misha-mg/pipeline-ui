@@ -19,7 +19,7 @@ const okFetch = (async (url: string) => {
 describe('checkHealth', () => {
   it('reports every dependency ok when all answer', async () => {
     const run: HealthDeps['run'] = async () => ({ ok: false, output: 'no server running on /tmp/tmux-1000/default' })
-    const h = await checkHealth(config(), { run, fetch: okFetch, env: { JIRA_EMAIL: 'e', JIRA_API_TOKEN: 't' } })
+    const h = await checkHealth(config(), { run, fetch: okFetch, env: { JIRA_BASE_URL: 'https://site.example', JIRA_EMAIL: 'e', JIRA_API_TOKEN: 't' } })
     expect(Object.keys(h).sort()).toEqual(['jira', 'runsDir', 'tmux'])
     expect(Object.values(h).every((c) => c.ok)).toBe(true)
     expect(h.runsDir.detail).toContain('1 tickets')
@@ -33,6 +33,6 @@ describe('checkHealth', () => {
     const h = await checkHealth(c, { run, fetch: okFetch, env: {} })
     expect(h.runsDir).toMatchObject({ ok: false, detail: expect.stringContaining('ENOENT') })
     expect(h.tmux).toMatchObject({ ok: false, detail: expect.stringContaining('batch.sh session is running') })
-    expect(h.jira).toMatchObject({ ok: false, detail: expect.stringContaining('JIRA_EMAIL') })
+    expect(h.jira).toMatchObject({ ok: false, detail: expect.stringContaining('JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN are not all set') })
   })
 })

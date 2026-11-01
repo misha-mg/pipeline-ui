@@ -1,6 +1,6 @@
 # Web console for the ticket pipeline
 
-Status: in progress (2026-10-27: queue, loop, CLI, API and console built; first real run through the loop done, with the launch script from `pipeline-improvements` and pull requests off)
+Status: in progress (2026-11-01: queue, loop, CLI, API, console and Jira search built; runs start from the base branch `PIPELINE_BASE_BRANCH`, `dev` during webui's code freeze, with pull requests off; the first real run through the loop was done on 2026-10-27)
 
 ## Problem
 

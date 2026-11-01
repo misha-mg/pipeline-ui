@@ -64,6 +64,12 @@ describe('views', () => {
     expect(s.service.alive).toBe(false)
     expect(s.inFlight).toBeNull()
   })
+
+  it('carries the Jira site a ticket key links to, or null when there is none', () => {
+    const { deps } = sources()
+    expect(stateView(deps).jiraSite).toBeNull()
+    expect(stateView({ ...deps, jiraSite: 'https://site.example' }).jiraSite).toBe('https://site.example')
+  })
 })
 
 describe('api', () => {

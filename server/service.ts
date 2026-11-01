@@ -13,7 +13,7 @@ import { entryLabel, entryOf, prepareEntry } from './loop/entry.ts'
 import { createLoop } from './loop/loop.ts'
 import { createRunner } from './loop/runner.ts'
 import { nowIso, openDb } from './store/db.ts'
-import { jiraConfig, jiraLookup, jiraSearch } from './store/jira.ts'
+import { jiraConfig, jiraLookup, jiraSearch, jiraSiteUrl } from './store/jira.ts'
 import { markRestart, serviceHeartbeat, stopLoop } from './store/runs.ts'
 
 const TICK_MS = 1000
@@ -69,7 +69,7 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   const rounds = setInterval(() => void round(), ROUND_MS)
 
   const uiDir = fs.existsSync(config.uiDir) ? config.uiDir : undefined
-  const server = createServer({ db, runsDir: config.runsDir, health: () => health, setup, loop, lookup: jiraLookup(jiraConfig(process.env)), search: jiraSearch(jiraConfig(process.env)), uiDir })
+  const server = createServer({ db, runsDir: config.runsDir, health: () => health, setup, jiraSite: jiraSiteUrl(process.env), loop, lookup: jiraLookup(jiraConfig(process.env)), search: jiraSearch(jiraConfig(process.env)), uiDir })
   await new Promise<void>((resolve, reject) => server.once('error', reject).listen(config.port, config.host, resolve))
   log(`console at http://${config.host}:${config.port}/${uiDir ? '' : ' (API only: the UI is not built, npm run build)'}`)
 
