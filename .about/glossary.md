@@ -22,8 +22,11 @@ refused.
 has one once it is over.
 
 **Entry point**: the `launch-session.sh` a run goes through, and the `prepare-worktree.sh`
-that hands over to it (`start.sh` and `run.sh` before webui renamed them): `origin/master`'s, or
-the launch script from the ref `PIPELINE_LAUNCH_SESSION_REF` names. Checked before every run.
+that hands over to it, both from `origin/<base>`, the base branch `PIPELINE_BASE_BRANCH` names
+(`master` by default). Checked before every run.
+
+**Base branch**: the webui branch a run's worktree starts from and its pull request goes to
+(`PIPELINE_BASE_BRANCH`).
 
 **Stage**: one agent's turn in a run (investigate, implement, diff, review, app-test, a rework
 round), as the session's hooks report it.

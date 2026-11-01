@@ -138,15 +138,15 @@ What it shows:
 
 - Vocabulary: "run", "queue", "loop", "in flight", "verdict", "ending" are used here;
   Instrumenta's "attempt", "Pick", "Minion", "Foreman" are not. Settled in `.about/glossary.md`.
-- The service can only drive a session once `launch-session.sh` with `PIPELINE_SESSION` is on
-  webui's `origin/master`: `prepare-worktree.sh` builds every worktree from there, and an older
-  launch script runs the plain CLI unwatched, to a pull request (2026-10-27, KAZ-7785 run-3;
-  ADR webui-entry-point). Until then the service runs through `PIPELINE_LAUNCH_SESSION_REF` (the
-  launch script from a branch that has the entry point, the worktree still `origin/master`'s)
-  with pull requests off, so a run ends before its push; and it refuses any run whose launch
-  script lacks the entry point (ADR webui-entry-point, During the code freeze). webui renamed
-  `run.sh` and `start.sh` to these names on 2026-10-28; `origin/master` keeps the old ones until
-  the freeze ends, and the service finds both.
+- The service can only drive a session from a base branch whose `launch-session.sh` has
+  `PIPELINE_SESSION`: `prepare-worktree.sh` builds every worktree from `origin/<base>`, and an
+  older launch script runs the plain CLI unwatched, to a pull request (2026-10-27, KAZ-7785
+  run-3; ADR webui-entry-point). Since webui PR #666 the base is `PIPELINE_BASE_BRANCH`
+  (`master` by default) and the pull request goes to it; during the code freeze the service runs
+  from `dev`. It refuses any run whose scripts on that branch lack the entry point, or, for a
+  base other than `master`, lack `PIPELINE_BASE_BRANCH` (ADR webui-entry-point, The base
+  branch). The ref workaround it replaces (`PIPELINE_LAUNCH_SESSION_REF`, 2026-10-27 to
+  2026-10-30) is gone.
 - The session is driven through the Claude Agent SDK (stages from its SubagentStart/Stop hooks,
   endings from its typed result and rate-limit events) instead of a tmux window and the
   session's transcript. Checked on 2026-10-27 with one run of KAZ-7785 (run-2) through the SDK

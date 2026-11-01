@@ -26,7 +26,7 @@ function collect() {
 describe('createRunner', () => {
   it('runs prepare-worktree.sh with the key, the session env and the events pipe on fd 3, and reports the exit', async () => {
     const webui = fakeWebui([
-      'echo "key=$1 session=$PIPELINE_SESSION fd=$PIPELINE_EVENTS_FD api=${ANTHROPIC_API_KEY:-unset} secret=${FROM_ENV_FILE:-unset}"',
+      'echo "key=$1 session=$PIPELINE_SESSION base=$PIPELINE_BASE_BRANCH fd=$PIPELINE_EVENTS_FD api=${ANTHROPIC_API_KEY:-unset} secret=${FROM_ENV_FILE:-unset}"',
       'echo err >&2',
       '{ echo \'{"type":"init","at":"t","version":"1","model":"m","mcp":{}}\'; echo not-json; echo \'{"type":"ended","at":"t","ending":{"kind":"completed","text":"ok","costUsd":0}}\'; } >&3',
       'exit 3',
@@ -34,12 +34,15 @@ describe('createRunner', () => {
     const envFile = path.join(webui, 'secrets.env')
     fs.writeFileSync(envFile, 'FROM_ENV_FILE=yes\n')
     process.env.ANTHROPIC_API_KEY = 'must-not-leak'
-    const runner = createRunner({ webuiDir: webui, sessionBin: '/x/session', envFile, sessionTimeoutMs: 1000 })
+    // The service's own environment does not decide the base branch: its config does.
+    process.env.PIPELINE_BASE_BRANCH = 'from-the-environment'
+    const runner = createRunner({ webuiDir: webui, sessionBin: '/x/session', envFile, sessionTimeoutMs: 1000, baseBranch: 'dev' })
     const c = collect()
     const exit = await runner('KAZ-1', c.handlers, new AbortController().signal)
     delete process.env.ANTHROPIC_API_KEY
+    delete process.env.PIPELINE_BASE_BRANCH
     expect(exit).toEqual({ code: 3, signal: null })
-    expect(c.output()).toContain('key=KAZ-1 session=/x/session fd=3 api=unset secret=yes')
+    expect(c.output()).toContain('key=KAZ-1 session=/x/session base=dev fd=3 api=unset secret=yes')
     expect(c.output()).toContain('err')
     expect(c.output()).toContain('[events] not-json')
     expect(c.events.map((e) => e.type)).toEqual(['init', 'ended'])
@@ -47,7 +50,7 @@ describe('createRunner', () => {
 
   it('cancels by signalling the process group', async () => {
     const webui = fakeWebui('trap \'echo got-term; exit 0\' TERM\nsleep 30 & wait $!\necho after')
-    const runner = createRunner({ webuiDir: webui, sessionBin: '/x', envFile: '/nonexistent', sessionTimeoutMs: 1000, killAfterMs: 2000 })
+    const runner = createRunner({ webuiDir: webui, sessionBin: '/x', envFile: '/nonexistent', sessionTimeoutMs: 1000, baseBranch: 'master', killAfterMs: 2000 })
     const c = collect()
     const controller = new AbortController()
     const run = runner('KAZ-1', c.handlers, controller.signal)
@@ -60,7 +63,7 @@ describe('createRunner', () => {
   })
 
   it('reports a prepare-worktree.sh that cannot start', async () => {
-    const runner = createRunner({ webuiDir: '/nonexistent-webui', sessionBin: '/x', envFile: '/none', sessionTimeoutMs: 1000 })
+    const runner = createRunner({ webuiDir: '/nonexistent-webui', sessionBin: '/x', envFile: '/none', sessionTimeoutMs: 1000, baseBranch: 'master' })
     const c = collect()
     const exit = await runner('KAZ-1', c.handlers, new AbortController().signal)
     expect(exit.code).not.toBe(0)

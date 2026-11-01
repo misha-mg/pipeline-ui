@@ -44,7 +44,7 @@ const completed = ev({ type: 'ended', ending: { kind: 'completed', text: 'done',
 
 describe('loop', () => {
   it('checks the entry point before a run: a refusal stops the loop and leaves the queue as it was', async () => {
-    let refusal: string | null = 'origin/master\'s tools/ticket-pipeline/start.sh has no PIPELINE_SESSION'
+    let refusal: string | null = 'origin/master\'s tools/ticket-pipeline/launch-session.sh has no PIPELINE_SESSION'
     let checks = 0
     const { db, fake, loop } = setup(async () => { checks += 1; return refusal })
     loop.tick()

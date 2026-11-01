@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 export type Config = {
   /** This repository. */
   repo: string
-  /** The webui checkout a run starts in (its origin/master's prepare-worktree.sh, entry.ts). */
+  /** The webui checkout a run starts in (its origin/<baseBranch>'s prepare-worktree.sh, entry.ts). */
   webuiDir: string
   runsDir: string
   dataDir: string
@@ -22,11 +22,11 @@ export type Config = {
   port: number
   /** The built UI, served when it is there. */
   uiDir: string
-  /** The ref whose launch-session.sh launches the session instead of origin/master's (entry.ts). */
-  launchSessionRef: string | null
-  /** Where the copies of the entry point's scripts go. */
+  /** The webui branch a run's worktree starts from and its pull request goes to (entry.ts). */
+  baseBranch: string
+  /** Where the copy of the entry point's prepare script goes. */
   entryDir: string
-  /** Whether a run may push and open its pull request; off by default with a launch ref. */
+  /** Whether a run may push and open its pull request. */
   pullRequests: boolean
 }
 
@@ -36,8 +36,12 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   const webuiDir = env.PIPELINE_WEBUI ?? path.resolve(repo, '..', 'webui')
   const dataDir = env.PIPELINE_DATA ?? path.join(repo, 'data')
-  // PIPELINE_START_SH_REF is the name from before webui renamed start.sh; still read.
-  const launchSessionRef = env.PIPELINE_LAUNCH_SESSION_REF?.trim() || env.PIPELINE_START_SH_REF?.trim() || null
+  // The code freeze's workaround, replaced by the base branch: refused rather than ignored, since
+  // it used to turn pull requests off.
+  for (const gone of ['PIPELINE_LAUNCH_SESSION_REF', 'PIPELINE_START_SH_REF']) {
+    if (env[gone]?.trim()) throw new Error(`${gone} is no longer read: set PIPELINE_BASE_BRANCH (and PIPELINE_PULL_REQUESTS=off for a run that must not open a pull request)`)
+  }
+  const baseBranch = env.PIPELINE_BASE_BRANCH?.trim() || 'master'
   const pr = env.PIPELINE_PULL_REQUESTS?.trim()
   if (pr && pr !== 'on' && pr !== 'off') throw new Error(`PIPELINE_PULL_REQUESTS is on or off, not ${pr}`)
   return {
@@ -53,9 +57,8 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     host: env.PIPELINE_HOST ?? '0.0.0.0',
     port: Number(env.PIPELINE_PORT ?? 8787),
     uiDir: path.join(repo, 'ui', 'dist'),
-    launchSessionRef,
+    baseBranch,
     entryDir: path.join(dataDir, 'entry'),
-    // A launch script from a branch is a workaround while origin/master lacks it: a test run, no PR.
-    pullRequests: pr ? pr === 'on' : launchSessionRef === null,
+    pullRequests: pr !== 'off',
   }
 }

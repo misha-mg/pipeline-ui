@@ -4,8 +4,9 @@ Web console for the `webui` ticket pipeline: the queue of tickets, the loop that
 a time, the run in flight with its stage, and the history of runs under `webui/.pipeline-runs/`.
 What it is for and what it must do: [.about/prd/pipeline-web-ui.md](.about/prd/pipeline-web-ui.md).
 
-Lives next to `webui`; the only thing `webui` knows about it is the `PIPELINE_SESSION` entry point
-in `tools/ticket-pipeline/launch-session.sh` (`start.sh` before webui renamed it).
+Lives next to `webui`; the only things `webui` knows about it are the `PIPELINE_SESSION` entry
+point in `tools/ticket-pipeline/launch-session.sh` and the `PIPELINE_BASE_BRANCH` a run starts
+from.
 
 Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossary.md).
 
@@ -40,20 +41,22 @@ Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossa
 
 ## Run the service
 
-webui's `prepare-worktree.sh` makes each run's worktree from `origin/master` and hands over to
-that worktree's `launch-session.sh`; an older launch script runs the plain CLI instead, unwatched
-and to a pull request. So before every run the service fetches origin, copies `origin/master`'s
-prepare script into `data/entry/` and checks the launch script it hands over to; without
-`PIPELINE_SESSION` in it no run starts, the loop stops and the console says why (ADR
-webui-entry-point). Until the rename reaches `origin/master`, the scripts there are still
-`run.sh` and `start.sh`; both names are found.
+webui's `prepare-worktree.sh` makes each run's worktree from `origin/<base>`, the base branch
+`PIPELINE_BASE_BRANCH` names (`master` by default), and hands over to that worktree's
+`launch-session.sh`; the run's pull request goes to the same branch. An older launch script runs
+the plain CLI instead, unwatched and to a pull request. So before every run the service fetches
+origin, copies `origin/<base>`'s prepare script into `data/entry/` and checks it and the launch
+script it hands over to: when either is missing, the launch script has no `PIPELINE_SESSION`, or
+a base other than `master` meets a prepare script without `PIPELINE_BASE_BRANCH` (it would build
+the worktree from `master` and open the pull request there), no run starts, the loop stops and
+the console says why (ADR webui-entry-point).
 
-While `origin/master` lacks it (webui's code freeze), take the launch script from a branch that has it;
-the worktree stays `origin/master`'s, and pull requests are off unless asked for, so a run ends
-before its push (`blocked:tooling`, the commits on the local ticket branch):
+During webui's code freeze, while `master` lacks the entry point, run from `dev`; add
+`PIPELINE_PULL_REQUESTS=off` for a test run that must end before its push (`blocked:tooling`,
+the commits on the local ticket branch):
 
 ```bash
-PIPELINE_LAUNCH_SESSION_REF=pipeline-improvements bin/pipeline serve   # PIPELINE_PULL_REQUESTS=off implied
+PIPELINE_BASE_BRANCH=dev bin/pipeline serve
 ```
 
 ```bash
@@ -70,23 +73,27 @@ ended by the restart, the queue is kept, and the loop waits for `start`.
 
 Where things are, each with a default for the server: `PIPELINE_WEBUI` (the webui checkout,
 `../webui`), `PIPELINE_DATA` (database and run logs, `./data`), `PIPELINE_ENV` (the secrets file),
-`PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_LAUNCH_SESSION_REF` (none: `origin/master`'s own launch script; `PIPELINE_START_SH_REF` is still read),
-`PIPELINE_PULL_REQUESTS` (`on`, or `off` when a ref is set). The secrets file is sourced inside the run, never
-printed.
+`PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_BASE_BRANCH` (the branch a run's worktree
+starts from and its pull request goes to, `master`), `PIPELINE_PULL_REQUESTS` (`on` or `off`,
+`on`). `PIPELINE_LAUNCH_SESSION_REF` and `PIPELINE_START_SH_REF`, the freeze's old workaround,
+stop the service from starting. The secrets file is sourced inside the run, never printed.
 
 pipeline-ui's own secrets go in `.env` at the repository's root (gitignored; `.env.example`
 names them), read by `bin/pipeline` after the pipeline's file, so its values win: `JIRA_EMAIL`
-and `JIRA_API_TOKEN` for the summary lookup and the ticket search. Each machine keeps its own.
+and `JIRA_API_TOKEN` for the summary lookup and the ticket search, and any of the settings above
+that stay with a machine, such as `PIPELINE_PULL_REQUESTS=off` on one that only makes test runs.
+Each machine keeps its own.
 
 ## Run one session by hand
 
 The same way the service does, from the `webui` checkout, with the pipeline's secrets loaded.
-Mind that `prepare-worktree.sh` builds the worktree from `origin/master`: the worktree's
-`launch-session.sh` must already know `PIPELINE_SESSION`, or the plain CLI runs the ticket instead (ADR webui-entry-point).
+Mind that `prepare-worktree.sh` builds the worktree from `origin/$PIPELINE_BASE_BRANCH`
+(`master` when unset): the worktree's `launch-session.sh` must already know `PIPELINE_SESSION`,
+or the plain CLI runs the ticket instead (ADR webui-entry-point).
 
 ```bash
 set -a; . ~/.config/webui-pipeline.env; set +a; unset ANTHROPIC_API_KEY
-PIPELINE_SESSION=/home/cgs/npb/pipeline-ui/bin/session tools/ticket-pipeline/prepare-worktree.sh KAZ-1234
+PIPELINE_BASE_BRANCH=dev PIPELINE_SESSION=/home/cgs/npb/pipeline-ui/bin/session tools/ticket-pipeline/prepare-worktree.sh KAZ-1234
 ```
 
 The console is at `http://<server>:8787/` (`PIPELINE_HOST`, `PIPELINE_PORT`) once the UI is

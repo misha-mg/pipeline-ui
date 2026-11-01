@@ -1,8 +1,9 @@
 // The real runner: starts the entry point's prepare-worktree.sh (entry.ts) for a ticket the way
 // batch.sh does (the secrets sourced inside the child, the API key unset), with bin/session as
-// the session program, the events pipe on file descriptor 3, and the session told whether it
-// may open a pull request. Cancelling sends SIGTERM to the whole process group
-// (prepare-worktree.sh, launch-session.sh, the session and its CLI), then SIGKILL if it lingers.
+// the session program, the base branch the worktree starts from, the events pipe on file
+// descriptor 3, and the session told whether it may open a pull request. Cancelling sends
+// SIGTERM to the whole process group (prepare-worktree.sh, launch-session.sh, the session and its
+// CLI), then SIGKILL if it lingers.
 import { spawn } from 'node:child_process'
 import readline from 'node:readline'
 import type { Readable } from 'node:stream'
@@ -15,6 +16,8 @@ export type RunnerConfig = {
   sessionBin: string
   envFile: string
   sessionTimeoutMs: number
+  /** The branch the worktree starts from and the pull request goes to (PIPELINE_BASE_BRANCH). */
+  baseBranch: string
   /** The prepare-worktree.sh to start; the checkout's own when absent. */
   entry?: Entry
   /** False: the session refuses every push and pull request. */
@@ -45,11 +48,12 @@ export function createRunner(config: RunnerConfig): Runner {
       for (const [k, v] of Object.entries(process.env)) {
         if (v !== undefined && k !== 'ANTHROPIC_API_KEY' && k !== 'ANTHROPIC_AUTH_TOKEN') env[k] = v
       }
-      Object.assign(env, config.entry?.env ?? {}, {
+      Object.assign(env, {
         PIPELINE_PREPARE_WORKTREE: config.entry?.prepareWorktree ?? 'tools/ticket-pipeline/prepare-worktree.sh',
         PIPELINE_SESSION_PULL_REQUESTS: config.pullRequests === false ? 'off' : 'on',
         PIPELINE_ENV: config.envFile,
         PIPELINE_SESSION: config.sessionBin,
+        PIPELINE_BASE_BRANCH: config.baseBranch,
         PIPELINE_EVENTS_FD: '3',
         PIPELINE_SESSION_TRACE: handlers.tracePath,
         PIPELINE_SESSION_TIMEOUT_MS: String(config.sessionTimeoutMs),

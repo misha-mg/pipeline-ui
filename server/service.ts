@@ -24,7 +24,7 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   for (const run of markRestart(db)) log(`run ${run.id} ${run.key} was in flight when the service last stopped: ended by restart`)
   const startedAt = nowIso()
   serviceHeartbeat(db, process.pid, startedAt)
-  const entryConfig = { webuiDir: config.webuiDir, launchSessionRef: config.launchSessionRef, entryDir: config.entryDir }
+  const entryConfig = { webuiDir: config.webuiDir, baseBranch: config.baseBranch, entryDir: config.entryDir }
   const setup = { entry: entryLabel(entryConfig), pullRequests: config.pullRequests }
   log(`service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; ${setup.entry}; pull requests ${setup.pullRequests ? 'on' : 'off'}; the loop is stopped`)
 
