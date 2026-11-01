@@ -136,4 +136,4 @@ Node 24 runs the TypeScript directly; there is no build step for the server.
 
 ## License
 
-Proprietary, all rights reserved: see [LICENSE](LICENSE).
+MIT: see [LICENSE](LICENSE).

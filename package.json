@@ -1,7 +1,7 @@
 {
   "name": "pipeline-ui",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "Web console for the webui ticket pipeline: queue, loop, run in flight, run history",
   "engines": {

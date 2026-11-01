@@ -18,7 +18,7 @@ function sources() {
     fs.mkdirSync(path.join(runsDir, run), { recursive: true })
     for (const [n, t] of Object.entries(files)) fs.writeFileSync(path.join(runsDir, run, n), t)
   }
-  write('KAZ-1/run-1', { '00-assignment.md': '- Summary: one\n- Time: 2026-10-20T10:00:00Z\n', '01-investigate.md': 'inv', 'state.md': 'pr: https://bitbucket.org/CGS/webui/pull-requests/1\ndone:pr-opened\n' })
+  write('KAZ-1/run-1', { '00-assignment.md': '- Summary: one\n- Time: 2026-10-20T10:00:00Z\n', '01-investigate.md': 'inv', 'state.md': 'pr: https://bitbucket.org/example/webui/pull-requests/1\ndone:pr-opened\n' })
   write('KAZ-2/run-1', { '00-assignment.md': '- Time: 2026-10-21T10:00:00Z\n' })
   write('KAZ-3/run-1', { '00-assignment.md': '- Time: 2026-10-22T10:00:00Z\n', 'state.md': 'blocked:tooling\n' })
   fs.mkdirSync(path.join(runsDir, 'batch-20261021-000000'))
@@ -87,7 +87,7 @@ describe('api', () => {
       const died = await call('GET', '/api/runs?ending=died')
       expect((died.body.runs as { key: string }[]).map((r) => r.key)).toEqual(['KAZ-2'])
       const one = await call('GET', '/api/runs/KAZ-1/1')
-      expect(one.body.files).toEqual([{ name: '00-assignment.md', text: '- Summary: one\n- Time: 2026-10-20T10:00:00Z\n' }, { name: '01-investigate.md', text: 'inv' }, { name: 'state.md', text: 'pr: https://bitbucket.org/CGS/webui/pull-requests/1\ndone:pr-opened\n' }])
+      expect(one.body.files).toEqual([{ name: '00-assignment.md', text: '- Summary: one\n- Time: 2026-10-20T10:00:00Z\n' }, { name: '01-investigate.md', text: 'inv' }, { name: 'state.md', text: 'pr: https://bitbucket.org/example/webui/pull-requests/1\ndone:pr-opened\n' }])
       expect((await call('GET', '/api/runs/KAZ-9/1')).status).toBe(404)
     } finally {
       await close()

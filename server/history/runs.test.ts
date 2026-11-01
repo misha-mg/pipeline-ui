@@ -24,7 +24,7 @@ describe('loadRuns', () => {
         '00-assignment.md': '# Assignment — KAZ-9016\n\n- Ticket: KAZ-9016\n- Summary: Ports table sorting\n- Time: 2026-10-14T21:00:00+02:00\n',
         '01-investigate.md': '# Investigation\n',
         '02-implement.md': '',
-        'state.md': 'investigate — ticket-investigator (-) — confidence high\nimplement — ticket-implementer (implement) — done\nreview — change-reviewer (-) — pass\npull-request — ticket-implementer (pull-request) — opened\npr: https://bitbucket.org/CGS/webui/pull-requests/622\ndone:pr-opened\n',
+        'state.md': 'investigate — ticket-investigator (-) — confidence high\nimplement — ticket-implementer (implement) — done\nreview — change-reviewer (-) — pass\npull-request — ticket-implementer (pull-request) — opened\npr: https://bitbucket.org/example/webui/pull-requests/622\ndone:pr-opened\n',
         'timings.tsv': 'label\tagent\tstarted\tseconds\ninvestigate\tticket-investigator\t2026-10-14T19:00:19Z\t506\nimplement\tticket-implementer\t2026-10-14T19:08:45Z\t332\nreview\tchange-reviewer\t2026-10-14T19:14:24Z\t66\npull request\tticket-implementer\t2026-10-14T19:21:05Z\t96\n',
         'diff-0.patch': '',
       },
@@ -32,7 +32,7 @@ describe('loadRuns', () => {
     const [run] = loadRuns(dir)
     expect(run).toMatchObject({
       key: 'KAZ-9016', number: 1, startedAt: '2026-10-14T19:00:00.000Z', summary: 'Ports table sorting', verdict: 'done:pr-opened',
-      prUrl: 'https://bitbucket.org/CGS/webui/pull-requests/622', reason: null, reports: ['00-assignment.md', '01-investigate.md', '02-implement.md'],
+      prUrl: 'https://bitbucket.org/example/webui/pull-requests/622', reason: null, reports: ['00-assignment.md', '01-investigate.md', '02-implement.md'],
     })
     expect(run!.finishedAt).not.toBeNull()
     // 19:21:05 + 96 s = 19:22:41, later than state.md's mtime would be in the past... the stages' end wins when later.
@@ -50,17 +50,17 @@ describe('loadRuns', () => {
       'KAZ-8056/run-1': {
         '00-assignment.md': '# KAZ-8056 — run 1 assignment\n\n- Ticket: KAZ-8056\n- Started: 2026-10-05T23:50:14+02:00\n',
         '01-investigate.md': 'KAZ-8056 (Bug, 3 - Medium). Summary: "Quoted \\"summary\\" here".\n',
-        'state.md': '03 review (change-reviewer): pass\n04 pull-request (ticket-implementer, pull-request): opened — https://bitbucket.org/CGS/webui/pull-requests/526\nreason: already-fixed\nblocked:tooling\n',
+        'state.md': '03 review (change-reviewer): pass\n04 pull-request (ticket-implementer, pull-request): opened — https://bitbucket.org/example/webui/pull-requests/526\nreason: already-fixed\nblocked:tooling\n',
       },
     })
     const [run] = loadRuns(dir)
     expect(run).toMatchObject({
       startedAt: '2026-10-05T21:50:14.000Z', summary: 'Quoted "summary" here', verdict: 'blocked:tooling', reason: 'already-fixed',
-      prUrl: 'https://bitbucket.org/CGS/webui/pull-requests/526',
+      prUrl: 'https://bitbucket.org/example/webui/pull-requests/526',
     })
     expect(run!.stages).toEqual([
       { label: 'review', agent: null, startedAt: null, seconds: null, result: '(change-reviewer): pass' },
-      { label: 'pull-request', agent: null, startedAt: null, seconds: null, result: '(ticket-implementer, pull-request): opened — https://bitbucket.org/CGS/webui/pull-requests/526' },
+      { label: 'pull-request', agent: null, startedAt: null, seconds: null, result: '(ticket-implementer, pull-request): opened — https://bitbucket.org/example/webui/pull-requests/526' },
     ])
   })
 

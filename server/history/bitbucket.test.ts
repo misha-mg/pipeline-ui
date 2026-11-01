@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { openDb } from '../store/db.ts'
 import { pullRequestStates, refreshPullRequests } from './bitbucket.ts'
 
-const PR = (n: number) => `https://bitbucket.org/CGS/webui/pull-requests/${n}`
+const PR = (n: number) => `https://bitbucket.org/example/webui/pull-requests/${n}`
 const answers = (map: Record<string, { status: number; body?: unknown }>) => {
   const calls: string[] = []
   const fetchFn = (async (url: string) => {
