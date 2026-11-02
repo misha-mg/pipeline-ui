@@ -44,7 +44,9 @@ Agent SDK, and from its own records.
   it, and each stage's report; filterable by verdict and ending.
 - Counts of runs by verdict for the last batch, the last 7 days and all time (the API still has
   them; the cockpit stopped showing them on 2026-11-01, they wait for a statistics page of their own).
-- The webui branch a run starts from and its pull request goes to, and whether pull requests are on.
+- The webui branch a run starts from and its pull request goes to, and whether pull requests are
+  on, off or drafts only (`PIPELINE_PULL_REQUESTS=draft`: every pull request opens as a draft,
+  ADR draft-pull-requests).
 - Actions: start and stop the service's loop; add a ticket at the end or at the front of the
   queue; remove or reorder queued tickets; cancel the run in flight; run a finished ticket again.
 - A queued ticket's summary, read from Jira when it is added; a key Jira does not know is refused.

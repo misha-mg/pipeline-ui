@@ -5,16 +5,17 @@ describe('configFromEnv', () => {
   it('starts runs from master with pull requests on by default', () => {
     const c = configFromEnv({})
     expect(c.baseBranch).toBe('master')
-    expect(c.pullRequests).toBe(true)
+    expect(c.pullRequests).toBe('on')
   })
 
-  it('takes the base branch, trimmed, and pull requests on or off whatever the branch', () => {
+  it('takes the base branch, trimmed, and pull requests on, draft or off whatever the branch', () => {
     expect(configFromEnv({ PIPELINE_BASE_BRANCH: ' dev\n' }).baseBranch).toBe('dev')
     expect(configFromEnv({ PIPELINE_BASE_BRANCH: '  ' }).baseBranch).toBe('master')
-    expect(configFromEnv({ PIPELINE_BASE_BRANCH: 'dev' }).pullRequests).toBe(true)
-    expect(configFromEnv({ PIPELINE_BASE_BRANCH: 'dev', PIPELINE_PULL_REQUESTS: 'off' }).pullRequests).toBe(false)
-    expect(configFromEnv({ PIPELINE_PULL_REQUESTS: 'on' }).pullRequests).toBe(true)
-    expect(() => configFromEnv({ PIPELINE_PULL_REQUESTS: 'no' })).toThrow(/on or off, not no/)
+    expect(configFromEnv({ PIPELINE_BASE_BRANCH: 'dev' }).pullRequests).toBe('on')
+    expect(configFromEnv({ PIPELINE_BASE_BRANCH: 'dev', PIPELINE_PULL_REQUESTS: 'off' }).pullRequests).toBe('off')
+    expect(configFromEnv({ PIPELINE_PULL_REQUESTS: 'on' }).pullRequests).toBe('on')
+    expect(configFromEnv({ PIPELINE_PULL_REQUESTS: ' draft ' }).pullRequests).toBe('draft')
+    expect(() => configFromEnv({ PIPELINE_PULL_REQUESTS: 'no' })).toThrow(/on, draft or off, not no/)
   })
 
   it('refuses the code freeze\'s launch-script ref rather than ignore it', () => {

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { PullRequests } from '../config.ts'
 import type { SessionEvent } from '../session/driver.ts'
 import { entryLabel, entryOf, prepareEntry } from './entry.ts'
 import { createRunner } from './runner.ts'
@@ -130,7 +131,7 @@ describe('a run through the entry point', () => {
     ].join('\n'), { mode: 0o755 })
     return file
   }
-  const runKaz1 = async (w: ReturnType<typeof fakeWebui>, baseBranch: string, pullRequests: boolean) => {
+  const runKaz1 = async (w: ReturnType<typeof fakeWebui>, baseBranch: string, pullRequests: PullRequests) => {
     const c = config(w, baseBranch)
     expect(await prepareEntry(c)).toBeNull()
     const runner = createRunner({ webuiDir: w.webui, sessionBin: session(w.dir), envFile: '/nonexistent', sessionTimeoutMs: 1000, baseBranch, entry: entryOf(c), pullRequests })
@@ -142,7 +143,7 @@ describe('a run through the entry point', () => {
 
   it('from dev: the worktree and launch-session.sh are dev\'s while the checkout is on master', async () => {
     const w = fakeWebui()
-    const r = await runKaz1(w, 'dev', false)
+    const r = await runKaz1(w, 'dev', 'off')
     expect(r.exit).toEqual({ code: 0, signal: null })
     expect(r.output).toContain('prompt=/ticket-pipeline KAZ-1 branch=KAZ-1 from=dev base=dev prs=off')
     expect(r.events.map((e) => e.type)).toEqual(['ended'])
@@ -151,8 +152,15 @@ describe('a run through the entry point', () => {
   it('from master once it has the entry point, pull requests on', async () => {
     const w = fakeWebui()
     w.commit('master', { 'tools/ticket-pipeline/launch-session.sh': WITH_SESSION })
-    const r = await runKaz1(w, 'master', true)
+    const r = await runKaz1(w, 'master', 'on')
     expect(r.exit).toEqual({ code: 0, signal: null })
     expect(r.output).toContain('prompt=/ticket-pipeline KAZ-1 branch=KAZ-1 from=master base=master prs=on')
+  })
+
+  it('tells the session when pull requests are drafts only', async () => {
+    const w = fakeWebui()
+    w.commit('master', { 'tools/ticket-pipeline/launch-session.sh': WITH_SESSION })
+    const r = await runKaz1(w, 'master', 'draft')
+    expect(r.output).toContain('base=master prs=draft')
   })
 })

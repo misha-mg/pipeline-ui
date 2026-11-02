@@ -130,7 +130,7 @@ function queueFound(key: string, front: boolean) {
       <div class="label">Target branch</div>
       <div class="value branch">{{ setup?.baseBranch ?? '—' }}</div>
       <div v-if="setup" class="note one" :title="`Each run: ${setup.entry}.`">
-        pull requests <span :class="setup.pullRequests ? 'ok' : 'warn'">{{ setup.pullRequests ? `on, into ${setup.baseBranch}` : 'off' }}</span>
+        pull requests <span :class="setup.pullRequests === 'off' ? 'warn' : 'ok'">{{ setup.pullRequests === 'off' ? 'off' : `${setup.pullRequests === 'draft' ? 'drafts only' : 'on'}, into ${setup.baseBranch}` }}</span>
       </div>
     </Frame>
   </div>

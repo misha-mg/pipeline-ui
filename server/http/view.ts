@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { loadRuns, readReport, type HistoryRun } from '../history/runs.ts'
 import { pullRequestStates, type PullRequestState } from '../history/bitbucket.ts'
+import type { PullRequests } from '../config.ts'
 import type { Health } from '../health.ts'
 import type { Db } from '../store/db.ts'
 import { listQueue, type QueueItem } from '../store/queue.ts'
@@ -44,8 +45,8 @@ export type StateView = {
   jiraSite: string | null
 }
 
-/** How each run is set up: the entry point as the console shows it, the webui branch it starts from and its pull request goes to, and whether it may open one. */
-export type RunSetup = { entry: string; baseBranch: string; pullRequests: boolean }
+/** How each run is set up: the entry point as the console shows it, the webui branch it starts from and its pull request goes to, and whether it may open one, or only a draft. */
+export type RunSetup = { entry: string; baseBranch: string; pullRequests: PullRequests }
 
 export type ViewSources = { db: Db; runsDir: string; health: () => Health | null; setup?: RunSetup; jiraSite?: string | null; now?: () => Date }
 

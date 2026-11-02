@@ -3,8 +3,10 @@
 // lines on the file descriptor PIPELINE_EVENTS_FD names (stdout when unset), so the service
 // that started prepare-worktree.sh reads them through a pipe. PIPELINE_SESSION_TRACE names a file every raw
 // SDK message is appended to; PIPELINE_SESSION_TIMEOUT_MS bounds the session (the driver's default
-// otherwise); PIPELINE_SESSION_PULL_REQUESTS=off refuses every push and pull request. The exit code is 0 for a completed session, 1 for any other ending.
+// otherwise); PIPELINE_SESSION_PULL_REQUESTS=off refuses every push and pull request, =draft every
+// pull request that is not a draft. The exit code is 0 for a completed session, 1 for any other ending.
 import fs from 'node:fs'
+import type { PullRequests } from '../config.ts'
 import { driveSession, type SessionEvent } from './driver.ts'
 
 const [prompt, settings, mcpJson, runsDir] = process.argv.slice(2)
@@ -28,8 +30,11 @@ const mcpServers =
     : {}
 
 const timeoutMs = Number(process.env.PIPELINE_SESSION_TIMEOUT_MS) || undefined
+// Anything but the two restricting values is on, as an unset variable is.
+const prs = process.env.PIPELINE_SESSION_PULL_REQUESTS
+const pullRequests: PullRequests = prs === 'off' || prs === 'draft' ? prs : 'on'
 const ending = await driveSession(
-  { prompt, settings, mcpServers, runsDir, cwd: process.cwd(), env: process.env, signal: controller.signal, timeoutMs, pullRequests: process.env.PIPELINE_SESSION_PULL_REQUESTS !== 'off' },
+  { prompt, settings, mcpServers, runsDir, cwd: process.cwd(), env: process.env, signal: controller.signal, timeoutMs, pullRequests },
   emit,
   { trace, stderr: (d) => process.stderr.write(d) },
 )

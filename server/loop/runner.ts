@@ -1,12 +1,13 @@
 // The real runner: starts the entry point's prepare-worktree.sh (entry.ts) for a ticket the way
 // batch.sh does (the secrets sourced inside the child, the API key unset), with bin/session as
 // the session program, the base branch the worktree starts from, the events pipe on file
-// descriptor 3, and the session told whether it may open a pull request. Cancelling sends
+// descriptor 3, and the session told whether it may open a pull request, or only a draft. Cancelling sends
 // SIGTERM to the whole process group (prepare-worktree.sh, launch-session.sh, the session and its
 // CLI), then SIGKILL if it lingers.
 import { spawn } from 'node:child_process'
 import readline from 'node:readline'
 import type { Readable } from 'node:stream'
+import type { PullRequests } from '../config.ts'
 import type { SessionEvent } from '../session/driver.ts'
 import type { Entry } from './entry.ts'
 import type { Runner, RunExit } from './loop.ts'
@@ -20,8 +21,8 @@ export type RunnerConfig = {
   baseBranch: string
   /** The prepare-worktree.sh to start; the checkout's own when absent. */
   entry?: Entry
-  /** False: the session refuses every push and pull request. */
-  pullRequests?: boolean
+  /** `off`: the session refuses every push and pull request; `draft`: every ready one. `on` when absent. */
+  pullRequests?: PullRequests
   /** After SIGTERM, how long before SIGKILL. */
   killAfterMs?: number
   /** After the child exited, how long to wait for its pipes to drain. */
@@ -50,7 +51,7 @@ export function createRunner(config: RunnerConfig): Runner {
       }
       Object.assign(env, {
         PIPELINE_PREPARE_WORKTREE: config.entry?.prepareWorktree ?? 'tools/ticket-pipeline/prepare-worktree.sh',
-        PIPELINE_SESSION_PULL_REQUESTS: config.pullRequests === false ? 'off' : 'on',
+        PIPELINE_SESSION_PULL_REQUESTS: config.pullRequests ?? 'on',
         PIPELINE_ENV: config.envFile,
         PIPELINE_SESSION: config.sessionBin,
         PIPELINE_BASE_BRANCH: config.baseBranch,

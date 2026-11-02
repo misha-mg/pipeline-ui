@@ -8,7 +8,7 @@ import { checkHealth, type HealthDeps } from './health.ts'
 function config(): Config {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-health-'))
   fs.mkdirSync(path.join(dir, 'webui', '.pipeline-runs', 'KAZ-1'), { recursive: true })
-  return { repo: dir, webuiDir: path.join(dir, 'webui'), runsDir: path.join(dir, 'webui', '.pipeline-runs'), dataDir: dir, dbPath: '', logDir: '', envFile: '', sessionBin: '', sessionTimeoutMs: 0, host: '', port: 0, uiDir: '', baseBranch: 'master', entryDir: '', pullRequests: true }
+  return { repo: dir, webuiDir: path.join(dir, 'webui'), runsDir: path.join(dir, 'webui', '.pipeline-runs'), dataDir: dir, dbPath: '', logDir: '', envFile: '', sessionBin: '', sessionTimeoutMs: 0, host: '', port: 0, uiDir: '', baseBranch: 'master', entryDir: '', pullRequests: 'on' }
 }
 
 const okFetch = (async (url: string) => {

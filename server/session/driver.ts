@@ -2,8 +2,11 @@
 // as typed events: the stages (from the SubagentStart/SubagentStop hooks), rate limits, API
 // retries, each turn's result, and one ending. Everything else the SDK streams is passed to the
 // optional trace sink and otherwise ignored. With pull requests off, the session may not push or
-// open a pull request: the settings deny both and a PreToolUse hook refuses them whatever the
-// settings say (ADR webui-entry-point, During the code freeze). See .about/prd/pipeline-web-ui.md.
+// open a pull request, ready or draft: the settings deny both and a PreToolUse hook refuses them
+// whatever the settings say (ADR webui-entry-point, During the code freeze). With drafts only, the
+// same hook turns a ready pull request away towards the draft tool, which takes the same
+// arguments, so the run still ends in a pull request (ADR draft-pull-requests). See
+// .about/prd/pipeline-web-ui.md.
 import { USAGE_LIMIT_ERROR_PREFIXES, query as sdkQuery } from '@anthropic-ai/claude-agent-sdk'
 import type {
   HookCallback,
@@ -14,6 +17,7 @@ import type {
   SDKRateLimitInfo,
   SDKResultMessage,
 } from '@anthropic-ai/claude-agent-sdk'
+import type { PullRequests } from '../config.ts'
 
 export type SessionInput = {
   prompt: string
@@ -29,8 +33,8 @@ export type SessionInput = {
   /** Cancels the session; the ending is then `aborted`. */
   signal?: AbortSignal
   timeoutMs?: number
-  /** False: every push and every pull request is refused, so the run ends before one. */
-  pullRequests?: boolean
+  /** `off`: every push and pull request is refused, so the run ends before one; `draft`: every ready pull request is. `on` when absent. */
+  pullRequests?: PullRequests
 }
 
 export type SessionEvent =
@@ -64,8 +68,10 @@ export type SessionDeps = {
 const DEFAULT_TIMEOUT_MS = 120 * 60 * 1000
 const TEXT_LIMIT = 2000
 const PR_TOOL = 'mcp__bitbucket__createPullRequest'
+const DRAFT_TOOL = 'mcp__bitbucket__createDraftPullRequest'
 const PUSH_RULE = 'Bash(git push:*)'
 export const PULL_REQUESTS_OFF = 'pull requests are off for this service (PIPELINE_PULL_REQUESTS=off): the run keeps its commits on the local ticket branch and ends without a push or a pull request'
+export const DRAFTS_ONLY = `this service opens pull requests as drafts only (PIPELINE_PULL_REQUESTS=draft): call ${DRAFT_TOOL} with the same arguments instead, and report the pull request it opens`
 
 /**
  * Runs the session to its end and returns its ending; events arrive through `emit` as they
@@ -98,14 +104,16 @@ export async function driveSession(
     return {}
   }
   const matcher: HookCallbackMatcher = { hooks: [onAgent] }
+  const pullRequests = input.pullRequests ?? 'on'
+  const settings = pullRequests === 'off' ? withoutPublishing(input.settings) : pullRequests === 'draft' ? withoutReady(input.settings) : input.settings
   const onTool: HookCallback = async (hookInput): Promise<HookJSONOutput> => {
     if (hookInput.hook_event_name !== 'PreToolUse') return {}
-    const refused = publishing(hookInput.tool_name, hookInput.tool_input)
+    const refused = pullRequests === 'off' ? publishing(hookInput.tool_name, hookInput.tool_input) : readyPullRequest(hookInput.tool_name)
     if (!refused) return {}
     emit({ type: 'refused', at: now(), tool: hookInput.tool_name, detail: refused })
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: PULL_REQUESTS_OFF } }
+    const reason = pullRequests === 'off' ? PULL_REQUESTS_OFF : DRAFTS_ONLY
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
   }
-  const pullRequests = input.pullRequests ?? true
 
   let lastResult: SDKResultMessage | null = null
   let lastRateLimit: SDKRateLimitInfo | null = null
@@ -115,11 +123,11 @@ export async function driveSession(
       prompt: input.prompt,
       options: {
         cwd: input.cwd,
-        settings: pullRequests ? input.settings : withoutPublishing(input.settings),
+        settings,
         mcpServers: input.mcpServers,
         permissionMode: 'dontAsk',
         additionalDirectories: [input.runsDir],
-        hooks: { SubagentStart: [matcher], SubagentStop: [matcher], ...(pullRequests ? {} : { PreToolUse: [{ hooks: [onTool] }] }) },
+        hooks: { SubagentStart: [matcher], SubagentStop: [matcher], ...(pullRequests === 'on' ? {} : { PreToolUse: [{ hooks: [onTool] }] }) },
         env: sessionEnv(input.env),
         abortController: controller,
         stderr: deps.stderr,
@@ -180,6 +188,7 @@ export function sessionEnv(base: Record<string, string | undefined>): Record<str
 /** What a tool call would publish, when it pushes or opens a pull request; null otherwise. */
 export function publishing(tool: string, input: unknown): string | null {
   if (tool === PR_TOOL) return 'open a pull request'
+  if (tool === DRAFT_TOOL) return 'open a draft pull request'
   if (tool !== 'Bash') return null
   const command = typeof input === 'object' && input !== null && 'command' in input ? String((input as { command: unknown }).command) : ''
   return /\bgit\b(?:\s+-\S+(?:\s+\S+)?)*\s+push\b/.test(command) ? command.slice(0, 200) : null
@@ -199,10 +208,34 @@ export function withoutPublishing(settings: string): string {
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return settings
   const s = parsed as { permissions?: { allow?: unknown; deny?: unknown }; sandbox?: { excludedCommands?: unknown } }
-  const isPublishing = (rule: unknown) => typeof rule === 'string' && (rule === PR_TOOL || /^Bash\(git push\b/.test(rule) || /^git push\b/.test(rule))
+  const isPublishing = (rule: unknown) => typeof rule === 'string' && (rule === PR_TOOL || rule === DRAFT_TOOL || /^Bash\(git push\b/.test(rule) || /^git push\b/.test(rule))
   const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
-  s.permissions = { ...s.permissions, allow: list(s.permissions?.allow).filter((r) => !isPublishing(r)), deny: [...list(s.permissions?.deny), PUSH_RULE, PR_TOOL] }
+  s.permissions = { ...s.permissions, allow: list(s.permissions?.allow).filter((r) => !isPublishing(r)), deny: [...list(s.permissions?.deny), PUSH_RULE, PR_TOOL, DRAFT_TOOL] }
   if (s.sandbox?.excludedCommands !== undefined) s.sandbox.excludedCommands = list(s.sandbox.excludedCommands).filter((c) => !isPublishing(c))
+  return JSON.stringify(s)
+}
+
+/** With drafts only, the call that opens a ready pull request; null for any other call. */
+export function readyPullRequest(tool: string): string | null {
+  return tool === PR_TOOL ? 'open a ready pull request; drafts only' : null
+}
+
+/**
+ * launch-session.sh's settings with the ready pull request no longer allowed. It is not denied: a
+ * denied tool is taken out of the session, and the agent told to open the PR would then not meet
+ * the hook that sends it to the draft tool.
+ */
+export function withoutReady(settings: string): string {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(settings)
+  } catch {
+    return settings
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return settings
+  const s = parsed as { permissions?: { allow?: unknown } }
+  if (!Array.isArray(s.permissions?.allow)) return settings
+  s.permissions = { ...s.permissions, allow: s.permissions.allow.filter((r) => r !== PR_TOOL) }
   return JSON.stringify(s)
 }
 

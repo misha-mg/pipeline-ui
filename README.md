@@ -61,7 +61,7 @@ tmux new -s pipeline-ui 'bin/pipeline serve'
 The first runs on a new machine are best made with `PIPELINE_PULL_REQUESTS=off` in `.env`: a run
 ends before its push (`blocked:tooling`) with its commits on the local ticket branch, to be
 looked at before the next one. Remove the line and restart the service to let runs open pull
-requests.
+requests, or set it to `draft` to have every pull request opened as a draft.
 
 To update: wait until nothing is in flight (`bin/pipeline status`, or `bin/pipeline stop` and
 wait), then
@@ -140,8 +140,8 @@ ended by the restart, the queue is kept, and the loop waits for `start`.
 Where things are, each with a default for the server: `PIPELINE_WEBUI` (the webui checkout,
 `../webui`), `PIPELINE_DATA` (database and run logs, `./data`), `PIPELINE_ENV` (the secrets file),
 `PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_BASE_BRANCH` (the branch a run's worktree
-starts from and its pull request goes to, `master`), `PIPELINE_PULL_REQUESTS` (`on` or `off`,
-`on`). `PIPELINE_LAUNCH_SESSION_REF` and `PIPELINE_START_SH_REF`, the freeze's old workaround,
+starts from and its pull request goes to, `master`), `PIPELINE_PULL_REQUESTS` (`on`, `draft` or
+`off`, `on`; `draft` opens every pull request as a draft, ADR draft-pull-requests). `PIPELINE_LAUNCH_SESSION_REF` and `PIPELINE_START_SH_REF`, the freeze's old workaround,
 stop the service from starting. The secrets file is sourced inside the run, never printed.
 
 pipeline-ui's own secrets go in `.env` at the repository's root (gitignored; `.env.example`

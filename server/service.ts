@@ -26,7 +26,7 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   serviceHeartbeat(db, process.pid, startedAt)
   const entryConfig = { webuiDir: config.webuiDir, baseBranch: config.baseBranch, entryDir: config.entryDir }
   const setup = { entry: entryLabel(entryConfig), baseBranch: config.baseBranch, pullRequests: config.pullRequests }
-  log(`service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; ${setup.entry}; pull requests ${setup.pullRequests ? 'on' : 'off'}; the loop is stopped`)
+  log(`service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; ${setup.entry}; pull requests ${setup.pullRequests}; the loop is stopped`)
 
   const runner = createRunner({ ...config, entry: entryOf(entryConfig), pullRequests: config.pullRequests })
   const loop = createLoop({

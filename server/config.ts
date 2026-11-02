@@ -26,9 +26,16 @@ export type Config = {
   baseBranch: string
   /** Where the copy of the entry point's prepare script goes. */
   entryDir: string
-  /** Whether a run may push and open its pull request. */
-  pullRequests: boolean
+  /** Whether a run may push and open its pull request, and whether that pull request is always a draft. */
+  pullRequests: PullRequests
 }
+
+/**
+ * PIPELINE_PULL_REQUESTS: `on` lets the run open the pull request it decides on, ready or draft;
+ * `draft` lets it open drafts only; `off` refuses every push and pull request.
+ */
+export type PullRequests = 'on' | 'off' | 'draft'
+const PULL_REQUESTS: readonly string[] = ['on', 'off', 'draft']
 
 const DEFAULT_TIMEOUT_HOURS = 4
 
@@ -43,7 +50,7 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
   }
   const baseBranch = env.PIPELINE_BASE_BRANCH?.trim() || 'master'
   const pr = env.PIPELINE_PULL_REQUESTS?.trim()
-  if (pr && pr !== 'on' && pr !== 'off') throw new Error(`PIPELINE_PULL_REQUESTS is on or off, not ${pr}`)
+  if (pr && !PULL_REQUESTS.includes(pr)) throw new Error(`PIPELINE_PULL_REQUESTS is on, draft or off, not ${pr}`)
   return {
     repo,
     webuiDir,
@@ -59,6 +66,6 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     uiDir: path.join(repo, 'ui', 'dist'),
     baseBranch,
     entryDir: path.join(dataDir, 'entry'),
-    pullRequests: pr !== 'off',
+    pullRequests: (pr || 'on') as PullRequests,
   }
 }
