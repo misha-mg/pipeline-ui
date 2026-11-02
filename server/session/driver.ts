@@ -18,6 +18,7 @@ import type {
   SDKResultMessage,
 } from '@anthropic-ai/claude-agent-sdk'
 import type { PullRequests } from '../config.ts'
+import { structuredOutput } from './transcript.ts'
 
 export type SessionInput = {
   prompt: string
@@ -40,7 +41,12 @@ export type SessionInput = {
 export type SessionEvent =
   | { type: 'init'; at: string; version: string; model: string; mcp: Record<string, string> }
   | { type: 'stage-start'; at: string; agent: string; agentId: string }
-  | { type: 'stage-stop'; at: string; agent: string; agentId: string }
+  /**
+   * `text`: what the agent handed back, its last message or its StructuredOutput call; sessions
+   * before 2026-11-02 did not send it. `transcript`: the agent's transcript, read again for it when
+   * the call was not on disk yet as the agent stopped.
+   */
+  | { type: 'stage-stop'; at: string; agent: string; agentId: string; text?: string; transcript?: string }
   | { type: 'rate-limit'; at: string; status: SDKRateLimitInfo['status']; resetsAt?: number; rateLimitType?: string }
   | { type: 'api-retry'; at: string; attempt: number; error?: string }
   | { type: 'refused'; at: string; tool: string; detail: string }
@@ -67,6 +73,9 @@ export type SessionDeps = {
 
 const DEFAULT_TIMEOUT_MS = 120 * 60 * 1000
 const TEXT_LIMIT = 2000
+// An agent's last message is its report; the longest so far ran to a few thousand characters.
+const AGENT_TEXT_LIMIT = 50_000
+const AGENT_TEXT_WAITS = 8
 const PR_TOOL = 'mcp__bitbucket__createPullRequest'
 const DRAFT_TOOL = 'mcp__bitbucket__createDraftPullRequest'
 const PUSH_RULE = 'Bash(git push:*)'
@@ -99,7 +108,15 @@ export async function driveSession(
     if (hookInput.hook_event_name === 'SubagentStart') {
       emit({ type: 'stage-start', at: now(), agent: hookInput.agent_type, agentId: hookInput.agent_id })
     } else if (hookInput.hook_event_name === 'SubagentStop') {
-      emit({ type: 'stage-stop', at: now(), agent: hookInput.agent_type, agentId: hookInput.agent_id })
+      const stoppedAt = now()
+      const transcript = hookInput.agent_transcript_path || undefined
+      let text = hookInput.last_assistant_message || structuredOutput(transcript)
+      // The agent's last line can reach its transcript a little after it stops: wait for it, briefly.
+      for (let i = 0; !text && transcript && i < AGENT_TEXT_WAITS; i++) {
+        await new Promise((r) => setTimeout(r, 250))
+        text = structuredOutput(transcript)
+      }
+      emit({ type: 'stage-stop', at: stoppedAt, agent: hookInput.agent_type, agentId: hookInput.agent_id, ...(text ? { text: text.slice(0, AGENT_TEXT_LIMIT) } : {}), ...(transcript ? { transcript } : {}) })
     }
     return {}
   }
@@ -255,3 +272,4 @@ function resultText(result: SDKResultMessage): string {
   const text = result.subtype === 'success' ? result.result : result.errors.join('; ')
   return text.length > TEXT_LIMIT ? text.slice(0, TEXT_LIMIT) : text
 }
+

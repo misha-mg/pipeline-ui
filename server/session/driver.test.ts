@@ -1,5 +1,9 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { structuredOutput } from './transcript.ts'
 import { DRAFTS_ONLY, driveSession, endingOf, publishing, readyPullRequest, sessionEnv, withoutPublishing, withoutReady, type QueryFn, type SessionEvent } from './driver.ts'
 
 const INPUT = {
@@ -34,11 +38,11 @@ function fakeQuery(messages: (SDKMessage | ((hooks: NonNullable<Parameters<Query
   })
 }
 
-const fireAgent = (event: 'SubagentStart' | 'SubagentStop', agent: string) =>
+const fireAgent = (event: 'SubagentStart' | 'SubagentStop', agent: string, lastMessage?: string, transcript?: string) =>
   async (hooks: NonNullable<Parameters<QueryFn>[0]['options']>['hooks']) => {
     const hook = hooks?.[event]?.[0]?.hooks[0]
     if (!hook) throw new Error(`no ${event} hook`)
-    await hook({ hook_event_name: event, agent_type: agent, agent_id: 'a1', session_id: 's', transcript_path: '', cwd: '/wt' } as never, undefined, { signal: new AbortController().signal })
+    await hook({ hook_event_name: event, agent_type: agent, agent_id: 'a1', session_id: 's', transcript_path: '', cwd: '/wt', last_assistant_message: lastMessage, agent_transcript_path: transcript } as never, undefined, { signal: new AbortController().signal })
   }
 
 async function run(query: QueryFn, over: Partial<Parameters<typeof driveSession>[0]> = {}) {
@@ -50,11 +54,14 @@ async function run(query: QueryFn, over: Partial<Parameters<typeof driveSession>
 describe('driveSession', () => {
   it('reports init, the stages from the hooks, each turn and a completed ending', async () => {
     const { events, ending } = await run(fakeQuery([
-      init, fireAgent('SubagentStart', 'ticket-investigator'), fireAgent('SubagentStop', 'ticket-investigator'), result(),
+      init, fireAgent('SubagentStart', 'ticket-investigator'), fireAgent('SubagentStop', 'ticket-investigator', '## Brief\nconfidence high'),
+      fireAgent('SubagentStart', 'diff-preparer'), fireAgent('SubagentStop', 'diff-preparer'), result(),
     ]))
-    expect(events.map((e) => e.type)).toEqual(['init', 'stage-start', 'stage-stop', 'turn', 'ended'])
+    expect(events.map((e) => e.type)).toEqual(['init', 'stage-start', 'stage-stop', 'stage-start', 'stage-stop', 'turn', 'ended'])
     expect(events[0]).toMatchObject({ version: '2.1.311', model: 'claude-opus-5-5', mcp: { jira: 'connected' } })
     expect(events[1]).toMatchObject({ agent: 'ticket-investigator', agentId: 'a1' })
+    expect(events[2]).toMatchObject({ type: 'stage-stop', agent: 'ticket-investigator', text: '## Brief\nconfidence high' })
+    expect(events[4]).not.toHaveProperty('text')
     expect(ending).toEqual({ kind: 'completed', text: 'Failed run: blocked:underspecified', costUsd: 1.5 })
   })
 
@@ -201,5 +208,36 @@ describe('endingOf', () => {
 describe('sessionEnv', () => {
   it('drops the API keys, keeps the rest and sets no wait ceiling', () => {
     expect(sessionEnv(INPUT.env)).toEqual({ HOME: '/home/x', CLAUDE_CODE_OAUTH_TOKEN: 't', CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0' })
+  })
+})
+
+describe('an agent of a workflow', () => {
+  it('hands back its StructuredOutput call, read from its transcript, waiting for the line when it is late', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-transcript-'))
+    const file = path.join(dir, 'agent.jsonl')
+    fs.writeFileSync(file, JSON.stringify({ type: 'user', message: { content: 'investigate' } }) + '\n')
+    // The call reaches the transcript 300 ms after the agent stops.
+    setTimeout(() => fs.appendFileSync(file, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'StructuredOutput', input: { confidence: 'high', report: '## Brief' } }] } }) + '\n'), 300)
+    const { events } = await run(fakeQuery([init, fireAgent('SubagentStart', 'ticket-investigator'), fireAgent('SubagentStop', 'ticket-investigator', undefined, file), result()]))
+    expect(events.find((e) => e.type === 'stage-stop')).toMatchObject({ text: 'confidence: high\n\n## Brief', transcript: file })
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('structuredOutput', () => {
+  it('takes the last StructuredOutput call of a transcript: short fields, the report, then long fields', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-transcript-'))
+    const file = path.join(dir, 'agent.jsonl')
+    const call = (input: unknown) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'StructuredOutput', input }] } })
+    fs.writeFileSync(file, [
+      call({ report: 'first try' }),
+      JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', content: 'Structured output provided successfully' }] } }),
+      call({ confidence: 'medium', report: '## Brief\nthe cause', user_visible: true, mocks: ['a', 'b'], assumptions: ['one '.repeat(40), 'two'], empty: '' }),
+      'not json',
+    ].join('\n'))
+    expect(structuredOutput(file)).toBe(`confidence: medium\nuser_visible: true\nmocks: a, b\n\n## Brief\nthe cause\n\n## assumptions\n- ${'one '.repeat(40)}\n- two`)
+    expect(structuredOutput(path.join(dir, 'missing.jsonl'))).toBeNull()
+    expect(structuredOutput(undefined)).toBeNull()
+    fs.rmSync(dir, { recursive: true, force: true })
   })
 })

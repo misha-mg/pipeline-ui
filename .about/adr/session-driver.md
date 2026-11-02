@@ -23,6 +23,17 @@ in with the subscription's `CLAUDE_CODE_OAUTH_TOKEN` and never bills per token, 
 `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`, so a print-mode session waits for the background
 workflow however long a stage takes.
 
+## What an agent handed back (2026-11-02)
+
+The pipeline writes its stage reports only when the run ends, so the console takes each agent's
+output as the agent stops, in the `stage-stop` event. A ticket-pipeline workflow's agent ends on a
+`StructuredOutput` call, not on text, so the hook's `last_assistant_message` is empty for it: the
+session reads the call from the agent's transcript (`agent_transcript_path`,
+`server/session/transcript.ts`), the report under its short fields. The call reaches the
+transcript a few tens of milliseconds after the hook fires (KAZ-9074, 2026-11-02), so the session
+waits up to 2 s for it and the event keeps the transcript's path; the service reads it again for
+an agent stopped without its text.
+
 ## Considered options
 
 - **tmux window and the session's transcript**, as `batch.sh` does — stages and endings come
