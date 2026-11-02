@@ -8,13 +8,16 @@ import { loadRuns, readReport, type HistoryRun } from '../history/runs.ts'
 import { pullRequestStates, type PullRequestState } from '../history/bitbucket.ts'
 import type { PullRequests } from '../config.ts'
 import type { Health } from '../health.ts'
+import { SHOWN_ENDINGS, stageOfAgent, verdictFamily, type ShownEnding } from '../history/outcome.ts'
 import { structuredOutput } from '../session/transcript.ts'
 import type { Db } from '../store/db.ts'
 import { listQueue, type QueueItem } from '../store/queue.ts'
 import { inFlight, listEvents, listRuns, loopState, serviceAlive, serviceInfo, type LoopState, type RunRecord, type ServiceInfo } from '../store/runs.ts'
 
-/** How a run ended, as the console says it: the service's ending, or what the files tell. */
-export type ShownEnding = RunRecord['ending'] | 'in-flight' | 'died'
+export type { ShownEnding } from '../history/outcome.ts'
+// Every ending the service records is one the console can show: a new one without a word there fails here.
+const _everyEndingShown: ShownEnding = '' as RunRecord['ending'] & string
+void _everyEndingShown
 
 export type ShownRun = HistoryRun & {
   /** The service's record of the run, when it started it. */
@@ -70,8 +73,8 @@ export function stateView(src: ViewSources): StateView {
 }
 
 function inFlightView(db: Db, run: RunRecord, now: Date): InFlightView {
-  const implementer = listEvents(db, run.id).filter((e) => e.type === 'stage-start' && e.event.type === 'stage-start' && e.event.agent === 'ticket-implementer').length
-  return { ...run, rework: Math.max(0, implementer - 1), seconds: Math.max(0, Math.round((now.getTime() - Date.parse(run.startedAt)) / 1000)) }
+  const reworks = agentStages(db, run.id).filter((s) => s.label.startsWith('rework ')).length
+  return { ...run, rework: reworks, seconds: Math.max(0, Math.round((now.getTime() - Date.parse(run.startedAt)) / 1000)) }
 }
 
 /** Every run under the runs directory with what the service knows of it, newest first. */
@@ -81,7 +84,8 @@ export function shownRuns(src: ViewSources): ShownRun[] {
   const prs = pullRequestStates(src.db)
   const runs = loadRuns(src.runsDir).map((h): ShownRun => {
     const rec = byDir.get(h.path) ?? null
-    const ending: ShownEnding = rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'completed' : flying?.key === h.key && !flying.runDir ? 'in-flight' : 'died')
+    // A run the service did not drive has no ending of its own: its files closed it (unwatched) or not (died).
+    const ending: ShownEnding = rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'unwatched' : flying?.key === h.key && !flying.runDir ? 'in-flight' : 'died')
     return { ...h, serviceRunId: rec?.id ?? null, ending, endingDetail: rec?.endingDetail ?? null, pr: h.prUrl ? prs.get(h.prUrl) ?? { url: h.prUrl, state: 'unknown', closedOn: null, fetchedAt: null, error: null } : null }
   })
   // A run the service started whose directory never appeared (prepare-worktree.sh failed before the session).
@@ -95,14 +99,30 @@ export function shownRuns(src: ViewSources): ShownRun[] {
   return runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.number - a.number)
 }
 
+/** `verdict`: a family (`done`), a verdict (`done:pr-opened`) or `none`; `ending`: a shown ending. */
 export type HistoryFilter = { verdict?: string; ending?: string }
 
-export function historyView(src: ViewSources, filter: HistoryFilter = {}): { runs: ShownRun[]; verdicts: Counts; endings: Counts } {
+/** Why a filter is not one the history knows; null when it is. */
+export function filterProblem(filter: HistoryFilter): string | null {
+  if (filter.verdict && !/^(none|[a-z]+(:[a-z0-9-]+)?)$/.test(filter.verdict)) return `verdict is a family, a verdict or none, not ${filter.verdict}`
+  if (filter.ending && !(SHOWN_ENDINGS as readonly string[]).includes(filter.ending)) return `ending is one of ${SHOWN_ENDINGS.join(', ')}, not ${filter.ending}`
+  return null
+}
+
+/**
+ * The runs the filter lets through, and the counts each filter's choices would show: the
+ * verdicts' among the runs of the chosen ending, the endings' among the runs of the chosen verdict.
+ */
+export function historyView(src: ViewSources, filter: HistoryFilter = {}): { runs: ShownRun[]; total: number; verdicts: Counts; endings: Counts } {
   const all = shownRuns(src)
-  // `-` is the count's name for runs with no verdict, so it filters them too.
-  const verdictMatches = (r: ShownRun) => filter.verdict === '-' ? r.verdict === null : verdictFamily(r.verdict) === filter.verdict || r.verdict === filter.verdict
-  const runs = all.filter((r) => (!filter.verdict || verdictMatches(r)) && (!filter.ending || r.ending === filter.ending))
-  return { runs, verdicts: tally(all.map((r) => r.verdict ?? '-')), endings: tally(all.map((r) => r.ending ?? '-')) }
+  const verdictMatches = (r: ShownRun) => !filter.verdict || (filter.verdict === 'none' ? r.verdict === null : verdictFamily(r.verdict) === filter.verdict || r.verdict === filter.verdict)
+  const endingMatches = (r: ShownRun) => !filter.ending || r.ending === filter.ending
+  return {
+    runs: all.filter((r) => verdictMatches(r) && endingMatches(r)),
+    total: all.length,
+    verdicts: tally(all.filter(endingMatches).map((r) => r.verdict ?? 'none')),
+    endings: tally(all.filter(verdictMatches).map((r) => r.ending)),
+  }
 }
 
 /**
@@ -111,7 +131,17 @@ export function historyView(src: ViewSources, filter: HistoryFilter = {}): { run
  * its reports (it writes them at the end). `endedAt` is null while the agent works, or when the
  * session ended under it; `text` is its last message, null before 2026-11-02's sessions sent it.
  */
-export type AgentStage = { agent: string; agentId: string; startedAt: string; endedAt: string | null; text: string | null }
+export type AgentStage = {
+  agent: string
+  agentId: string
+  /** The stage, named as timings.tsv names it: `investigate`, `rework 1`, `pull request`, `same cause?`. */
+  label: string
+  startedAt: string
+  endedAt: string | null
+  text: string | null
+  /** The word it ended on, from the short fields of what it handed back: `pass`, `done`, `confidence low`. */
+  result: string | null
+}
 
 /** A run with its reports as the files read, and its agents as the service saw them (empty for a run it did not drive). */
 export type RunDetail = ShownRun & { files: { name: string; text: string }[]; agents: AgentStage[] }
@@ -120,7 +150,7 @@ export function runView(src: ViewSources, key: string, number: number): RunDetai
   const run = shownRuns(src).find((r) => r.key === key && r.number === number)
   if (!run) return null
   const names = [...run.reports, ...(fs.existsSync(path.join(run.path, 'state.md')) ? ['state.md'] : [])]
-  return { ...run, files: names.map((name) => ({ name, text: readReport(run.path, name) ?? '' })), agents: run.serviceRunId ? agentStages(src.db, run.serviceRunId) : [] }
+  return { ...run, files: names.map((name) => ({ name, text: readReport(run.path, name) ?? '' })), agents: run.serviceRunId ? agentStages(src.db, run.serviceRunId, run.ending !== 'in-flight') : [] }
 }
 
 // An agent's transcript does not change once it stopped: what it handed back is read once.
@@ -133,27 +163,56 @@ function handedBack(transcript: string): string | null {
   return text
 }
 
-export function agentStages(db: Db, runId: number): AgentStage[] {
+/** `ended`: the run is over, so the last agent was its last stage. */
+export function agentStages(db: Db, runId: number, ended = false): AgentStage[] {
   const stages: AgentStage[] = []
   for (const { event } of listEvents(db, runId)) {
-    if (event.type === 'stage-start') stages.push({ agent: event.agent, agentId: event.agentId, startedAt: event.at, endedAt: null, text: null })
+    if (event.type === 'stage-start') stages.push({ agent: event.agent, agentId: event.agentId, label: stageOfAgent(event.agent), startedAt: event.at, endedAt: null, text: null, result: null })
     else if (event.type === 'stage-stop') {
       // The UI's type check sees this file with ES2022's library, which has no findLast.
       const open = [...stages].reverse().find((s) => s.agentId === event.agentId && s.endedAt === null)
-      if (open) Object.assign(open, { endedAt: event.at, text: event.text ?? (event.transcript ? handedBack(event.transcript) : null) })
+      if (!open) continue
+      const text = event.text ?? (event.transcript ? handedBack(event.transcript) : null)
+      Object.assign(open, { endedAt: event.at, text, result: resultOf(text) })
     }
   }
+  return labelImplementers(stages, ended)
+}
+
+/** The word an agent ended on: its `verdict:` or `outcome:` field, else its `confidence:`. */
+function resultOf(text: string | null): string | null {
+  const field = (name: string) => text?.match(new RegExp(`^${name}: (\\S+)$`, 'm'))?.[1] ?? null
+  const confidence = field('confidence')
+  return field('verdict') ?? field('outcome') ?? (confidence ? `confidence ${confidence}` : null)
+}
+
+/**
+ * The implementer works three stages: the first implement, a rework when a review or a test
+ * failed, the pull request at the end. A later implementer is a rework when a diff follows it,
+ * the pull request when another agent follows or the run ended on it; until then, the stage
+ * before it says which (a `fail` sends it to rework), or it is not known yet.
+ */
+function labelImplementers(stages: AgentStage[], ended: boolean): AgentStage[] {
+  let reworks = 0
+  let implementers = 0
+  stages.forEach((s, i) => {
+    if (s.agent !== 'ticket-implementer' || implementers++ === 0) return
+    const after = stages.slice(i + 1)
+    const before = stages[i - 1]
+    // A rework is always followed by a diff: in a run that is over, the last one was the pull request.
+    const rework = after.length || ended
+      ? after.some((n) => n.agent === 'diff-preparer')
+      : before?.result === 'fail' ? true : before?.result ? false : null
+    s.label = rework === null ? 'rework or pull request' : rework ? `rework ${++reworks}` : 'pull request'
+  })
   return stages
 }
 
-/** `done`, `blocked`, `failed`: the part before the colon. */
-function verdictFamily(verdict: string | null): string | null {
-  return verdict ? verdict.split(':')[0]! : null
-}
 
 function counts(src: ViewSources, runs: ShownRun[], now: Date): StateView['counts'] {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000).toISOString()
-  const verdictOf = (r: ShownRun) => r.verdict ?? r.ending ?? '-'
+  // Verdicts only: a run with none counts as `none`, whatever its ending.
+  const verdictOf = (r: ShownRun) => r.verdict ?? 'none'
   const { label, members } = lastBatch(src, runs)
   return {
     allTime: tally(runs.map(verdictOf)),

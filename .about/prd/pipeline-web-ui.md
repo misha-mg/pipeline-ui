@@ -42,14 +42,16 @@ Agent SDK, and from its own records.
 - Run history: every run under `.pipeline-runs/`, runs from before the console included, with
   ticket, summary (one line), verdict, ending, duration, pull request and its state as Bitbucket
   last reported it; filterable by verdict (by family, done or blocked, or one verdict, or none)
-  and ending. Over it, a strip of what the runs shown add up to: how many, done, blocked or
+  and ending, each filter's counts following the other. A run the service did not drive shows the
+  ending `unwatched`, never `completed`. A stage that ran several times shows each round's result. Over it, a strip of what the runs shown add up to: how many, done, blocked or
   failed, pull requests by state, the time in all and per run. The ticket key opens the run, an
   arrow beside it the Jira ticket; the run in flight stands out, with its stage and its time so far.
 - A run's page: its full summary, start, end and duration, a link to Jira, running the ticket
   again, and a diagram of its steps as blocks joined by links (the assignment, each agent in
   order, the stages still to come while it is in flight, the verdict). Choosing a block shows what
   it left: its report, or, while the run is in flight, what the agent handed back as it stopped
-  (the pipeline writes the reports only when the run ends).
+  (the pipeline writes the reports only when the run ends). A stage that ended badly (a failed
+  review, a blocked test) is marked so; the reason a run stopped is shown whole under its header.
 - Notifications that come and go by themselves: an action done or refused (a ticket Jira does
   not know), a run starting, moving to its next stage, opening its pull request or stopping, the
   loop stopping by itself. Changes move rather than jump: queue rows glide when reordered, slide

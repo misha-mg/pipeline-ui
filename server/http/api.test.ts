@@ -41,12 +41,12 @@ async function serve(deps: ApiDeps) {
 }
 
 describe('views', () => {
-  it('shows every run with its ending: completed from the files, died without state.md, the service record when it has one', () => {
+  it('shows every run with its ending: unwatched when only its files closed it, died without state.md, the service record when it has one', () => {
     const { db, deps, runsDir } = sources()
     const id = insertRun(db, { key: 'KAZ-3', summary: null, startedAt: '2026-10-22T10:00:00Z', logPath: null })
     updateRun(db, id, { runDir: path.join(runsDir, 'KAZ-3/run-1'), ending: 'cancelled', endedAt: '2026-10-22T10:30:00Z' })
     const runs = shownRuns(deps)
-    expect(runs.map((r) => [r.key, r.ending, r.verdict])).toEqual([['KAZ-3', 'cancelled', 'blocked:tooling'], ['KAZ-2', 'died', null], ['KAZ-1', 'completed', 'done:pr-opened']])
+    expect(runs.map((r) => [r.key, r.ending, r.verdict])).toEqual([['KAZ-3', 'cancelled', 'blocked:tooling'], ['KAZ-2', 'died', null], ['KAZ-1', 'unwatched', 'done:pr-opened']])
     expect(runs[2]!.pr).toMatchObject({ state: 'unknown' })
     expect(runs[0]!.serviceRunId).toBe(id)
   })
@@ -54,8 +54,9 @@ describe('views', () => {
   it('counts verdicts all time, for 7 days and for the last batch, by the loop start when it is later', () => {
     const { db, deps } = sources()
     let s = stateView(deps)
-    expect(s.counts.allTime).toEqual({ 'done:pr-opened': 1, died: 1, 'blocked:tooling': 1 })
-    expect(s.counts.last7Days).toEqual({ died: 1, 'blocked:tooling': 1 })
+    // Verdicts only: the run without one counts as none, not as its ending.
+    expect(s.counts.allTime).toEqual({ 'done:pr-opened': 1, none: 1, 'blocked:tooling': 1 })
+    expect(s.counts.last7Days).toEqual({ none: 1, 'blocked:tooling': 1 })
     expect(s.counts).toMatchObject({ lastBatchLabel: 'batch-20261021-000000', lastBatch: { 'blocked:tooling': 1 } })
     startLoop(db, () => '2026-10-25T00:00:00Z')
     s = stateView(deps)
@@ -74,8 +75,8 @@ describe('views', () => {
     addEvent(db, id, { type: 'stage-stop', at: '2026-10-21T10:05:00Z', agent: 'ticket-investigator', agentId: 'a1', text: '## Brief' })
     addEvent(db, id, { type: 'stage-start', at: '2026-10-21T10:05:01Z', agent: 'ticket-implementer', agentId: 'a2' })
     expect(agentStages(db, id)).toEqual([
-      { agent: 'ticket-investigator', agentId: 'a1', startedAt: '2026-10-21T10:01:00Z', endedAt: '2026-10-21T10:05:00Z', text: '## Brief' },
-      { agent: 'ticket-implementer', agentId: 'a2', startedAt: '2026-10-21T10:05:01Z', endedAt: null, text: null },
+      { agent: 'ticket-investigator', agentId: 'a1', label: 'investigate', startedAt: '2026-10-21T10:01:00Z', endedAt: '2026-10-21T10:05:00Z', text: '## Brief', result: null },
+      { agent: 'ticket-implementer', agentId: 'a2', label: 'implement', startedAt: '2026-10-21T10:05:01Z', endedAt: null, text: null, result: null },
     ])
     expect(runView(deps, 'KAZ-2', 1)?.agents).toHaveLength(2)
     // An agent whose call was not on disk as it stopped: read from its transcript now.
@@ -103,10 +104,13 @@ describe('api', () => {
       expect(state.body).toMatchObject({ loop: { wanted: 'stopped' }, queue: [], health: null })
       const runs = await call('GET', '/api/runs?verdict=done')
       expect((runs.body.runs as unknown[]).length).toBe(1)
-      expect(runs.body.verdicts).toEqual({ 'done:pr-opened': 1, '-': 1, 'blocked:tooling': 1 })
-      expect(runs.body.endings).toEqual({ completed: 2, died: 1 })
-      const none = await call('GET', '/api/runs?verdict=-')
+      // Each filter's counts follow the other filter: the endings among the done runs.
+      expect(runs.body.verdicts).toEqual({ 'done:pr-opened': 1, none: 1, 'blocked:tooling': 1 })
+      expect(runs.body.endings).toEqual({ unwatched: 1 })
+      const none = await call('GET', '/api/runs?verdict=none')
       expect((none.body.runs as { key: string }[]).map((r) => r.key)).toEqual(['KAZ-2'])
+      expect((await call('GET', '/api/runs?ending=finished')).status).toBe(400)
+      expect((await call('GET', '/api/runs?verdict=DONE')).status).toBe(400)
       const died = await call('GET', '/api/runs?ending=died')
       expect((died.body.runs as { key: string }[]).map((r) => r.key)).toEqual(['KAZ-2'])
       const one = await call('GET', '/api/runs/KAZ-1/1')
@@ -194,5 +198,39 @@ describe('the ticket search', () => {
     } finally {
       await bare.close()
     }
+  })
+})
+
+describe('the implementer\'s three stages', () => {
+  it('names a later implementer a rework when a diff follows it or a fail came before it, else the pull request; the card counts reworks only', () => {
+    const { db } = sources()
+    const id = insertRun(db, { key: 'KAZ-5', summary: null, startedAt: '2026-10-21T10:00:00Z', logPath: null })
+    let n = 0
+    const agent = (name: string, text?: string) => {
+      const agentId = `a${++n}`
+      addEvent(db, id, { type: 'stage-start', at: `2026-10-21T10:${String(n).padStart(2, '0')}:00Z`, agent: name, agentId })
+      if (text !== undefined) addEvent(db, id, { type: 'stage-stop', at: `2026-10-21T10:${String(n).padStart(2, '0')}:30Z`, agent: name, agentId, text })
+    }
+    agent('ticket-investigator', 'confidence: high\n\n## Brief')
+    agent('ticket-implementer', 'outcome: done')
+    agent('diff-preparer', '')
+    agent('change-reviewer', 'verdict: fail')
+    agent('ticket-implementer', 'outcome: done')
+    expect(agentStages(db, id).map((s) => [s.label, s.result])).toEqual([
+      ['investigate', 'confidence high'], ['implement', 'done'], ['diff', null], ['review', 'fail'], ['rework 1', 'done'],
+    ])
+    agent('diff-preparer', '')
+    agent('change-reviewer', 'verdict: pass')
+    agent('ticket-implementer')
+    expect(agentStages(db, id).map((s) => s.label).slice(4)).toEqual(['rework 1', 'diff', 'review', 'pull request'])
+    expect(stateView({ db, runsDir: '/nonexistent', health: () => null }).inFlight?.rework).toBe(1)
+    // In a run that is over, the implementer it ended on was the pull request, whatever came before.
+    const { db: db2 } = sources()
+    const id2 = insertRun(db2, { key: 'KAZ-6', summary: null, startedAt: '2026-10-21T10:00:00Z', logPath: null })
+    addEvent(db2, id2, { type: 'stage-start', at: '2026-10-21T10:00:00Z', agent: 'ticket-implementer', agentId: 'b1' })
+    addEvent(db2, id2, { type: 'stage-start', at: '2026-10-21T10:01:00Z', agent: 'ticket-implementer', agentId: 'b2' })
+    addEvent(db2, id2, { type: 'stage-stop', at: '2026-10-21T10:02:00Z', agent: 'ticket-implementer', agentId: 'b2' })
+    expect(agentStages(db2, id2).map((s) => s.label)).toEqual(['implement', 'rework or pull request'])
+    expect(agentStages(db2, id2, true).map((s) => s.label)).toEqual(['implement', 'pull request'])
   })
 })

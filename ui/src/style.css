@@ -236,3 +236,17 @@ table.runs th:last-child, table.runs td:last-child { padding-right: 0; }
   .q-move, .q-enter-active, .q-leave-active, .rows-move, .rows-enter-active, .tick-enter-active, .tick-leave-active, .toast-enter-active, .toast-leave-active, .toast-move { transition: none; animation: none; }
   .toast .life { animation: none; }
 }
+
+/* A stage that ended badly (a failed review, a blocked test, a low confidence) is marked so, not
+   green like a passed one: rust lamp and bar, its result in rust. */
+.node.done.bad .lamp-dot { background: var(--rust); border-color: var(--rust); }
+.node.done.bad .bar { background: color-mix(in srgb, var(--rust) 75%, transparent); }
+.node.done.bad .meta { color: var(--rust); }
+.node.end.bad { border-color: color-mix(in srgb, var(--rust) 45%, var(--line)); }
+.node.end.ok { border-color: color-mix(in srgb, var(--moss) 45%, var(--line)); }
+
+/* Why a run stopped (or how its session ended), whole and wrapped, under its pills. */
+.run-reason { display: flex; gap: 14px; align-items: baseline; margin: -12px 0 22px; padding: 10px 14px; border-left: 3px solid var(--line); background: var(--field); font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.run-reason .label { flex: none; margin: 0; }
+.run-reason.bad { border-left-color: var(--rust); }
+.run-reason.ok { border-left-color: var(--moss); }

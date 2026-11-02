@@ -3,7 +3,7 @@
 // same within 5 s. What changes between two polls, and what each action comes to, is told in a
 // notification (toasts.ts): a run starting, its next stage, its end, the loop stopping by itself.
 import { ref } from 'vue'
-import { api, ApiError, prNumber, stageName, type History, type ShownRun, type StateView } from './api.ts'
+import { api, ApiError, endingLabel, prNumber, stageOfAgent, verdictFamily, type History, type ShownRun, type StateView } from './api.ts'
 import { notify } from './toasts.ts'
 
 export const state = ref<StateView | null>(null)
@@ -36,8 +36,10 @@ function announce(prev: StateView, next: StateView): void {
   const now = next.inFlight
   if (now && now.id !== was?.id) notify('info', `${now.key} started`, now.summary ?? undefined, { label: 'Open the run', href: '#/runs' })
   if (now?.stage && !(toldStage?.runId === now.id && toldStage.stage === now.stage)) {
-    const before = toldStage?.runId === now.id ? stageName(toldStage.stage) : null
-    if (was?.id === now.id) notify('info', `${now.key} · ${stageName(now.stage)}`, before ? `${before} done, ${stageName(now.stage)} started` : `${stageName(now.stage)} started`)
+    // "finished", not "done": the stage before may have failed, and this poll does not know.
+    const before = toldStage?.runId === now.id ? stageOfAgent(toldStage.stage) : null
+    const stage = stageOfAgent(now.stage)
+    if (was?.id === now.id) notify('info', `${now.key} · ${stage}`, before ? `${before} finished, ${stage} started` : `${stage} started`)
     toldStage = { runId: now.id, stage: now.stage }
   }
   if (was && was.id !== now?.id) void announceEnd(was.id, was.key)
@@ -62,13 +64,13 @@ async function announceEnd(runId: number, key: string): Promise<void> {
   const href = run?.path ? `#/runs/${run.key}/${run.number}` : '#/runs'
   const verdict = run?.verdict ?? null
   const pr = run?.pr ?? null
-  if (pr && verdict?.startsWith('done')) {
-    const draft = verdict === 'done:draft-pr'
-    notify('success', `${key}: ${draft ? 'draft ' : ''}pull request #${prNumber(pr.url)} opened`, run?.summary ?? undefined, { label: 'Open the pull request', href: pr.url })
-  } else if (verdict?.startsWith('done')) notify('success', `${key}: ${verdict.slice(5).replace(/-/g, ' ')}`, run?.reason ?? run?.summary ?? undefined, { label: 'Open the run', href })
-  else if (run?.ending === 'cancelled') notify('info', `${key} cancelled`, undefined, { label: 'Open the run', href })
-  else if (verdict) notify('error', `${key}: ${verdict}`, run?.reason ?? undefined, { label: 'Open the run', href })
-  else notify('error', `${key} ended: ${run?.ending ?? 'no verdict'}`, run?.endingDetail ?? undefined, { label: 'Open the run', href })
+  // The verdict's word after its family, as the title says it: `pr-opened` → "pr opened".
+  const word = verdict ? verdict.slice(verdict.indexOf(':') + 1).replace(/-/g, ' ') : ''
+  if (run?.ending === 'cancelled') notify('info', `${key} cancelled`, run.reason ?? undefined, { label: 'Open the run', href })
+  else if (verdictFamily(verdict) === 'done' && pr) notify('success', `${key}: ${verdict === 'done:draft-pr' ? 'draft ' : ''}pull request #${prNumber(pr.url)} opened`, run?.summary ?? undefined, { label: 'Open the pull request', href: pr.url })
+  else if (verdictFamily(verdict) === 'done') notify('success', `${key}: ${word}`, run?.reason ?? run?.summary ?? undefined, { label: 'Open the run', href })
+  else if (verdict) notify('error', `${key} ${verdictFamily(verdict) ?? 'stopped'}: ${word}`, run?.reason ?? undefined, { label: 'Open the run', href })
+  else notify('error', `${key} ended: ${endingLabel(run?.ending ?? null)}`, run?.endingDetail ?? 'It left no verdict.', { label: 'Open the run', href })
 }
 
 async function refreshHistory(): Promise<void> {
@@ -113,7 +115,7 @@ export function ticketUrl(key: string): string | null {
 export function liveStage(run: ShownRun): string | null {
   if (run.ending !== 'in-flight') return null
   const r = state.value?.inFlight
-  return r && r.key === run.key ? stageName(r.stage) : null
+  return r && r.key === run.key ? stageOfAgent(r.stage) : null
 }
 
 /** A run's duration: for the run in flight, how long it has taken so far by the last state poll. */

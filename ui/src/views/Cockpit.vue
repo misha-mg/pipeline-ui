@@ -5,7 +5,7 @@
 // tooltips, so the sheet says only what is happening.
 import { computed, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
-import { fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageName, verdictClass } from '../api.ts'
+import { endingLabel, endingTone, fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageOfAgent, toneClass, verdictClass } from '../api.ts'
 import { actions, history, liveStage, runSeconds, state, ticketUrl } from '../console.ts'
 import { clearSearch, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, total as foundTotal, typed } from '../search.ts'
 
@@ -46,7 +46,7 @@ const inFlightNote = computed(() => {
   const r = inFlight.value
   if (!r) return ''
   const parts = [`${fmtDuration(r.seconds)} so far`]
-  if (r.stageSince) parts.push(`${stageName(r.stage)} ${fmtAgo(r.stageSince, state.value!.now)}`)
+  if (r.stageSince) parts.push(`${stageOfAgent(r.stage)} ${fmtAgo(r.stageSince, state.value!.now)}`)
   if (r.rework) parts.push(`rework ${r.rework}`)
   return parts.join(' · ')
 })
@@ -120,7 +120,7 @@ function queueFound(key: string, front: boolean) {
     </Frame>
     <Frame class="card">
       <div class="label">In flight</div>
-      <div class="value"><Transition name="tick" mode="out-in"><span :key="inFlight?.key ?? '-'">{{ inFlight?.key ?? '—' }}</span></Transition> <Transition name="tick" mode="out-in"><small v-if="inFlight" :key="inFlight.stage ?? '-'">{{ stageName(inFlight.stage) }}</small></Transition></div>
+      <div class="value"><Transition name="tick" mode="out-in"><span :key="inFlight?.key ?? '-'">{{ inFlight?.key ?? '—' }}</span></Transition> <Transition name="tick" mode="out-in"><small v-if="inFlight" :key="inFlight.stage ?? '-'">{{ stageOfAgent(inFlight.stage) }}</small></Transition></div>
       <template v-if="inFlight">
         <div class="note one" :title="inFlight.summary ?? ''">{{ inFlight.summary ?? 'no summary' }}</div>
         <div class="note one">{{ inFlightNote }}<template v-if="inFlight.cancelRequestedAt"> · <span class="err">cancelling</span></template></div>
@@ -197,7 +197,7 @@ function queueFound(key: string, front: boolean) {
               <td><span v-if="row.issue.status" class="pill" :class="statusClass(row.issue.statusCategory)">{{ row.issue.status }}</span></td>
               <td class="dim">{{ row.issue.type ?? '' }}</td>
               <td class="dim">{{ row.issue.assignee ?? '' }}</td>
-              <td><template v-if="row.lastRun"><a v-if="row.lastRun.path" :href="`#/runs/${row.lastRun.key}/${row.lastRun.number}`" class="pill" :class="verdictClass(row.lastRun.verdict)" style="text-decoration: none">{{ row.lastRun.verdict ?? row.lastRun.ending }}</a><span v-else class="pill">{{ row.lastRun.ending }}</span></template><span v-else class="dim">never run</span></td>
+              <td><template v-if="row.lastRun"><a v-if="row.lastRun.path" :href="`#/runs/${row.lastRun.key}/${row.lastRun.number}`" class="pill" :class="row.lastRun.verdict ? verdictClass(row.lastRun.verdict) : toneClass(endingTone(row.lastRun.ending))" :title="row.lastRun.reason ?? ''" style="text-decoration: none">{{ row.lastRun.verdict ?? endingLabel(row.lastRun.ending) }}</a><span v-else class="pill" :class="toneClass(endingTone(row.lastRun.ending))">{{ endingLabel(row.lastRun.ending) }}</span></template><span v-else class="dim">never run</span></td>
               <td><div class="actions">
                 <span v-if="row.inFlight" class="pill slate">in flight</span>
                 <span v-if="row.position !== null" class="pill">queued #{{ row.position }}</span>
@@ -239,9 +239,9 @@ function queueFound(key: string, front: boolean) {
               <td class="key"><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" /><a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a><span v-else>{{ run.key }}</span><span v-if="run.number > 1" class="dim"> · {{ run.number }}</span></td>
               <td class="jira"><a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a></td>
               <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
-              <td><span class="pill" :class="run.ending === 'in-flight' ? 'slate' : verdictClass(run.verdict)">{{ run.verdict ?? (liveStage(run) ? `in flight · ${liveStage(run)}` : run.ending) }}</span></td>
-              <td class="dim">{{ run.ending }}</td>
-              <td><a v-if="run.pr" :href="run.pr.url" target="_blank" rel="noopener" :title="run.pr.state">#{{ prNumber(run.pr.url) }}</a></td>
+              <td><span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span></td>
+              <td><span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''">{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span></td>
+              <td><a v-if="run.pr" :href="run.pr.url" target="_blank" rel="noopener" :title="run.pr.state.toLowerCase()">#{{ prNumber(run.pr.url) }}</a></td>
               <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
               <td class="num dim">{{ fmtTime(run.startedAt) }}</td>
             </tr>

@@ -6,17 +6,17 @@
 // ticket again.
 import { computed } from 'vue'
 import Frame from '../components/Frame.vue'
-import { fmtClock, fmtDuration, fmtTime, prNumber, verdictClass, type ShownRun } from '../api.ts'
+import { endingLabel, endingTone, fmtClock, fmtDuration, fmtTime, prNumber, prStateClass, toneClass, verdictClass, verdictFamily, type ShownRun } from '../api.ts'
 import { filter, history, liveStage, runSeconds, setFilter, ticketUrl } from '../console.ts'
 
 const runs = computed(() => history.value?.runs ?? [])
 const filtered = computed(() => !!(filter.value.verdict || filter.value.ending))
 
-/** The verdicts by family (done, blocked, failed, any other), each with its own verdicts; `-` last, for runs with none. */
+/** The verdicts by family (done, blocked, failed), each with its own verdicts; `none`, for runs without one, apart. */
 const families = computed(() => {
   const groups = new Map<string, { family: string; total: number; members: { verdict: string; label: string; count: number }[] }>()
   for (const [verdict, count] of Object.entries(history.value?.verdicts ?? {})) {
-    if (verdict === '-') continue
+    if (verdict === 'none') continue
     const [family, rest] = verdict.includes(':') ? [verdict.slice(0, verdict.indexOf(':')), verdict.slice(verdict.indexOf(':') + 1)] : [verdict, '']
     const g = groups.get(family) ?? { family, total: 0, members: [] }
     g.total += count
@@ -27,9 +27,11 @@ const families = computed(() => {
   return [...groups.values()].sort((x, y) => rank(x.family) - rank(y.family) || x.family.localeCompare(y.family))
     .map((g) => ({ ...g, members: g.members.sort((x, y) => y.count - x.count) }))
 })
-const noVerdict = computed(() => history.value?.verdicts['-'] ?? 0)
+const noVerdict = computed(() => history.value?.verdicts['none'] ?? 0)
 const endings = computed(() => Object.entries(history.value?.endings ?? {}).sort((x, y) => y[1] - x[1]))
+// The All chip counts what the other filter lets through; the heading counts every run.
 const allCount = computed(() => Object.values(history.value?.verdicts ?? {}).reduce((s, n) => s + n, 0))
+const total = computed(() => history.value?.total ?? 0)
 
 function pickVerdict(v: string): void {
   setFilter({ ...filter.value, verdict: filter.value.verdict === v ? '' : v })
@@ -46,7 +48,7 @@ function breakdown(counts: Map<string, number>, n = 3): string {
 /** What the runs shown add up to, one cell each. */
 const strip = computed(() => {
   const all = runs.value
-  const family = (r: ShownRun) => r.verdict?.split(':')[0] ?? null
+  const family = (r: ShownRun) => verdictFamily(r.verdict)
   const tail = (r: ShownRun) => r.verdict?.split(':').slice(1).join(':') || r.verdict || ''
   const tally = (list: ShownRun[], key: (r: ShownRun) => string) => list.reduce((m, r) => m.set(key(r), (m.get(key(r)) ?? 0) + 1), new Map<string, number>())
 
@@ -56,7 +58,7 @@ const strip = computed(() => {
   const prs = all.filter((r) => r.pr)
   const prStates = tally(prs, (r) => (r.pr!.state === 'unknown' ? 'unknown' : r.pr!.state.toLowerCase()))
   const fetched = prs.map((r) => r.pr?.fetchedAt ?? '').filter(Boolean).sort().at(-1) ?? null
-  const otherEndings = tally(all.filter((r) => r.ending !== 'completed'), (r) => r.ending ?? '-')
+  const otherEndings = tally(all.filter((r) => r.ending !== 'completed' && r.ending !== 'unwatched'), (r) => endingLabel(r.ending))
 
   const secs = all.map((r) => runSeconds(r)).filter((s): s is number => s !== null).sort((x, y) => x - y)
   const total = secs.reduce((s, n) => s + n, 0)
@@ -64,7 +66,7 @@ const strip = computed(() => {
   const first = all.map((r) => r.startedAt).sort()[0] ?? null
 
   return [
-    { label: 'Runs', value: String(all.length), tone: '', note: otherEndings.size ? breakdown(otherEndings) : 'all completed' },
+    { label: 'Runs', value: String(all.length), tone: '', note: otherEndings.size ? breakdown(otherEndings) : 'none stopped early' },
     { label: 'Done', value: String(done.length), tone: done.length ? 'ok' : '', note: `${withVerdict ? Math.round((done.length / withVerdict) * 100) : 0}% of verdicts${done.length ? ` · ${breakdown(tally(done, tail), 2)}` : ''}` },
     { label: 'Blocked or failed', value: String(stuck.length), tone: stuck.length ? 'bad' : '', note: stuck.length ? breakdown(tally(stuck, tail), 2) : 'none' },
     { label: 'Pull requests', value: String(prs.length), tone: '', note: `${prs.length ? breakdown(prStates) : 'none'}${fetched ? ` · read ${fmtClock(fetched)}` : ''}` },
@@ -82,7 +84,7 @@ function prState(run: ShownRun): string {
 <template>
   <div class="page-head">
     <h1>Run history</h1>
-    <span v-if="filtered" class="stats">{{ runs.length }} of {{ allCount }} runs shown</span>
+    <span v-if="filtered" class="stats">{{ runs.length }} of {{ total }} runs shown</span>
   </div>
 
   <Frame class="strip">
@@ -102,14 +104,14 @@ function prState(run: ShownRun): string {
           <button class="chip fam" :class="{ on: filter.verdict === g.family }" @click="pickVerdict(g.family)">{{ g.family }} <b>{{ g.total }}</b></button>
           <button v-for="m in g.members" :key="m.verdict" class="chip sub" :class="{ on: filter.verdict === m.verdict }" @click="pickVerdict(m.verdict)">{{ m.label }} <b>{{ m.count }}</b></button>
         </div>
-        <button v-if="noVerdict" class="chip" :class="{ on: filter.verdict === '-' }" title="Runs that left no verdict" @click="pickVerdict('-')">no verdict <b>{{ noVerdict }}</b></button>
+        <button v-if="noVerdict" class="chip" :class="{ on: filter.verdict === 'none' }" title="Runs that left no verdict" @click="pickVerdict('none')">no verdict <b>{{ noVerdict }}</b></button>
       </div>
     </div>
     <div class="row">
       <span class="label">Ending</span>
       <div class="opts">
         <button class="chip" :class="{ on: !filter.ending }" @click="setFilter({ ...filter, ending: '' })">All</button>
-        <button v-for="[e, n] in endings" :key="e" class="chip" :class="{ on: filter.ending === e }" @click="pickEnding(e)">{{ e }} <b>{{ n }}</b></button>
+        <button v-for="[e, n] in endings" :key="e" class="chip" :class="{ on: filter.ending === e }" @click="pickEnding(e)">{{ endingLabel(e) }} <b>{{ n }}</b></button>
       </div>
       <button v-if="filtered" class="btn tiny clear" @click="setFilter({ verdict: '', ending: '' })">Clear</button>
     </div>
@@ -124,9 +126,9 @@ function prState(run: ShownRun): string {
           <td class="jira"><a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a></td>
           <td class="num dim">{{ run.number || '—' }}</td>
           <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
-          <td><span class="pill" :class="verdictClass(run.verdict)">{{ run.verdict ?? '—' }}</span></td>
-          <td><span class="pill" :class="run.ending === 'in-flight' ? 'slate' : run.ending === 'completed' ? '' : 'bad'" :title="run.endingDetail ?? ''">{{ run.ending }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span></td>
-          <td class="num"><template v-if="run.pr"><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a> <span class="pill" :class="run.pr.state === 'MERGED' ? 'strong' : ''" :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : run.pr.error ?? 'not read yet'">{{ prState(run) }}</span></template></td>
+          <td><span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span></td>
+          <td><span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''">{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span></td>
+          <td class="num"><template v-if="run.pr"><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a> <span class="pill" :class="prStateClass(run.pr.state)" :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : run.pr.error ?? 'not read yet'">{{ prState(run) }}</span></template></td>
           <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
         </tr>
       </tbody>

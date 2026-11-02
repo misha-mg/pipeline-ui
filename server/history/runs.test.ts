@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { loadRuns, readReport, stagesOf, summaryOf } from './runs.ts'
+import { loadRuns, readReport, reasonOf, stagesOf, stateStages, summaryOf, verdictOf } from './runs.ts'
 
 const temps: string[] = []
 afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }) })
@@ -59,8 +59,8 @@ describe('loadRuns', () => {
       prUrl: 'https://bitbucket.org/example/webui/pull-requests/526',
     })
     expect(run!.stages).toEqual([
-      { label: 'review', agent: null, startedAt: null, seconds: null, result: '(change-reviewer): pass' },
-      { label: 'pull-request', agent: null, startedAt: null, seconds: null, result: '(ticket-implementer, pull-request): opened — https://bitbucket.org/example/webui/pull-requests/526' },
+      { label: 'review', agent: 'change-reviewer', startedAt: null, seconds: null, result: 'pass' },
+      { label: 'pull request', agent: 'ticket-implementer', startedAt: null, seconds: null, result: 'opened — https://bitbucket.org/example/webui/pull-requests/526' },
     ])
   })
 
@@ -101,5 +101,77 @@ describe('summaryOf and stagesOf', () => {
   it('keeps rework rounds from timings and matches state results by label', () => {
     const stages = stagesOf('label\tagent\tstarted\tseconds\nreview\tchange-reviewer\t2026-10-14T19:14:24Z\t66\nrework 1\tticket-implementer\t2026-10-14T19:16:00Z\t30\n', 'review — change-reviewer (-) — fail\n')
     expect(stages.map((s) => [s.label, s.result])).toEqual([['review', 'fail'], ['rework 1', null]])
+  })
+})
+
+describe('stage lines, verdicts and reasons as the runs wrote them', () => {
+  const TIMINGS = (rows: string[][]) => ['label\tagent\tstarted\tseconds', ...rows.map((r) => [...r, '2026-10-14T19:00:00Z', '60'].join('\t'))].join('\n')
+
+  it('gives each repeated stage its own round\'s result, in order (RPG-6183: reviews fail twice, the second app-test passes)', () => {
+    const state = [
+      'investigate — ticket-investigator (-) — confidence medium',
+      'implement — ticket-implementer (implement) — done',
+      'review — change-reviewer (-) — pass',
+      'app-test — app-tester (-) — fail',
+      'implement — ticket-implementer (rework) — done',
+      'review — change-reviewer (-) — fail',
+      'implement — ticket-implementer (rework) — done',
+      'review — change-reviewer (-) — pass',
+      'app-test — app-tester (-) — pass',
+      'pull-request — ticket-implementer (pull-request) — opened',
+      'app-test: passed on the mock; not observable there: live traffic',
+      'done:pr-opened',
+    ].join('\n')
+    const timings = TIMINGS([
+      ['investigate', 'ticket-investigator'], ['implement', 'ticket-implementer'], ['diff', 'diff-preparer'], ['review', 'change-reviewer'], ['app-test', 'app-tester'],
+      ['rework 1', 'ticket-implementer'], ['diff', 'diff-preparer'], ['review', 'change-reviewer'], ['same cause?', 'cause-judge'],
+      ['rework 2', 'ticket-implementer'], ['diff', 'diff-preparer'], ['review', 'change-reviewer'], ['app-test', 'app-tester'], ['pull request', 'ticket-implementer'],
+    ])
+    expect(stagesOf(timings, state).map((s) => [s.label, s.result])).toEqual([
+      ['investigate', 'confidence medium'], ['implement', 'done'], ['diff', null], ['review', 'pass'], ['app-test', 'fail'],
+      ['rework 1', 'done'], ['diff', null], ['review', 'fail'], ['same cause?', null],
+      ['rework 2', 'done'], ['diff', null], ['review', 'pass'], ['app-test', 'pass'], ['pull request', 'opened'],
+    ])
+  })
+
+  it('keeps every round of a run without timings, a rework named as one, and skips app-test\'s summary line', () => {
+    const state = 'implement — ticket-implementer (implement) — done\nreview — change-reviewer (-) — fail\nimplement — ticket-implementer (rework) — done\nreview — change-reviewer (-) — pass\napp-test: unverified:app-test — no mock\ndone:pr-opened\n'
+    expect(stagesOf(null, state).map((s) => [s.label, s.agent, s.result])).toEqual([
+      ['implement', 'ticket-implementer', 'done'], ['review', 'change-reviewer', 'fail'], ['rework 1', 'ticket-implementer', 'done'], ['review', 'change-reviewer', 'pass'],
+    ])
+  })
+
+  it('reads every hand-written stage-line shape to an agent and a bare result', () => {
+    const state = [
+      '01 investigate (ticket-investigator): confidence high',
+      'implement · ticket-implementer (implement) · done · 9c9b6a59a',
+      'review: change-reviewer (-) — pass',
+      '04-pull-request (ticket-implementer, pull-request): opened',
+      'app-test · unverified:app-test — no test environment',
+    ].join('\n')
+    expect(stateStages(state).map((s) => [s.key, s.agent, s.mode, s.result])).toEqual([
+      ['investigate', 'ticket-investigator', null, 'confidence high'],
+      ['implement', 'ticket-implementer', 'implement', 'done · 9c9b6a59a'],
+      ['review', 'change-reviewer', null, 'pass'],
+      ['pull-request', 'ticket-implementer', 'pull-request', 'opened'],
+    ])
+  })
+
+  it('takes the last verdict line, not a note after it, and refuses what is not a verdict', () => {
+    expect(verdictOf('blocked:tooling\nnote: retried by hand\n')).toBe('blocked:tooling')
+    expect(verdictOf('investigate — x\nnote: nothing closed this\n')).toBeNull()
+    expect(verdictOf('done:pr-opened')).toBe('done:pr-opened')
+    expect(verdictOf('maybe:later')).toBeNull()
+  })
+
+  it('reads a reason over several lines, and a stop\'s last free line when it has no reason line (KAZ-8839)', () => {
+    expect(reasonOf('reason: the brief contradicts\nthe code in two places\nblocked:underspecified\n', 'blocked:underspecified')).toBe('the brief contradicts the code in two places')
+    expect(reasonOf('investigate — ticket-investigator (-) — blocked\nblocked:tooling\nThe HAR attachment was too large to read\nblocked:tooling\n', 'blocked:tooling')).toBe('The HAR attachment was too large to read')
+    expect(reasonOf('pull-request — ticket-implementer (pull-request) — opened\ndone:pr-opened\n', 'done:pr-opened')).toBeNull()
+  })
+
+  it('finds a done run\'s pull request in its report when state.md has no URL (KAZ-8682 run-2)', () => {
+    const dir = runsDir({ 'KAZ-8682/run-2': { '04-pull-request.md': 'Opened https://bitbucket.org/example/webui/pull-requests/547 as asked.', 'state.md': 'pull-request — ticket-implementer (pull-request) — opened\ndone:pr-opened\n' } })
+    expect(loadRuns(dir)[0]!.prUrl).toBe('https://bitbucket.org/example/webui/pull-requests/547')
   })
 })

@@ -1,9 +1,11 @@
 // What a run leaves under .pipeline-runs/<KEY>/run-N/: the service finds the directory a run
-// made by comparing the key's run directories before and after, and reads the verdict (the last
-// line of state.md) and the summary (00-assignment.md) from it. Formats: webui's ADR
+// made by comparing the key's run directories before and after, and reads the verdict (state.md's
+// last verdict line, history/runs.ts) and the summary (00-assignment.md) from it. Formats: webui's ADR
 // ticket-pipeline.
 import fs from 'node:fs'
 import path from 'node:path'
+import type { Verdict } from '../history/outcome.ts'
+import { verdictOf } from '../history/runs.ts'
 
 const RUN_DIR = /^run-(\d+)$/
 
@@ -25,12 +27,9 @@ export function newRunDir(runsDir: string, key: string, before: string[]): strin
   return last ? path.join(runsDir, key, last) : null
 }
 
-/** The last non-empty line of state.md; null while the run is not closed. */
-export function readVerdict(runDir: string): string | null {
-  const text = readText(path.join(runDir, 'state.md'))
-  if (text === null) return null
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
-  return lines.at(-1) ?? null
+/** The run's verdict, read from state.md as the history reads it; null while the run is not closed. */
+export function readVerdict(runDir: string): Verdict | null {
+  return verdictOf(readText(path.join(runDir, 'state.md')))
 }
 
 /** The `- Summary:` line of 00-assignment.md. */

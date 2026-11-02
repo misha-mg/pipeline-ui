@@ -12,14 +12,29 @@ directory `run-N` under `.pipeline-runs/<KEY>/`. _Avoid_: attempt, job.
 running or stopped; it stops itself on the usage limit, and before a run whose entry point is
 refused.
 
-**In flight**: the run going on now. At most one.
+**In flight**: the run going on now. At most one. The API names it `in-flight`; the console
+writes "in flight".
 
-**Verdict**: the pipeline's word on a run, the last line of `state.md`: `done:pr-opened`,
-`done:nothing-to-build`, `blocked:*`, `failed:*`. Only a closed run has one.
+**Verdict**: the pipeline's word on a run, `family:word`, the last such line of `state.md`:
+`done:pr-opened`, `done:draft-pr`, `done:nothing-to-build`, `blocked:*`, `failed:*`
+(`server/history/outcome.ts`). Only a closed run has one; a run without one counts as `none`.
+A line of another shape is not a verdict.
+
+**Verdict family**: the part before the colon: `done` (green), `blocked` and `failed` (rust).
+
+**Reason**: why a run stopped: `state.md`'s `reason:` line, or, for a blocked or failed run
+without one, its last free line.
+
+**Stage result**: the word an agent ended its stage on (`pass`, `fail`, `done`, `opened`,
+`blocked`, `confidence low`): a stage's own outcome, not the run's verdict. A review `fail` that
+leads to a rework does not end the run.
 
 **Ending**: the service's word on how a run's session ended: `completed`, `usage-limit`,
 `error`, `cancelled`, `timeout`, `restart`, `exited`, `no-result`. Every run the service started
-has one once it is over.
+has one once it is over. The console shows three more for runs it reads from the files:
+`in-flight` (going on now), `unwatched` (closed, but not by a session the service drove: runs
+from before the console) and `died` (never closed, and nothing runs it). An ending is not a
+verdict: a `completed` session can leave `blocked:tooling`.
 
 **Entry point**: the `launch-session.sh` a run goes through, and the `prepare-worktree.sh`
 that hands over to it, both from `origin/<base>`, the base branch `PIPELINE_BASE_BRANCH` names
@@ -28,5 +43,6 @@ that hands over to it, both from `origin/<base>`, the base branch `PIPELINE_BASE
 **Base branch**: the webui branch a run's worktree starts from and its pull request goes to
 (`PIPELINE_BASE_BRANCH`).
 
-**Stage**: one agent's turn in a run (investigate, implement, diff, review, app-test, a rework
-round), as the session's hooks report it.
+**Stage**: one agent's turn in a run (investigate, implement, diff, review, app-test, `rework N`,
+`same cause?`, `pull request`), as the session's hooks report it and `timings.tsv` names it. A
+stage that ran several times is matched to its `state.md` lines in order.

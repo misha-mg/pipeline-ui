@@ -2,11 +2,12 @@
 // a change there is a type error here.
 import type { HistoryFilter, RunDetail, ShownRun, StateView } from '../../server/http/view.ts'
 import type { JiraSearch } from '../../server/store/jira.ts'
+import { verdictTone, type Tone } from '../../server/history/outcome.ts'
 
 export type { AgentStage, Counts, ShownRun, StateView } from '../../server/http/view.ts'
 export type { JiraIssue, JiraSearch, SearchScope } from '../../server/store/jira.ts'
 export type RunFiles = RunDetail
-export type History = { runs: ShownRun[]; verdicts: Record<string, number>; endings: Record<string, number> }
+export type History = { runs: ShownRun[]; total: number; verdicts: Record<string, number>; endings: Record<string, number> }
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -61,9 +62,24 @@ export function fmtClock(iso: string | null): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// The outcome's words and tones come from the server's own module, so the console and the API
+// cannot name a verdict, an ending or a stage two ways.
+export { endingLabel, endingTone, stageKey, stageOfAgent, stageResultTone, stagesAfter, verdictFamily, verdictTone, type Tone } from '../../server/history/outcome.ts'
+
+/** A tone as a pill's class: `ok`, `bad`, `slate` while it goes on, none for neither. */
+export function toneClass(tone: Tone): string {
+  return tone === 'live' ? 'slate' : tone
+}
+
+/** A verdict's text colour in a table. */
 export function verdictClass(v: string | null): string {
-  if (!v) return 'verdict-none'
-  return v.startsWith('done') ? 'verdict-done' : v.startsWith('blocked') ? 'verdict-blocked' : v.startsWith('failed') ? 'verdict-failed' : 'verdict-none'
+  const tone = verdictTone(v)
+  return tone === 'ok' ? 'verdict-done' : tone === 'bad' ? 'verdict-blocked' : 'verdict-none'
+}
+
+/** A pull request's state as a pill's class: merged stands out, declined is a stop. */
+export function prStateClass(state: string): string {
+  return state === 'MERGED' ? 'strong' : state === 'DECLINED' ? 'bad' : ''
 }
 
 export function prNumber(url: string): string {
@@ -75,8 +91,3 @@ export function fmtAgo(iso: string | null, now: string): string {
   return fmtDuration(Math.max(0, Math.round((Date.parse(now) - Date.parse(iso)) / 1000)))
 }
 
-/** The stage as the console names it, from the agent the hooks report. */
-export function stageName(agent: string | null): string {
-  const names: Record<string, string> = { 'ticket-investigator': 'investigate', 'ticket-implementer': 'implement', 'diff-preparer': 'diff', 'change-reviewer': 'review', 'app-tester': 'app-test' }
-  return agent ? names[agent] ?? agent : 'between stages'
-}
