@@ -28,6 +28,51 @@ bin/pipeline serve     # the console at http://<host>:8787/
 Every machine (a laptop, the pipeline's server) is the same clone with its own `.env`; nothing
 in the repository names a machine, a user or a site.
 
+## Deploy to a server
+
+The same clone as anywhere else, with these on the server, as the user the service runs as:
+
+- **The pipeline's secrets file** (`~/.config/webui-pipeline.env`, or `PIPELINE_ENV`), the one
+  `webui`'s pipeline reads. A run sources it again inside the run: `CLAUDE_CODE_OAUTH_TOKEN`
+  signs the session in on the subscription (`ANTHROPIC_API_KEY` is dropped, so nothing is billed
+  per token; ADR session-driver), and `BITBUCKET_TOKEN` also lets the runs page show each pull
+  request's state. No `claude login` is needed.
+- **The `webui` checkout** next to this repository (or `PIPELINE_WEBUI`), whose git can fetch
+  `origin` and, when pull requests are on, push to it.
+- **`.env`**, from `.env.example`: the Jira site and credentials, and the base branch. The base
+  branch must have the entry point (ADR webui-entry-point); while `webui`'s `master` does not,
+  set `PIPELINE_BASE_BRANCH=dev`, or the loop stops before the first run and the console says
+  why.
+- **Who can reach the console.** It has no password and listens on all interfaces
+  (`PIPELINE_HOST`, default `0.0.0.0`): anyone who reaches port 8787 can queue tickets and start
+  the loop, and every run costs a Claude session and may open a pull request. Either keep the
+  port behind a firewall, or set `PIPELINE_HOST=127.0.0.1` and open the console through a
+  tunnel: `ssh -L 8787:localhost:8787 <server>`.
+
+Nothing keeps the service running after the shell that started it closes; a tmux session will
+do. Do not name it `pipeline`: that is `batch.sh`'s session, and the console reads it as a batch
+running (its tmux check fails). `batch.sh` and the loop never run on the same machine at
+the same time.
+
+```bash
+tmux new -s pipeline-ui 'bin/pipeline serve'
+```
+
+The first runs on a new machine are best made with `PIPELINE_PULL_REQUESTS=off` in `.env`: a run
+ends before its push (`blocked:tooling`) with its commits on the local ticket branch, to be
+looked at before the next one. Remove the line and restart the service to let runs open pull
+requests.
+
+To update: wait until nothing is in flight (`bin/pipeline status`, or `bin/pipeline stop` and
+wait), then
+
+```bash
+git pull && npm ci && npm run build
+```
+
+and restart the service. A change to `ui/` alone needs only the build; the queue and the history
+in `data/` survive a restart, and the loop waits for `start`.
+
 ## Parts
 
 - `server/session/` — drives one ticket's Claude Code session through the Claude Agent SDK.
