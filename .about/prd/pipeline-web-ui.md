@@ -40,8 +40,20 @@ Agent SDK, and from its own records.
   long the run has taken so far.
 - The queue: ticket, summary, position.
 - Run history: every run under `.pipeline-runs/`, runs from before the console included, with
-  ticket, summary, verdict, start, duration, pull request and its state as Bitbucket last reported
-  it, and each stage's report; filterable by verdict and ending.
+  ticket, summary (one line), verdict, ending, duration, pull request and its state as Bitbucket
+  last reported it; filterable by verdict (by family, done or blocked, or one verdict, or none)
+  and ending. Over it, a strip of what the runs shown add up to: how many, done, blocked or
+  failed, pull requests by state, the time in all and per run. The ticket key opens the run, an
+  arrow beside it the Jira ticket; the run in flight stands out, with its stage and its time so far.
+- A run's page: its full summary, start, end and duration, a link to Jira, running the ticket
+  again, and a diagram of its steps as blocks joined by links (the assignment, each agent in
+  order, the stages still to come while it is in flight, the verdict). Choosing a block shows what
+  it left: its report, or, while the run is in flight, what the agent handed back as it stopped
+  (the pipeline writes the reports only when the run ends).
+- Notifications that come and go by themselves: an action done or refused (a ticket Jira does
+  not know), a run starting, moving to its next stage, opening its pull request or stopping, the
+  loop stopping by itself. Changes move rather than jump: queue rows glide when reordered, slide
+  in when added and out when removed or started.
 - Counts of runs by verdict for the last batch, the last 7 days and all time (the API still has
   them; the cockpit stopped showing them on 2026-11-01, they wait for a statistics page of their own).
 - The webui branch a run starts from and its pull request goes to, and whether pull requests are
@@ -121,7 +133,10 @@ What it shows:
   and PR. One without `state.md` and with no live session: listed as died.
 - The verdict filter set to one verdict: the history shows only those runs, and the count beside
   the filter matches the rows.
-- Opening a run shows every stage report, in order, and `state.md`, as the files read.
+- Opening a run shows every stage report, in order, and `state.md`, as the files read, one step
+  of its timeline at a time.
+- A run in flight: its page shows the working agent within 5 s of its start, and an agent's last
+  message within 5 s of its stop, with no reload.
 - A run with a pull request: the console shows the PR's state (open, merged, declined) and the
   time it was read from Bitbucket; without a Bitbucket token it says the state is unknown and the
   rest works.

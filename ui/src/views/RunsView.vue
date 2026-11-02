@@ -1,21 +1,78 @@
 <script setup lang="ts">
-// The run history: every run, filtered by verdict and ending, with the pull request's state
-// as Bitbucket last reported it.
+// The run history: a strip of what the runs shown add up to, the filters by verdict and ending,
+// then every run with the pull request's state as Bitbucket last reported it. The ticket key opens
+// the run's page, the arrow its Jira ticket; the run in flight stands out with its stage. The
+// summary is cut to one line: the run's page has it whole, with the start, the end and running the
+// ticket again.
 import { computed } from 'vue'
 import Frame from '../components/Frame.vue'
 import { fmtClock, fmtDuration, fmtTime, prNumber, verdictClass, type ShownRun } from '../api.ts'
-import { actions, filter, history, setFilter, ticketUrl } from '../console.ts'
+import { filter, history, liveStage, runSeconds, setFilter, ticketUrl } from '../console.ts'
 
 const runs = computed(() => history.value?.runs ?? [])
-const verdicts = computed(() => Object.entries(history.value?.verdicts ?? {}).sort())
-const endings = computed(() => Object.entries(history.value?.endings ?? {}).sort())
-const stats = computed(() => {
-  const all = runs.value
-  const closed = all.filter((r) => r.seconds !== null)
-  const total = closed.reduce((s, r) => s + (r.seconds ?? 0), 0)
-  const fetched = all.map((r) => r.pr?.fetchedAt ?? '').filter(Boolean).sort().at(-1) ?? null
-  return `${all.length} runs · ${fmtDuration(total)} · avg ${fmtDuration(closed.length ? Math.round(total / closed.length) : null)}${fetched ? ` · PR state as of ${fmtClock(fetched)}` : ''}`
+const filtered = computed(() => !!(filter.value.verdict || filter.value.ending))
+
+/** The verdicts by family (done, blocked, failed, any other), each with its own verdicts; `-` last, for runs with none. */
+const families = computed(() => {
+  const groups = new Map<string, { family: string; total: number; members: { verdict: string; label: string; count: number }[] }>()
+  for (const [verdict, count] of Object.entries(history.value?.verdicts ?? {})) {
+    if (verdict === '-') continue
+    const [family, rest] = verdict.includes(':') ? [verdict.slice(0, verdict.indexOf(':')), verdict.slice(verdict.indexOf(':') + 1)] : [verdict, '']
+    const g = groups.get(family) ?? { family, total: 0, members: [] }
+    g.total += count
+    g.members.push({ verdict, label: rest || verdict, count })
+    groups.set(family, g)
+  }
+  const rank = (f: string) => ['done', 'blocked', 'failed'].indexOf(f) === -1 ? 3 : ['done', 'blocked', 'failed'].indexOf(f)
+  return [...groups.values()].sort((x, y) => rank(x.family) - rank(y.family) || x.family.localeCompare(y.family))
+    .map((g) => ({ ...g, members: g.members.sort((x, y) => y.count - x.count) }))
 })
+const noVerdict = computed(() => history.value?.verdicts['-'] ?? 0)
+const endings = computed(() => Object.entries(history.value?.endings ?? {}).sort((x, y) => y[1] - x[1]))
+const allCount = computed(() => Object.values(history.value?.verdicts ?? {}).reduce((s, n) => s + n, 0))
+
+function pickVerdict(v: string): void {
+  setFilter({ ...filter.value, verdict: filter.value.verdict === v ? '' : v })
+}
+function pickEnding(e: string): void {
+  setFilter({ ...filter.value, ending: filter.value.ending === e ? '' : e })
+}
+
+/** `62 pr-opened · 9 nothing-to-build`: the most common first, at most `n`. */
+function breakdown(counts: Map<string, number>, n = 3): string {
+  return [...counts].sort((x, y) => y[1] - x[1]).slice(0, n).map(([k, c]) => `${c} ${k}`).join(' · ')
+}
+
+/** What the runs shown add up to, one cell each. */
+const strip = computed(() => {
+  const all = runs.value
+  const family = (r: ShownRun) => r.verdict?.split(':')[0] ?? null
+  const tail = (r: ShownRun) => r.verdict?.split(':').slice(1).join(':') || r.verdict || ''
+  const tally = (list: ShownRun[], key: (r: ShownRun) => string) => list.reduce((m, r) => m.set(key(r), (m.get(key(r)) ?? 0) + 1), new Map<string, number>())
+
+  const done = all.filter((r) => family(r) === 'done')
+  const stuck = all.filter((r) => family(r) === 'blocked' || family(r) === 'failed')
+  const withVerdict = all.filter((r) => r.verdict).length
+  const prs = all.filter((r) => r.pr)
+  const prStates = tally(prs, (r) => (r.pr!.state === 'unknown' ? 'unknown' : r.pr!.state.toLowerCase()))
+  const fetched = prs.map((r) => r.pr?.fetchedAt ?? '').filter(Boolean).sort().at(-1) ?? null
+  const otherEndings = tally(all.filter((r) => r.ending !== 'completed'), (r) => r.ending ?? '-')
+
+  const secs = all.map((r) => runSeconds(r)).filter((s): s is number => s !== null).sort((x, y) => x - y)
+  const total = secs.reduce((s, n) => s + n, 0)
+  const median = secs.length ? secs[Math.floor(secs.length / 2)]! : null
+  const first = all.map((r) => r.startedAt).sort()[0] ?? null
+
+  return [
+    { label: 'Runs', value: String(all.length), tone: '', note: otherEndings.size ? breakdown(otherEndings) : 'all completed' },
+    { label: 'Done', value: String(done.length), tone: done.length ? 'ok' : '', note: `${withVerdict ? Math.round((done.length / withVerdict) * 100) : 0}% of verdicts${done.length ? ` · ${breakdown(tally(done, tail), 2)}` : ''}` },
+    { label: 'Blocked or failed', value: String(stuck.length), tone: stuck.length ? 'bad' : '', note: stuck.length ? breakdown(tally(stuck, tail), 2) : 'none' },
+    { label: 'Pull requests', value: String(prs.length), tone: '', note: `${prs.length ? breakdown(prStates) : 'none'}${fetched ? ` · read ${fmtClock(fetched)}` : ''}` },
+    { label: 'Time', value: fmtDuration(total), tone: '', note: first ? `since ${fmtTime(first).slice(0, 10)}` : '—' },
+    { label: 'Per run', value: fmtDuration(secs.length ? Math.round(total / secs.length) : null), tone: '', note: `median ${fmtDuration(median)} · longest ${fmtDuration(secs.at(-1) ?? null)}` },
+  ]
+})
+
 function prState(run: ShownRun): string {
   if (!run.pr) return ''
   return run.pr.state === 'unknown' ? 'unknown' : run.pr.state.toLowerCase()
@@ -25,29 +82,52 @@ function prState(run: ShownRun): string {
 <template>
   <div class="page-head">
     <h1>Run history</h1>
-    <span class="stats">{{ stats }}</span>
+    <span v-if="filtered" class="stats">{{ runs.length }} of {{ allCount }} runs shown</span>
   </div>
-  <div class="chips runs-filters">
-    <button class="chip" :class="{ on: !filter.verdict }" @click="setFilter({ ...filter, verdict: '' })">All</button>
-    <button v-for="[v, n] in verdicts" :key="v" class="chip" :class="{ on: filter.verdict === v }" @click="setFilter({ ...filter, verdict: filter.verdict === v ? '' : v })">{{ v }} <b>{{ n }}</b></button>
-    <span style="width: 12px" />
-    <button v-for="[e, n] in endings" :key="e" class="chip" :class="{ on: filter.ending === e }" @click="setFilter({ ...filter, ending: filter.ending === e ? '' : e })">{{ e }} <b>{{ n }}</b></button>
+
+  <Frame class="strip">
+    <div v-for="cell in strip" :key="cell.label" class="cell">
+      <div class="label">{{ cell.label }}</div>
+      <div class="value" :class="cell.tone">{{ cell.value }}</div>
+      <div class="note" :title="cell.note">{{ cell.note }}</div>
+    </div>
+  </Frame>
+
+  <div class="filters">
+    <div class="row">
+      <span class="label">Verdict</span>
+      <div class="opts">
+        <button class="chip" :class="{ on: !filter.verdict }" @click="setFilter({ ...filter, verdict: '' })">All <b>{{ allCount }}</b></button>
+        <div v-for="g in families" :key="g.family" class="group" :class="g.family">
+          <button class="chip fam" :class="{ on: filter.verdict === g.family }" @click="pickVerdict(g.family)">{{ g.family }} <b>{{ g.total }}</b></button>
+          <button v-for="m in g.members" :key="m.verdict" class="chip sub" :class="{ on: filter.verdict === m.verdict }" @click="pickVerdict(m.verdict)">{{ m.label }} <b>{{ m.count }}</b></button>
+        </div>
+        <button v-if="noVerdict" class="chip" :class="{ on: filter.verdict === '-' }" title="Runs that left no verdict" @click="pickVerdict('-')">no verdict <b>{{ noVerdict }}</b></button>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">Ending</span>
+      <div class="opts">
+        <button class="chip" :class="{ on: !filter.ending }" @click="setFilter({ ...filter, ending: '' })">All</button>
+        <button v-for="[e, n] in endings" :key="e" class="chip" :class="{ on: filter.ending === e }" @click="pickEnding(e)">{{ e }} <b>{{ n }}</b></button>
+      </div>
+      <button v-if="filtered" class="btn tiny clear" @click="setFilter({ verdict: '', ending: '' })">Clear</button>
+    </div>
   </div>
+
   <Frame>
-    <table>
-      <thead><tr><th>Ticket</th><th>Run</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR · state</th><th>Started</th><th>Finished</th><th>Duration</th><th>Detail</th></tr></thead>
+    <table class="runs">
+      <thead><tr><th>Ticket</th><th>Jira</th><th>Run</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR · state</th><th>Duration</th></tr></thead>
       <tbody>
-        <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key">
-          <td class="key"><a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener">{{ run.key }}</a><span v-else>{{ run.key }}</span></td>
+        <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">
+          <td class="key"><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" /><a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a><span v-else>{{ run.key }}</span></td>
+          <td class="jira"><a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a></td>
           <td class="num dim">{{ run.number || '—' }}</td>
-          <td class="summary">{{ run.summary ?? '' }}</td>
+          <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
           <td><span class="pill" :class="verdictClass(run.verdict)">{{ run.verdict ?? '—' }}</span></td>
-          <td><span class="pill" :class="run.ending === 'in-flight' ? 'slate' : run.ending === 'completed' ? '' : 'bad'" :title="run.endingDetail ?? ''">{{ run.ending }}</span></td>
+          <td><span class="pill" :class="run.ending === 'in-flight' ? 'slate' : run.ending === 'completed' ? '' : 'bad'" :title="run.endingDetail ?? ''">{{ run.ending }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span></td>
           <td class="num"><template v-if="run.pr"><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a> <span class="pill" :class="run.pr.state === 'MERGED' ? 'strong' : ''" :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : run.pr.error ?? 'not read yet'">{{ prState(run) }}</span></template></td>
-          <td class="num dim">{{ fmtTime(run.startedAt) }}</td>
-          <td class="num dim">{{ fmtTime(run.finishedAt) }}</td>
-          <td class="num">{{ fmtDuration(run.seconds) }}</td>
-          <td><div class="actions" style="justify-content: flex-start"><a v-if="run.path" class="small-link" :href="`#/runs/${run.key}/${run.number}`">Reports</a><a class="small-link" href="#" @click.prevent="actions.again(run.key)">Again</a></div></td>
+          <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
         </tr>
       </tbody>
     </table>

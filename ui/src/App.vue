@@ -6,7 +6,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Cockpit from './views/Cockpit.vue'
 import RunsView from './views/RunsView.vue'
 import RunView from './views/RunView.vue'
-import { error, offline, startPolling, state, stopPolling } from './console.ts'
+import Toasts from './components/Toasts.vue'
+import { offline, startPolling, state, stopPolling } from './console.ts'
 
 const hash = ref(location.hash)
 const onHash = () => { hash.value = location.hash }
@@ -37,9 +38,9 @@ const where = computed(() => `console · ${location.host}`)
     <button class="btn theme" type="button" aria-label="Switch between light and dark" />
   </header>
   <main class="sheet">
-    <div v-if="error" class="notice">{{ error }} <button class="btn tiny" @click="error = null">dismiss</button></div>
     <Cockpit v-if="route.page === 'cockpit'" />
     <RunsView v-else-if="route.page === 'runs'" />
     <RunView v-else :ticket="route.key" :number="route.number" />
   </main>
+  <Toasts />
 </template>

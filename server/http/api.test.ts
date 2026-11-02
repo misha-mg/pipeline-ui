@@ -3,9 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openDb } from '../store/db.ts'
-import { insertRun, loopState, startLoop, updateRun } from '../store/runs.ts'
+import { addEvent, insertRun, loopState, startLoop, updateRun } from '../store/runs.ts'
 import { createServer, type ApiDeps } from './api.ts'
-import { shownRuns, stateView } from './view.ts'
+import { agentStages, runView, shownRuns, stateView } from './view.ts'
 
 const temps: string[] = []
 afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }) })
@@ -65,6 +65,27 @@ describe('views', () => {
     expect(s.inFlight).toBeNull()
   })
 
+  it('gives a run the service drove its agents from the session events, the working one open', () => {
+    const { db, deps, runsDir } = sources()
+    const id = insertRun(db, { key: 'KAZ-2', summary: null, startedAt: '2026-10-21T10:00:00Z', logPath: null })
+    updateRun(db, id, { runDir: path.join(runsDir, 'KAZ-2/run-1') })
+    addEvent(db, id, { type: 'stage-start', at: '2026-10-21T10:01:00Z', agent: 'ticket-investigator', agentId: 'a1' })
+    addEvent(db, id, { type: 'rate-limit', at: '2026-10-21T10:02:00Z', status: 'allowed' })
+    addEvent(db, id, { type: 'stage-stop', at: '2026-10-21T10:05:00Z', agent: 'ticket-investigator', agentId: 'a1', text: '## Brief' })
+    addEvent(db, id, { type: 'stage-start', at: '2026-10-21T10:05:01Z', agent: 'ticket-implementer', agentId: 'a2' })
+    expect(agentStages(db, id)).toEqual([
+      { agent: 'ticket-investigator', agentId: 'a1', startedAt: '2026-10-21T10:01:00Z', endedAt: '2026-10-21T10:05:00Z', text: '## Brief' },
+      { agent: 'ticket-implementer', agentId: 'a2', startedAt: '2026-10-21T10:05:01Z', endedAt: null, text: null },
+    ])
+    expect(runView(deps, 'KAZ-2', 1)?.agents).toHaveLength(2)
+    // An agent whose call was not on disk as it stopped: read from its transcript now.
+    const transcript = path.join(runsDir, 'agent.jsonl')
+    fs.writeFileSync(transcript, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'StructuredOutput', input: { report: 'late report' } }] } }))
+    addEvent(db, id, { type: 'stage-stop', at: '2026-10-21T10:09:00Z', agent: 'ticket-implementer', agentId: 'a2', transcript })
+    expect(agentStages(db, id)[1]).toMatchObject({ endedAt: '2026-10-21T10:09:00Z', text: 'late report' })
+    expect(runView(deps, 'KAZ-1', 1)?.agents).toEqual([])
+  })
+
   it('carries the Jira site a ticket key links to, or null when there is none', () => {
     const { deps } = sources()
     expect(stateView(deps).jiraSite).toBeNull()
@@ -84,6 +105,8 @@ describe('api', () => {
       expect((runs.body.runs as unknown[]).length).toBe(1)
       expect(runs.body.verdicts).toEqual({ 'done:pr-opened': 1, '-': 1, 'blocked:tooling': 1 })
       expect(runs.body.endings).toEqual({ completed: 2, died: 1 })
+      const none = await call('GET', '/api/runs?verdict=-')
+      expect((none.body.runs as { key: string }[]).map((r) => r.key)).toEqual(['KAZ-2'])
       const died = await call('GET', '/api/runs?ending=died')
       expect((died.body.runs as { key: string }[]).map((r) => r.key)).toEqual(['KAZ-2'])
       const one = await call('GET', '/api/runs/KAZ-1/1')

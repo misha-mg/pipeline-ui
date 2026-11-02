@@ -1,11 +1,11 @@
 // The console's view of the service: the API's shapes come from the server's own types, so
 // a change there is a type error here.
-import type { HistoryFilter, ShownRun, StateView } from '../../server/http/view.ts'
+import type { HistoryFilter, RunDetail, ShownRun, StateView } from '../../server/http/view.ts'
 import type { JiraSearch } from '../../server/store/jira.ts'
 
-export type { Counts, ShownRun, StateView } from '../../server/http/view.ts'
+export type { AgentStage, Counts, ShownRun, StateView } from '../../server/http/view.ts'
 export type { JiraIssue, JiraSearch, SearchScope } from '../../server/store/jira.ts'
-export type RunFiles = ShownRun & { files: { name: string; text: string }[] }
+export type RunFiles = RunDetail
 export type History = { runs: ShownRun[]; verdicts: Record<string, number>; endings: Record<string, number> }
 
 export class ApiError extends Error {

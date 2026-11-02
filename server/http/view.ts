@@ -8,6 +8,7 @@ import { loadRuns, readReport, type HistoryRun } from '../history/runs.ts'
 import { pullRequestStates, type PullRequestState } from '../history/bitbucket.ts'
 import type { PullRequests } from '../config.ts'
 import type { Health } from '../health.ts'
+import { structuredOutput } from '../session/transcript.ts'
 import type { Db } from '../store/db.ts'
 import { listQueue, type QueueItem } from '../store/queue.ts'
 import { inFlight, listEvents, listRuns, loopState, serviceAlive, serviceInfo, type LoopState, type RunRecord, type ServiceInfo } from '../store/runs.ts'
@@ -98,15 +99,51 @@ export type HistoryFilter = { verdict?: string; ending?: string }
 
 export function historyView(src: ViewSources, filter: HistoryFilter = {}): { runs: ShownRun[]; verdicts: Counts; endings: Counts } {
   const all = shownRuns(src)
-  const runs = all.filter((r) => (!filter.verdict || verdictFamily(r.verdict) === filter.verdict || r.verdict === filter.verdict) && (!filter.ending || r.ending === filter.ending))
+  // `-` is the count's name for runs with no verdict, so it filters them too.
+  const verdictMatches = (r: ShownRun) => filter.verdict === '-' ? r.verdict === null : verdictFamily(r.verdict) === filter.verdict || r.verdict === filter.verdict
+  const runs = all.filter((r) => (!filter.verdict || verdictMatches(r)) && (!filter.ending || r.ending === filter.ending))
   return { runs, verdicts: tally(all.map((r) => r.verdict ?? '-')), endings: tally(all.map((r) => r.ending ?? '-')) }
 }
 
-export function runView(src: ViewSources, key: string, number: number): (ShownRun & { files: { name: string; text: string }[] }) | null {
+/**
+ * One agent of a run the service drove, from its session's SubagentStart/SubagentStop events, in
+ * the order they started: known while the run is in flight, when the pipeline has not yet written
+ * its reports (it writes them at the end). `endedAt` is null while the agent works, or when the
+ * session ended under it; `text` is its last message, null before 2026-11-02's sessions sent it.
+ */
+export type AgentStage = { agent: string; agentId: string; startedAt: string; endedAt: string | null; text: string | null }
+
+/** A run with its reports as the files read, and its agents as the service saw them (empty for a run it did not drive). */
+export type RunDetail = ShownRun & { files: { name: string; text: string }[]; agents: AgentStage[] }
+
+export function runView(src: ViewSources, key: string, number: number): RunDetail | null {
   const run = shownRuns(src).find((r) => r.key === key && r.number === number)
   if (!run) return null
   const names = [...run.reports, ...(fs.existsSync(path.join(run.path, 'state.md')) ? ['state.md'] : [])]
-  return { ...run, files: names.map((name) => ({ name, text: readReport(run.path, name) ?? '' })) }
+  return { ...run, files: names.map((name) => ({ name, text: readReport(run.path, name) ?? '' })), agents: run.serviceRunId ? agentStages(src.db, run.serviceRunId) : [] }
+}
+
+// An agent's transcript does not change once it stopped: what it handed back is read once.
+const handedBackCache = new Map<string, string>()
+function handedBack(transcript: string): string | null {
+  const known = handedBackCache.get(transcript)
+  if (known !== undefined) return known
+  const text = structuredOutput(transcript)
+  if (text !== null) handedBackCache.set(transcript, text)
+  return text
+}
+
+export function agentStages(db: Db, runId: number): AgentStage[] {
+  const stages: AgentStage[] = []
+  for (const { event } of listEvents(db, runId)) {
+    if (event.type === 'stage-start') stages.push({ agent: event.agent, agentId: event.agentId, startedAt: event.at, endedAt: null, text: null })
+    else if (event.type === 'stage-stop') {
+      // The UI's type check sees this file with ES2022's library, which has no findLast.
+      const open = [...stages].reverse().find((s) => s.agentId === event.agentId && s.endedAt === null)
+      if (open) Object.assign(open, { endedAt: event.at, text: event.text ?? (event.transcript ? handedBack(event.transcript) : null) })
+    }
+  }
+  return stages
 }
 
 /** `done`, `blocked`, `failed`: the part before the colon. */

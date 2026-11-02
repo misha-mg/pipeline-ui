@@ -22,7 +22,30 @@
 td.summary { max-width: 520px; }
 td .actions { display: flex; gap: 6px; justify-content: flex-end; }
 .verdict-done { color: var(--moss); } .verdict-blocked { color: var(--rust); } .verdict-failed { color: var(--rust); } .verdict-none { color: var(--faint); }
-.runs-filters { margin: -8px 0 26px; }
+/* Run history: a strip of cells, what the runs shown add up to, then the filters, a labelled row
+   for the verdict and one for the ending; the verdicts by family, each family boxed with its own. */
+.strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0; margin: -6px 0 22px; }
+.strip .cell { padding: 16px 20px 15px; min-width: 0; border-left: 1px solid var(--line-soft); }
+.strip .cell:first-child { border-left: 0; }
+.strip .label { margin-bottom: 8px; }
+.strip .value { font: 500 30px/1 var(--cond); letter-spacing: 0.02em; }
+.strip .value.ok { color: var(--moss); } .strip .value.bad { color: var(--rust); }
+.strip .note { margin-top: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1100px) { .strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } .strip .cell:nth-child(3n + 1) { border-left: 0; } .strip .cell:nth-child(n + 4) { border-top: 1px solid var(--line-soft); } }
+@media (max-width: 640px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .strip .cell { border-left: 1px solid var(--line-soft); border-top: 1px solid var(--line-soft); } .strip .cell:nth-child(odd) { border-left: 0; } .strip .cell:nth-child(-n + 2) { border-top: 0; } }
+.filters { display: grid; gap: 10px; margin: 0 0 24px; }
+.filters .row { display: flex; align-items: flex-start; gap: 16px; }
+.filters .row > .label { flex: 0 0 64px; margin: 0; line-height: 30px; }
+.filters .opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.filters .group { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 2px; border: 1px solid var(--line-soft); border-radius: 3px; }
+.filters .group .chip { height: 24px; border-color: transparent; }
+.filters .group .chip:hover { border-color: var(--line); }
+.filters .group .chip.on { border-color: var(--slate-ink); }
+.filters .group .chip.fam { letter-spacing: 0.18em; }
+.filters .group.done .chip.fam { color: var(--moss); }
+.filters .group.blocked .chip.fam, .filters .group.failed .chip.fam { color: var(--rust); }
+.filters .group .chip.sub { text-transform: none; letter-spacing: 0.04em; font: 500 12px/1 var(--sans); }
+.filters .clear { flex: none; margin-top: 3px; }
 
 /* State sources: folded to a lamp and a word, opened to one line per source. */
 .sources { padding-block: 16px; cursor: pointer; }
@@ -45,7 +68,171 @@ td .actions { display: flex; gap: 6px; justify-content: flex-end; }
 .dep .detail { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dep .pill { flex: none; }
 
-/* One run: its stages as pills, each report in its frame. */
+/* One run: its state as pills, its steps as a diagram of blocks joined by links, the chosen
+   block's report in a panel under it with a pointer up to the block. */
 .stages { display: flex; gap: 8px; flex-wrap: wrap; margin: -8px 0 26px; }
+.stages .pulse { margin-right: 6px; }
+.stages .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.flow-frame { padding-block: 10px 12px; }
+/* Scrolled by swipe or wheel when the page is narrower than the diagram, with no bar over the blocks. */
+.flow { display: flex; align-items: stretch; overflow-x: auto; padding: 12px 2px 14px; scrollbar-width: none; }
+.flow::-webkit-scrollbar { display: none; }
+
+/* A block: a stage's number and lamp, its name, its agent, how long and how it went, a bar. */
+.node {
+  position: relative; flex: 1 1 0; min-width: 138px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 12px 14px 15px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: inherit;
+  font: inherit; text-align: left; cursor: pointer; overflow: hidden;
+  transition: border-color 0.4s ease, background-color 0.4s ease, box-shadow 0.3s ease, transform 0.25s ease;
+}
+.node:hover:not(:disabled) { border-color: var(--muted); transform: translateY(-2px); }
+.node:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; }
+.node .top { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 2px; }
+.node .no { font: 500 11px/1 var(--mono); color: var(--faint); letter-spacing: 0.04em; }
+.node .lamp-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--faint); transition: background-color 0.4s, border-color 0.4s; }
+.node .name { font: 600 17px/1.05 var(--cond); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); transition: color 0.4s; }
+.node .agent { max-width: 100%; font: 11px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node .agent.ok { color: var(--moss); } .node .agent.bad { color: var(--rust); }
+.node .meta { font-size: 11.5px; line-height: 1.3; color: var(--muted); }
+.node .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: transparent; transition: background-color 0.4s; }
+
+.node.done .lamp-dot { background: var(--moss); border-color: var(--moss); }
+.node.done .bar { background: color-mix(in srgb, var(--moss) 70%, transparent); }
+.node.working { border-color: var(--slate); background: color-mix(in srgb, var(--slate) 7%, var(--bg)); }
+.node.working .name { color: var(--slate-ink); }
+.node.working .lamp-dot { background: var(--slate); border-color: var(--slate); animation: pulse 1.6s ease-in-out infinite; box-shadow: 0 0 0 3px color-mix(in srgb, var(--slate) 25%, transparent); }
+.node.working .bar { background: linear-gradient(90deg, transparent, var(--slate), transparent) 0 0 / 40% 100% no-repeat; animation: sweep 1.8s ease-in-out infinite; }
+.node.stopped { border-color: color-mix(in srgb, var(--rust) 55%, var(--line)); }
+.node.stopped .lamp-dot { border-color: var(--rust); }
+.node.stopped .bar { background: var(--rust); }
+.node.next { border-style: dashed; cursor: default; background: transparent; }
+.node.next .name, .node.next .agent { color: var(--faint); }
+
+/* The ticket's start and the verdict: terminals, rounder and narrower than the stages. */
+.node.start, .node.end, .node.file { flex: 0 0 auto; min-width: 112px; justify-content: center; align-items: center; text-align: center; border-radius: 26px; padding: 12px 20px; }
+.node.start .name, .node.end .name, .node.file .name { font-size: 15px; }
+.node.end { min-width: 150px; }
+
+/* The block shown in the panel: lifted, its edge in the accent, a pointer from the panel under it. */
+.node.on { border-color: var(--slate-ink); box-shadow: inset 0 3px 0 var(--slate-ink), 0 12px 22px -16px color-mix(in srgb, var(--text) 60%, transparent); transform: translateY(-3px); }
+.node.on:not(.working) { background: var(--field); }
+
+/* A link: a track that fills once the next block starts, flowing while it works, and its arrow. */
+.link { flex: 0 0 30px; align-self: center; display: flex; align-items: center; margin-top: -2px; }
+.link .track { position: relative; flex: 1; height: 2px; background: var(--line); overflow: hidden; }
+.link .fill { position: absolute; inset: 0; background: var(--moss); transform: scaleX(0); transform-origin: left; transition: transform 0.7s ease, background-color 0.4s; }
+.link .head { width: 0; height: 0; border-left: 7px solid var(--line); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: border-color 0.4s 0.3s; }
+.link.filled .fill { transform: scaleX(1); }
+.link.filled .head { border-left-color: var(--moss); }
+.link.flowing .fill { transform: scaleX(1); background: repeating-linear-gradient(90deg, var(--slate) 0 6px, transparent 6px 10px); animation: flow 0.7s linear infinite; }
+.link.flowing .head { border-left-color: var(--slate); }
+.link.cut .fill { transform: scaleX(1); background: var(--rust); }
+.link.cut .head { border-left-color: var(--rust); }
+
+.detail { position: relative; margin-top: 22px; }
+.detail .detail-frame { border-top-color: var(--slate-ink); }
+.detail.pointed::before {
+  content: ''; position: absolute; z-index: 1; top: -7px; left: calc(var(--caret-x) - 7px); width: 13px; height: 13px;
+  background: var(--bg); border-left: 1px solid var(--slate-ink); border-top: 1px solid var(--slate-ink); transform: rotate(45deg);
+  transition: left 0.35s ease;
+}
+.swap-enter-active, .swap-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.swap-enter-from { opacity: 0; transform: translateY(6px); }
+.swap-leave-to { opacity: 0; transform: translateY(-4px); }
+
+@keyframes flow { from { background-position: 0 0; } to { background-position: 10px 0; } }
+@keyframes sweep { from { background-position: -60% 0; } to { background-position: 160% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .node, .link .fill, .detail.pointed::before, .swap-enter-active, .swap-leave-active { transition: none; }
+  .node.working .lamp-dot, .node.working .bar, .link.flowing .fill { animation: none; }
+}
 pre.report { margin: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.5; color: var(--text); max-height: 70vh; overflow: auto; }
 .report-frame { margin-top: 26px; }
+
+/* The run in flight in a list of runs: a tinted band and a pulsing dot. The table stops at the
+   frame's padding (22px a side); a strip on each end cell carries the band out to the frame's
+   edges (a cell's box-shadow is not drawn there), and the dot sits in the left one, out of the
+   text's way. */
+tr.live td { background: color-mix(in srgb, var(--slate) 10%, transparent); }
+tr.live td:first-child, tr.live td:last-child { position: relative; }
+tr.live td:first-child::before, tr.live td:last-child::after { content: ''; position: absolute; top: 0; bottom: 0; width: 22px; background: inherit; }
+tr.live td:first-child::before { left: -22px; }
+tr.live td:last-child::after { right: -22px; }
+tr.live td:first-child .pulse { position: absolute; z-index: 1; left: -15px; top: 50%; margin: -3.5px 0 0; }
+.pulse { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--moss); vertical-align: 1px; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+td.jira a { text-decoration: none; font-size: 15px; line-height: 1; color: var(--muted); }
+td.jira a:hover { color: var(--slate-ink); }
+/* A cell cut to one line with an ellipsis: max-width 0 lets the table give it the room left. */
+td.one-line { max-width: 0; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.run-summary { margin: -10px 0 22px; font-size: 15px; color: var(--text); }
+/* Lists of runs: their pills sit side by side, so the columns get more air than the sheet's 10px. */
+table.runs th, table.runs td { padding-right: 22px; }
+table.runs th:last-child, table.runs td:last-child { padding-right: 0; }
+
+/* No corner crosses on this console's frames: sheet.css keeps them for bug-validator, here they
+   were more noise than drawing. */
+.frame::before { display: none; }
+
+/* The queue: a list, not a table, so a row can leave without the rows under it jumping. Rows
+   glide to their new place on a reorder, a new one slides in with a short glow, a removed or
+   started one slides out. */
+.qhead, .qrow { display: grid; grid-template-columns: 28px 104px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.qhead { padding: 0 0 10px; border-bottom: 1px solid var(--line); font: 500 11px/1.45 var(--sans); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.qlist { position: relative; }
+.qrow { padding: 9px 0; border-bottom: 1px solid var(--line-soft); background: var(--bg); }
+.qrow:last-child { border-bottom: 0; }
+.qrow .summary { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qrow .actions { display: flex; gap: 6px; }
+.q-move { transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.q-enter-active { transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); animation: glow 1.8s ease-out; }
+.q-enter-from { opacity: 0; transform: translateX(-18px); }
+.q-leave-active { position: absolute; left: 0; right: 0; transition: opacity 0.35s ease, transform 0.35s ease; }
+.q-leave-to { opacity: 0; transform: translateX(28px); }
+@keyframes glow { from { background-color: color-mix(in srgb, var(--slate) 22%, var(--bg)); } to { background-color: var(--bg); } }
+
+/* Lists of runs: a new run fades in at the top and the others slide down to make room. */
+.rows-move { transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.rows-enter-active { transition: opacity 0.5s ease, transform 0.5s ease; }
+.rows-enter-from { opacity: 0; transform: translateY(-10px); }
+.rows-leave-active { transition: opacity 0.3s ease; }
+.rows-leave-to { opacity: 0; }
+
+/* A card's value when it changes (the loop starts, the next run, its next stage): out up, in from below. */
+.tick-enter-active, .tick-leave-active { transition: opacity 0.22s ease, transform 0.22s ease; display: inline-block; }
+.tick-enter-from { opacity: 0; transform: translateY(10px); }
+.tick-leave-to { opacity: 0; transform: translateY(-10px); }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* Notifications: a stack at the bottom right, the newest lowest, each a hairline card with its
+   kind's colour at the left edge, an icon, the message, and a bar that runs down while it stays. */
+.toasts { position: fixed; bottom: 20px; right: 20px; z-index: 50; width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.toast {
+  position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 12px; align-items: start; overflow: hidden;
+  padding: 13px 12px 15px 14px; border: 1px solid var(--line); border-left: 3px solid var(--tone); border-radius: 3px;
+  background: var(--bg); box-shadow: 0 14px 30px -18px color-mix(in srgb, var(--text) 70%, transparent); pointer-events: auto;
+  --tone: var(--slate);
+}
+.toast.success { --tone: var(--moss); }
+.toast.error { --tone: var(--rust); }
+.toast .icon { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 13px/1 var(--sans); color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
+.toast .title { font: 600 15px/1.2 var(--cond); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; }
+.toast .detail { margin-top: 4px; font-size: 12.5px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+.toast .small-link { display: inline-block; margin-top: 8px; color: var(--tone); }
+.toast .close { border: 0; background: none; color: var(--faint); font-size: 18px; line-height: 1; padding: 2px 4px; cursor: pointer; }
+.toast .close:hover { color: var(--text); }
+.toast .life { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--tone); opacity: 0.55; transform-origin: left; animation: life var(--life) linear forwards; }
+.toast:hover .life { animation-play-state: paused; }
+@keyframes life { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.toast-enter-active { transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.15); }
+.toast-enter-from { opacity: 0; transform: translateY(24px) scale(0.97); }
+.toast-leave-active { position: absolute; width: 100%; transition: opacity 0.3s ease, transform 0.3s ease; }
+.toast-leave-to { opacity: 0; transform: translateX(40px); }
+.toast-move { transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .q-move, .q-enter-active, .q-leave-active, .rows-move, .rows-enter-active, .tick-enter-active, .tick-leave-active, .toast-enter-active, .toast-leave-active, .toast-move { transition: none; animation: none; }
+  .toast .life { animation: none; }
+}

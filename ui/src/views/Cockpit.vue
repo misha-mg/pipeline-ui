@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
 import { fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageName, verdictClass } from '../api.ts'
-import { actions, history, state, ticketUrl } from '../console.ts'
+import { actions, history, liveStage, runSeconds, state, ticketUrl } from '../console.ts'
 import { clearSearch, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, total as foundTotal, typed } from '../search.ts'
 
 const loop = computed(() => state.value?.loop ?? null)
@@ -58,12 +58,22 @@ function queueTyped(front: boolean) {
   void actions.enqueue(typedKey.value, front)
   clearSearch()
 }
+// A reorder moves the rows at once, before the service answers, so they glide on the click; the
+// next poll brings the service's order back if it refused.
+function reorderNow(keys: string[]) {
+  if (state.value) {
+    const byKey = new Map(state.value.queue.map((q) => [q.key, q]))
+    const moved = keys.map((k) => byKey.get(k)!).filter(Boolean)
+    state.value = { ...state.value, queue: [...moved, ...state.value.queue.filter((q) => !keys.includes(q.key))] }
+  }
+  void actions.reorder(keys)
+}
 function move(index: number, by: number) {
   const keys = queue.value.map((q) => q.key)
   const t = index + by
   if (t < 0 || t >= keys.length) return
   ;[keys[index], keys[t]] = [keys[t]!, keys[index]!]
-  void actions.reorder(keys)
+  reorderNow(keys)
 }
 const runNumber = (dir: string | null) => dir?.match(/run-(\d+)$/)?.[1] ?? null
 
@@ -104,13 +114,13 @@ function queueFound(key: string, front: boolean) {
   <div class="cards">
     <Frame class="card">
       <div class="label">Loop</div>
-      <div class="value" :class="{ live: running }">{{ loop ? loop.wanted : '—' }}</div>
+      <div class="value" :class="{ live: running }"><Transition name="tick" mode="out-in"><span :key="loop?.wanted ?? '-'">{{ loop ? loop.wanted : '—' }}</span></Transition></div>
       <div class="note one" :title="loopNote">{{ loopNote }}</div>
       <div v-if="loopProblem" class="note err" :title="loopProblem">{{ loopProblem }}</div>
     </Frame>
     <Frame class="card">
       <div class="label">In flight</div>
-      <div class="value">{{ inFlight?.key ?? '—' }} <small v-if="inFlight">{{ stageName(inFlight.stage) }}</small></div>
+      <div class="value"><Transition name="tick" mode="out-in"><span :key="inFlight?.key ?? '-'">{{ inFlight?.key ?? '—' }}</span></Transition> <Transition name="tick" mode="out-in"><small v-if="inFlight" :key="inFlight.stage ?? '-'">{{ stageName(inFlight.stage) }}</small></Transition></div>
       <template v-if="inFlight">
         <div class="note one" :title="inFlight.summary ?? ''">{{ inFlight.summary ?? 'no summary' }}</div>
         <div class="note one">{{ inFlightNote }}<template v-if="inFlight.cancelRequestedAt"> · <span class="err">cancelling</span></template></div>
@@ -123,7 +133,7 @@ function queueFound(key: string, front: boolean) {
     </Frame>
     <Frame class="card">
       <div class="label">Next</div>
-      <div class="value">{{ queue[0]?.key ?? '—' }} <small v-if="queue.length > 1">+{{ queue.length - 1 }} queued</small></div>
+      <div class="value"><Transition name="tick" mode="out-in"><span :key="queue[0]?.key ?? '-'">{{ queue[0]?.key ?? '—' }}</span></Transition> <small v-if="queue.length > 1">+{{ queue.length - 1 }} queued</small></div>
       <div class="note one" :title="queue[0]?.summary ?? ''">{{ queue[0] ? queue[0].summary ?? 'no summary' : 'queue empty' }}</div>
     </Frame>
     <Frame class="card">
@@ -203,40 +213,39 @@ function queueFound(key: string, front: boolean) {
       </Frame>
 
       <Frame title="Queue" :count="queue.length ? `${queue.length} queued` : 'empty'" note="In order; the loop takes the first one. A ticket already in flight or finished can be queued again and gets a new run.">
-        <table v-if="queue.length">
-          <thead><tr><th>#</th><th>Key</th><th>Summary</th><th></th></tr></thead>
-          <tbody>
-            <tr v-for="(item, i) in queue" :key="item.key">
-              <td class="num dim">{{ i + 1 }}</td>
-              <td class="key"><a v-if="ticketUrl(item.key)" :href="ticketUrl(item.key)!" target="_blank" rel="noopener">{{ item.key }}</a><span v-else>{{ item.key }}</span></td>
-              <td class="summary">{{ item.summary ?? '' }}</td>
-              <td><div class="actions">
-                <button class="btn tiny" :disabled="i === 0" title="Move up" @click="move(i, -1)">↑</button>
-                <button class="btn tiny" :disabled="i === queue.length - 1" title="Move down" @click="move(i, 1)">↓</button>
-                <button class="btn tiny" :disabled="i === 0" @click="actions.reorder([item.key])">First</button>
-                <button class="btn tiny danger" @click="actions.remove(item.key)">Remove</button>
-              </div></td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-else class="empty">Nothing queued.</div>
+        <div v-if="queue.length" class="qhead"><span>#</span><span>Key</span><span>Summary</span><span /></div>
+        <TransitionGroup tag="div" name="q" class="qlist">
+          <div v-for="(item, i) in queue" :key="item.key" class="qrow">
+            <span class="num dim">{{ i + 1 }}</span>
+            <span class="key"><a v-if="ticketUrl(item.key)" :href="ticketUrl(item.key)!" target="_blank" rel="noopener">{{ item.key }}</a><span v-else>{{ item.key }}</span></span>
+            <span class="summary one-line" :title="item.summary ?? ''">{{ item.summary ?? '' }}</span>
+            <span class="actions">
+              <button class="btn tiny" :disabled="i === 0" title="Move up" @click="move(i, -1)">↑</button>
+              <button class="btn tiny" :disabled="i === queue.length - 1" title="Move down" @click="move(i, 1)">↓</button>
+              <button class="btn tiny" :disabled="i === 0" @click="reorderNow([item.key])">First</button>
+              <button class="btn tiny danger" @click="actions.remove(item.key)">Remove</button>
+            </span>
+          </div>
+        </TransitionGroup>
+        <Transition name="fade"><div v-if="!queue.length" class="empty">Nothing queued.</div></Transition>
       </Frame>
 
       <Frame title="Recent runs" note="From .pipeline-runs and the service's own records.">
         <template #right><a class="small-link" href="#/runs">All runs</a></template>
-        <table v-if="recent.length">
-          <thead><tr><th>Ticket</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR</th><th>Duration</th><th>Started</th></tr></thead>
-          <tbody>
-            <tr v-for="run in recent" :key="run.path || run.serviceRunId || run.key">
-              <td class="key"><a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`">{{ run.key }}</a><span v-else>{{ run.key }}</span><span v-if="run.number > 1" class="dim"> · {{ run.number }}</span></td>
-              <td class="summary">{{ run.summary ?? '' }}</td>
-              <td><span class="pill" :class="verdictClass(run.verdict)">{{ run.verdict ?? run.ending }}</span></td>
+        <table v-if="recent.length" class="runs">
+          <thead><tr><th>Ticket</th><th>Jira</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR</th><th>Duration</th><th>Started</th></tr></thead>
+          <TransitionGroup tag="tbody" name="rows">
+            <tr v-for="run in recent" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">
+              <td class="key"><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" /><a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a><span v-else>{{ run.key }}</span><span v-if="run.number > 1" class="dim"> · {{ run.number }}</span></td>
+              <td class="jira"><a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a></td>
+              <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
+              <td><span class="pill" :class="run.ending === 'in-flight' ? 'slate' : verdictClass(run.verdict)">{{ run.verdict ?? (liveStage(run) ? `in flight · ${liveStage(run)}` : run.ending) }}</span></td>
               <td class="dim">{{ run.ending }}</td>
               <td><a v-if="run.pr" :href="run.pr.url" target="_blank" rel="noopener" :title="run.pr.state">#{{ prNumber(run.pr.url) }}</a></td>
-              <td class="num">{{ fmtDuration(run.seconds) }}</td>
+              <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
               <td class="num dim">{{ fmtTime(run.startedAt) }}</td>
             </tr>
-          </tbody>
+          </TransitionGroup>
         </table>
         <div v-else class="empty">No runs yet.</div>
       </Frame>
