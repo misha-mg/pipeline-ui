@@ -162,7 +162,7 @@ What it shows:
   empty the tickets it finds are listed with their count; `KAZ`, words or a key typed then search
   only among them, and a key outside it lists nothing. A JQL Jira refuses, or one naming a field
   or a value Jira does not know, shows Jira's message instead of "nothing found". After a reload
-  the JQL and its switch are as they were; switched off or removed, the search covers every
+  the search is as it was: what was typed, the JQL, its switch and the first page of results; switched off or removed, the search covers every
   project again.
 - The console is opened from a browser on another machine on the network: it shows the same queue,
   run and history as the server's files, and an action taken in one browser shows in another

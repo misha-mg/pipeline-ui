@@ -2,12 +2,12 @@
 // them, and whether it is still asking. Asked 350 ms after the last keystroke (at once on Enter);
 // an answer to an older query is dropped. More pages are added below the first. The JQL is
 // applied on Enter or Apply, not as it is typed (a JQL half typed is one Jira refuses); a switch
-// turns it on and off without losing it, and both are kept in this browser. Kept apart from the
-// console's polls, so a poll never touches the results.
+// turns it on and off without losing it. What is typed, the JQL and the switch are kept in this
+// browser, and the search is made again when the page is reloaded. Kept apart from the console's
+// polls, so a poll never touches the results.
 import { ref, watch } from 'vue'
 import { api, type JiraIssue, type SearchScope } from './api.ts'
 
-export const query = ref('')
 export const results = ref<JiraIssue[] | null>(null)
 export const scope = ref<SearchScope | null>(null)
 export const total = ref<number | null>(null)
@@ -16,10 +16,12 @@ export const searching = ref(false)
 export const loadingMore = ref(false)
 export const searchError = ref<string | null>(null)
 
+const QUERY_KEPT = 'pipeline-ui.search'
 const JQL_KEPT = 'pipeline-ui.jql'
 const JQL_ON_KEPT = 'pipeline-ui.jql-on'
 const kept = (name: string): string | null => { try { return localStorage.getItem(name) } catch { return null } }
 const keep = (name: string, value: string): void => { try { localStorage.setItem(name, value) } catch { /* not kept */ } }
+export const query = ref(kept(QUERY_KEPT) ?? '')
 /** The JQL applied; searches are made within it while the switch is on. Empty for none. */
 export const jql = ref(kept(JQL_KEPT) ?? '')
 /** Whether the switch is on: the JQL field shown and the applied JQL used. */
@@ -28,6 +30,7 @@ export const jqlOn = ref(kept(JQL_ON_KEPT) === '1')
 export const jqlDraft = ref(jql.value)
 /** What Jira said when it refused the JQL. */
 export const jqlError = ref<string | null>(null)
+watch(query, (value) => keep(QUERY_KEPT, value))
 watch(jql, (value) => keep(JQL_KEPT, value))
 watch(jqlOn, (on) => keep(JQL_ON_KEPT, on ? '1' : '0'))
 /** The JQL searches are made within now: the applied one while the switch is on. */
@@ -88,6 +91,11 @@ async function run(): Promise<void> {
   } finally {
     if (mine === asked) searching.value = false
   }
+}
+
+/** Makes the kept search again once the page is open, unless its results are already shown. */
+export function restoreSearch(): void {
+  if (results.value === null && !searching.value && worthAsking(query.value)) searchNow()
 }
 
 /** Called on every keystroke. */

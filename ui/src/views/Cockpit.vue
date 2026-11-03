@@ -3,11 +3,11 @@
 // controls; the queue, the latest runs and the state sources. One field queues a ticket by its
 // key or searches Jira, within the operator's JQL when one is applied; the run in flight is cancelled from its own card. Explanations sit in
 // tooltips, so the sheet says only what is happening.
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
 import { endingLabel, endingTone, fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageOfAgent, toneClass, verdictClass } from '../api.ts'
 import { actions, history, liveStage, runSeconds, state, ticketUrl } from '../console.ts'
-import { applyJql, clearSearch, dropJql, jql, jqlDraft, jqlError, jqlOn, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, switchJql, total as foundTotal, typed } from '../search.ts'
+import { applyJql, clearSearch, dropJql, jql, jqlDraft, jqlError, jqlOn, loadingMore, loadMore, next, query, restoreSearch, results, scope, searchError, searching, searchNow, switchJql, total as foundTotal, typed } from '../search.ts'
 
 const loop = computed(() => state.value?.loop ?? null)
 const running = computed(() => loop.value?.wanted === 'running')
@@ -116,6 +116,9 @@ const switchHelp = computed(() => (jqlOn.value ? (jql.value ? `On: searches are 
 const jqlUsed = computed(() => jqlOn.value && jql.value !== '')
 const jqlChanged = computed(() => jqlDraft.value.trim() !== jql.value)
 const statusClass = (category: string | null) => (category === 'done' ? 'ok' : category === 'indeterminate' ? 'slate' : '')
+// A reload shows the search as it was: the field and the JQL come back from this browser, and
+// their first page is asked for again.
+onMounted(restoreSearch)
 function queueFound(key: string, front: boolean) {
   void actions.enqueue(key, front)
 }

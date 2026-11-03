@@ -15,7 +15,9 @@ The JQL is applied on Enter or Apply, not on each keystroke as the first field i
 typed is one Jira refuses, and the field would be red while it is written. The switch, not a
 button, turns it on and off: a button beside the field read as one that submits the ticket, and
 did not say whether the JQL was in force; switched off, the JQL is kept but not used. Both are
-kept in the browser's local storage, like the folded state sources, and not in the service: it is one
+kept in the browser's local storage, like the folded state sources, and so is what is typed in
+the search field: a reload makes the search again and shows its first page, as it was. None of
+it is in the service: it is one
 operator's view, not the pipeline's state, and two browsers may search within different ones.
 
 Jira's `/search/jql` refuses a JQL it cannot parse with a 400 and its messages, which the search
