@@ -111,7 +111,7 @@ const searchNote = computed(() => {
   }
   return ''
 })
-const fieldHelp = 'A ticket key queues it (To end, To front). A project key (KAZ, RPG) lists the project, with words after it to search in it; other words search every project. With a JQL applied all of it is searched within what the JQL finds, and an empty field lists those. The summary is read from Jira as a ticket is queued; a key Jira does not know is refused.'
+const fieldHelp = 'A ticket key queues it at the top or the bottom of the queue. A project key (KAZ, RPG) lists the project, with words after it to search in it; other words search every project. With a JQL applied all of it is searched within what the JQL finds, and an empty field lists those. The summary is read from Jira as a ticket is queued; a key Jira does not know is refused.'
 const jqlHelp = 'Any JQL Jira takes, with or without ORDER BY. Enter or Apply searches within it; Shift+Enter is a new line. It stays in this browser, used while the switch is on.'
 const switchHelp = computed(() => (jqlOn.value ? (jql.value ? `On: searches are within ${jql.value}` : 'On: no JQL applied yet') : 'Off: searches every project. On: searches within a JQL query.'))
 const jqlUsed = computed(() => jqlOn.value && jql.value !== '')
@@ -184,8 +184,8 @@ function queueFound(key: string, front: boolean) {
             <button v-if="query && !typedKey" class="btn" @click="clearSearch()">Clear</button>
           </div>
           <div v-if="typedKey" class="ctl gap">
-            <button class="btn" @click="queueTyped(false)">To end</button>
-            <button class="btn" @click="queueTyped(true)">To front</button>
+            <button class="btn" title="Queue it first: the loop takes it next" @click="queueTyped(true)">Top</button>
+            <button class="btn" title="Queue it last" @click="queueTyped(false)">Bottom</button>
           </div>
           <p v-if="searchNote" class="hint" :class="{ err: searchError }">{{ searchNote }}</p>
         </div>
@@ -228,8 +228,8 @@ function queueFound(key: string, front: boolean) {
                 <span v-if="row.inFlight" class="pill slate">in flight</span>
                 <span v-if="row.position !== null" class="pill">queued #{{ row.position }}</span>
                 <template v-else>
-                  <button class="btn tiny" @click="queueFound(row.issue.key, false)">To end</button>
-                  <button class="btn tiny" @click="queueFound(row.issue.key, true)">To front</button>
+                  <button class="btn tiny" title="Queue it first: the loop takes it next" @click="queueFound(row.issue.key, true)">Top</button>
+                  <button class="btn tiny" title="Queue it last" @click="queueFound(row.issue.key, false)">Bottom</button>
                 </template>
               </div></td>
             </tr>
