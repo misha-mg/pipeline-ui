@@ -1,6 +1,6 @@
 # Web console for the ticket pipeline
 
-Status: in progress (2026-11-01: queue, loop, CLI, API, console and Jira search built; runs start from the base branch `PIPELINE_BASE_BRANCH`, `dev` during webui's code freeze, with pull requests off; the first real run through the loop was done on 2026-10-27)
+Status: in progress (2026-11-01: queue, loop, CLI, API, console and Jira search built, the search within a JQL since 2026-11-03; runs start from the base branch `PIPELINE_BASE_BRANCH`, `dev` during webui's code freeze, with pull requests off; the first real run through the loop was done on 2026-10-27)
 
 ## Problem
 
@@ -74,11 +74,17 @@ Agent SDK, and from its own records.
   many Jira counts in all; each found ticket with its status, type, assignee, its place in the queue or the run in
   flight, and its latest run; queued from the result at the end or the front, by the same rules
   as a key typed in.
+- A JQL to search within (added 2026-11-03, ADR jql-search): the operator applies any JQL Jira
+  takes; with nothing typed it lists every ticket the JQL finds, in its ORDER BY or the latest
+  updated first, and a key, a project key or words typed in are searched only among those. Jira's
+  own words say why a JQL is refused, a field or value it does not know included. A switch turns
+  the JQL on and off without losing it; both stay in that browser.
 
 ## Non-goals
 
-- Choosing tickets from Jira by a query (Instrumenta's "Pick"): people fill the queue; the search
-  only helps them find a ticket. Saved queries and filters by status or assignee are not in it.
+- Choosing tickets from Jira by a query (Instrumenta's "Pick"): people fill the queue; the search,
+  a JQL included, only helps them find a ticket, and nothing is queued without a click. One JQL
+  kept in the browser is all: no named saved queries, no filter builder.
 - A budget or cost per run, in money or tokens: runs go under a subscription, and nobody reads
   the number.
 - Access control: anyone who reaches the console's address (Tailscale or the office LAN) may act;
@@ -152,6 +158,12 @@ What it shows:
   a found ticket puts it in the queue with its summary and marks its row queued; a ticket
   already queued or in flight cannot be queued from the search again. The state polls leave the
   results as they are. Without Jira the search says why it cannot search and the rest works.
+- The operator applies a JQL (`statusCategory != Done AND labels = pipeline`): with the field
+  empty the tickets it finds are listed with their count; `KAZ`, words or a key typed then search
+  only among them, and a key outside it lists nothing. A JQL Jira refuses, or one naming a field
+  or a value Jira does not know, shows Jira's message instead of "nothing found". After a reload
+  the JQL and its switch are as they were; switched off or removed, the search covers every
+  project again.
 - The console is opened from a browser on another machine on the network: it shows the same queue,
   run and history as the server's files, and an action taken in one browser shows in another
   within 5 s.

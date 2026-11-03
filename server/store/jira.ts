@@ -1,5 +1,6 @@
 // Jira Cloud's REST API on the site JIRA_BASE_URL names, with the same JIRA_EMAIL and
-// JIRA_API_TOKEN the pipeline's MCP server uses: a ticket's summary when it is queued, and the console's ticket search. The token is a
+// JIRA_API_TOKEN the pipeline's MCP server uses: a ticket's summary when it is queued, and the
+// console's ticket search, optionally within the operator's own JQL. The token is a
 // scoped API token, which Jira accepts only through api.atlassian.com with the site's cloud id
 // (the MCP server does the same); the id comes from the site's /_edge/tenant_info, or
 // JIRA_CLOUD_ID. Read only: nothing is written to Jira. Never throws: a Jira that cannot be
@@ -21,8 +22,11 @@ export type JiraIssue = {
   updated: string | null
 }
 
-/** What was typed, as the search reads it: one ticket, or words, in one project or in all. */
-export type SearchScope = { key: string } | { project: string | null; words: string | null }
+/**
+ * What was typed, as the search reads it: one ticket, or words, in one project or in all; with
+ * `jql`, only among the tickets that JQL finds (its ORDER BY, if any, in `orderBy`).
+ */
+export type SearchScope = ({ key: string } | { project: string | null; words: string | null }) & { jql?: string; orderBy?: string }
 
 export type JiraSearch =
   | {
@@ -34,6 +38,8 @@ export type JiraSearch =
       /** The token for the next page; null on the last one. */
       next: string | null
     }
+  /** Jira refused the operator's JQL; `error` is what it said. */
+  | { kind: 'invalid'; error: string }
   | { kind: 'unavailable'; error: string }
 
 const TIMEOUT_MS = 10_000
@@ -118,27 +124,54 @@ export function jiraLookup(config: JiraConfig | null, fetchFn: typeof fetch = fe
 /**
  * What was typed, read against Jira's project keys: a ticket key is that ticket; a project key
  * first (`KAZ`, `kaz search pane`) keeps the search to that project, with the words after it if
- * any; anything else is words searched in every project. Null when there is nothing to search.
+ * any; anything else is words searched in every project. With a JQL, all of it is searched
+ * within what the JQL finds, and an empty query lists that. Null when there is nothing to search.
  */
-export function searchScope(query: string, projects: ReadonlySet<string>): SearchScope | null {
+export function searchScope(query: string, projects: ReadonlySet<string>, jql?: string): SearchScope | null {
   const q = query.trim()
-  if (KEY.test(q)) return { key: q.toUpperCase() }
+  const own = jql ? splitJql(jql) : null
+  const within = own ? { jql: own.where ?? '', ...(own.orderBy ? { orderBy: own.orderBy } : {}) } : {}
+  if (KEY.test(q)) return { key: q.toUpperCase(), ...within }
   const [first = '', ...rest] = q.split(/\s+/)
   const project = projects.has(first.toUpperCase()) ? first.toUpperCase() : null
   const text = (project ? rest.join(' ') : q).replace(TEXT_SYNTAX, ' ').replace(/\s+/g, ' ').trim()
   const words = text.length >= 2 ? text : null
-  if (!project && !words) return null
-  return { project, words }
+  if (!project && !words && !own) return null
+  return { project, words, ...within }
 }
 
-/** The JQL for a scope: the most recently updated first. */
+/**
+ * The operator's JQL as its condition and its ORDER BY, each null when it has none. ORDER BY is
+ * found outside quoted strings only, so `summary ~ "order by"` stays a condition.
+ */
+export function splitJql(jql: string): { where: string | null; orderBy: string | null } {
+  // Quoted text blanked out to the same length, so an index found here is the same in `jql`.
+  const bare = jql.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, (m) => ' '.repeat(m.length))
+  const at = bare.search(/(?:^|\s)order\s+by\s/i)
+  const where = (at === -1 ? jql : jql.slice(0, at)).trim()
+  const orderBy = at === -1 ? '' : jql.slice(at).trim().replace(/^order\s+by\s+/i, '').trim()
+  return { where: where || null, orderBy: orderBy || null }
+}
+
+/** The JQL's condition for a scope, without its order; the operator's JQL bracketed, so its OR stays inside. */
+export function scopeWhere(scope: SearchScope): string {
+  const own = scope.jql ? `(${scope.jql})` : null
+  const where = 'key' in scope
+    ? [own, `key = ${scope.key}`]
+    : [own, scope.project ? `project = ${scope.project}` : null, scope.words ? `text ~ "${scope.words}"` : null]
+  return where.filter(Boolean).join(' AND ')
+}
+
+/** The JQL for a scope: in the operator's JQL's order if it has one, the most recently updated first otherwise. */
 export function scopeJql(scope: SearchScope): string {
-  if ('key' in scope) return `key = ${scope.key}`
-  const where = [scope.project ? `project = ${scope.project}` : null, scope.words ? `text ~ "${scope.words}"` : null].filter(Boolean)
-  return `${where.join(' AND ')} ORDER BY updated DESC`
+  if ('key' in scope) return scopeWhere(scope)
+  return `${scopeWhere(scope)} ORDER BY ${scope.orderBy ?? 'updated DESC'}`.trim()
 }
 
-export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (query: string, next?: string) => Promise<JiraSearch> {
+/** What a search asks besides the typed query: the operator's JQL to search within, and the next page's token. */
+export type SearchOptions = { jql?: string; next?: string }
+
+export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (query: string, options?: SearchOptions) => Promise<JiraSearch> {
   const call = jiraClient(config, fetchFn)
   let projects: { keys: Set<string>; at: number } | null = null
   const projectKeys = async (): Promise<Set<string>> => {
@@ -154,8 +187,8 @@ export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fe
       return projects?.keys ?? new Set()
     }
   }
-  const count = async (jql: string): Promise<number | null> => {
-    const res = await call('/search/approximate-count', { method: 'POST', body: { jql: jql.replace(/ ORDER BY .*$/, '') } })
+  const count = async (where: string): Promise<number | null> => {
+    const res = await call('/search/approximate-count', { method: 'POST', body: { jql: where } })
     if (typeof res === 'string' || !res.ok) return null
     try {
       const body = (await res.json()) as { count?: unknown }
@@ -164,25 +197,58 @@ export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fe
       return null
     }
   }
-  return async (query, next) => {
-    const scope = searchScope(query, await projectKeys())
+  // Jira's search takes a field or a value it does not know as a condition nothing meets; its
+  // strict parse names them. Asked only when a JQL found nothing, so a typo is not "nothing found".
+  const jqlProblems = async (jql: string): Promise<string[]> => {
+    const res = await call('/jql/parse?validation=strict', { method: 'POST', body: { queries: [jql] } })
+    if (typeof res === 'string' || !res.ok) return []
+    try {
+      const body = (await res.json()) as { queries?: { errors?: unknown }[] }
+      const errors = body.queries?.[0]?.errors
+      return Array.isArray(errors) ? errors.filter((e): e is string => typeof e === 'string') : []
+    } catch {
+      return []
+    }
+  }
+  return async (query, { jql, next } = {}) => {
+    const scope = searchScope(query, await projectKeys(), jql?.trim() || undefined)
     if (!scope) return { kind: 'found', scope: null, issues: [], total: 0, next: null }
-    const jql = scopeJql(scope)
-    const body: Record<string, unknown> = { jql, fields: SEARCH_FIELDS, maxResults: SEARCH_LIMIT }
+    const body: Record<string, unknown> = { jql: scopeJql(scope), fields: SEARCH_FIELDS, maxResults: SEARCH_LIMIT }
     if (next) body.nextPageToken = next
-    const [res, total] = await Promise.all([call('/search/jql', { method: 'POST', body }), 'key' in scope || next ? Promise.resolve(null) : count(jql)])
+    const [res, total] = await Promise.all([call('/search/jql', { method: 'POST', body }), 'key' in scope || next ? Promise.resolve(null) : count(scopeWhere(scope))])
     if (typeof res === 'string') return { kind: 'unavailable', error: res }
-    // A key Jira does not know is a 400 for `key = ...`: nothing found, not an outage.
-    if (res.status === 400 && 'key' in scope) return { kind: 'found', scope, issues: [], total: 0, next: null }
+    if (res.status === 400) {
+      const said = await errorsOf(res)
+      // A key Jira does not know is a 400 for `key = ...`: nothing found, not an outage. With the
+      // operator's JQL the 400 may be the JQL's: only a message naming the key is the key's.
+      if ('key' in scope && (!scope.jql || said.some((m) => m.toUpperCase().includes(scope.key)))) return { kind: 'found', scope, issues: [], total: 0, next: null }
+      if (scope.jql !== undefined) return { kind: 'invalid', error: said.join(' ') || 'Jira refused the JQL' }
+    }
     if (!res.ok) return { kind: 'unavailable', error: `Jira answered ${res.status}` }
     try {
       const page = (await res.json()) as { issues?: unknown; nextPageToken?: unknown; isLast?: unknown }
       const issues = Array.isArray(page.issues) ? page.issues.map(issueOf).filter((i): i is JiraIssue => i !== null) : []
       const token = typeof page.nextPageToken === 'string' && page.isLast !== true ? page.nextPageToken : null
+      if (scope.jql && !next && !issues.length) {
+        const problems = await jqlProblems(scope.jql)
+        if (problems.length) return { kind: 'invalid', error: problems.join(' ') }
+      }
       return { kind: 'found', scope, issues, total: 'key' in scope ? issues.length : total, next: token }
     } catch (error) {
       return { kind: 'unavailable', error: error instanceof Error ? error.message : String(error) }
     }
+  }
+}
+
+/** Jira's error messages in a refusal: `errorMessages`, then the per-field `errors`. */
+async function errorsOf(res: Response): Promise<string[]> {
+  try {
+    const body = (await res.json()) as { errorMessages?: unknown; errors?: unknown }
+    const listed = Array.isArray(body.errorMessages) ? body.errorMessages : []
+    const fields = body.errors && typeof body.errors === 'object' ? Object.values(body.errors) : []
+    return [...listed, ...fields].filter((m): m is string => typeof m === 'string' && m.length > 0)
+  } catch {
+    return []
   }
 }
 

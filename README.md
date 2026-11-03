@@ -93,11 +93,11 @@ in `data/` survive a restart, and the loop waits for `start`.
 - `server/health.ts` — what the console depends on: `.pipeline-runs/`, the tmux session
   `batch.sh` uses, Jira.
 - `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`,
-  `/api/jira/search?q=`, the queue, loop and cancel actions) and the built UI.
+  `/api/jira/search?q=&jql=`, the queue, loop and cancel actions) and the built UI.
 - `ui/` — the console, Vue 3 + Vite. The cockpit: a strip with the loop, the run in flight (its
   reports, Cancel), the next ticket and the target branch with whether pull requests are on; one
   Start or Stop button; one field that queues a ticket key at the end or the front and searches
-  Jira for anything else; the queue; the latest runs; the state sources folded into one lamp.
+  Jira for anything else, within a JQL while the "Within JQL" switch is on; the queue; the latest runs; the state sources folded into one lamp.
   The runs page: every run with filters and counts, and each run's reports. A ticket key links
   to `JIRA_BASE_URL`. It polls the API
   every 2 s (the history every 10 s), so two browsers show the same within 5 s.
