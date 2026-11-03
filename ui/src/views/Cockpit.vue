@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // The cockpit: a strip with the loop, what is in flight, what is next and where runs go; the
 // controls; the queue, the latest runs and the state sources. One field queues a ticket by its
-// key or searches Jira; the run in flight is cancelled from its own card. Explanations sit in
+// key or searches Jira, within the operator's JQL when one is applied; the run in flight is cancelled from its own card. Explanations sit in
 // tooltips, so the sheet says only what is happening.
 import { computed, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
 import { endingLabel, endingTone, fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageOfAgent, toneClass, verdictClass } from '../api.ts'
 import { actions, history, liveStage, runSeconds, state, ticketUrl } from '../console.ts'
-import { clearSearch, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, total as foundTotal, typed } from '../search.ts'
+import { applyJql, clearSearch, dropJql, jql, jqlDraft, jqlError, jqlOn, loadingMore, loadMore, next, query, results, scope, searchError, searching, searchNow, switchJql, total as foundTotal, typed } from '../search.ts'
 
 const loop = computed(() => state.value?.loop ?? null)
 const running = computed(() => loop.value?.wanted === 'running')
@@ -84,14 +84,18 @@ const found = computed(() => (results.value ?? []).map((issue) => {
   const lastRun = history.value?.runs.find((r) => r.key === issue.key) ?? null
   return { issue, position: position === -1 ? null : position + 1, inFlight: inFlight.value?.key === issue.key, lastRun }
 }))
-// Where the search looked, as a phrase: "in KAZ", "in KAZ with “search pane”", "in every project with …".
+// Where the search looked, as a phrase: "in KAZ", "in KAZ with “search pane”", "in every project
+// with …"; within a JQL "found by the JQL", "in KAZ with … within the JQL".
 const scopeText = computed(() => {
   const s = scope.value
   if (!s) return ''
-  if ('key' in s) return s.key
-  const where = s.project ? `in ${s.project}` : 'in every project'
-  return s.words ? `${where} with “${s.words}”` : where
+  const within = s.jql !== undefined
+  if ('key' in s) return within ? `${s.key} within the JQL` : s.key
+  if (within && !s.project && !s.words) return 'found by the JQL'
+  const where = [s.project ? `in ${s.project}` : within ? '' : 'in every project', s.words ? `with “${s.words}”` : '', within ? 'within the JQL' : '']
+  return where.filter(Boolean).join(' ')
 })
+const orderText = computed(() => (scope.value?.orderBy ? `ordered by ${scope.value.orderBy}` : 'the latest updated first'))
 const shownCount = computed(() => {
   const shown = results.value?.length ?? 0
   return foundTotal.value !== null && foundTotal.value > shown ? `${shown} of ${foundTotal.value.toLocaleString('en-US')}` : `${shown} found`
@@ -100,10 +104,18 @@ const shownCount = computed(() => {
 const searchNote = computed(() => {
   if (searchError.value) return `Jira cannot be searched: ${searchError.value}`
   if (searching.value) return 'Searching Jira…'
-  if (results.value && !results.value.length) return scope.value && 'key' in scope.value ? `Jira has no ${scope.value.key}.` : `Nothing ${scopeText.value}.`
+  if (results.value && !results.value.length) {
+    const s = scope.value
+    if (s && 'key' in s) return s.jql !== undefined ? `No ${s.key} within the JQL.` : `Jira has no ${s.key}.`
+    return `Nothing ${scopeText.value}.`
+  }
   return ''
 })
-const fieldHelp = 'A ticket key queues it (To end, To front). A project key (KAZ, RPG) lists the project, with words after it to search in it; other words search every project. The summary is read from Jira as a ticket is queued; a key Jira does not know is refused.'
+const fieldHelp = 'A ticket key queues it (To end, To front). A project key (KAZ, RPG) lists the project, with words after it to search in it; other words search every project. With a JQL applied all of it is searched within what the JQL finds, and an empty field lists those. The summary is read from Jira as a ticket is queued; a key Jira does not know is refused.'
+const jqlHelp = 'Any JQL Jira takes, with or without ORDER BY. Enter or Apply searches within it; Shift+Enter is a new line. It stays in this browser, used while the switch is on.'
+const switchHelp = computed(() => (jqlOn.value ? (jql.value ? `On: searches are within ${jql.value}` : 'On: no JQL applied yet') : 'Off: searches every project. On: searches within a JQL query.'))
+const jqlUsed = computed(() => jqlOn.value && jql.value !== '')
+const jqlChanged = computed(() => jqlDraft.value.trim() !== jql.value)
 const statusClass = (category: string | null) => (category === 'done' ? 'ok' : category === 'indeterminate' ? 'slate' : '')
 function queueFound(key: string, front: boolean) {
   void actions.enqueue(key, front)
@@ -152,9 +164,23 @@ function queueFound(key: string, front: boolean) {
         <button v-if="!running" class="btn primary big wide" :disabled="!loop || !state?.service.alive" title="The loop takes the queued tickets one at a time." @click="actions.start()">Start</button>
         <button v-else class="btn big wide" title="No new run starts; the run in flight keeps going." @click="actions.stop()">Stop</button>
         <div class="block">
-          <div class="label">Add a ticket</div>
+          <div class="block-head">
+            <div class="label">Add a ticket</div>
+            <button type="button" class="switch" role="switch" :aria-checked="jqlOn" :title="switchHelp" @click="switchJql(!jqlOn)"><span class="track"><span class="knob" /></span>Within JQL</button>
+          </div>
+          <div v-if="jqlOn" class="jql">
+            <textarea v-model="jqlDraft" class="field" rows="3" spellcheck="false" placeholder="project = KAZ AND status = &quot;To Do&quot; ORDER BY priority DESC" :title="jqlHelp" @keydown.enter.exact.prevent="applyJql()" />
+            <div class="ctl gap">
+              <button class="btn" :disabled="!jqlDraft.trim() || (!jqlChanged && !jqlError)" @click="applyJql()">Apply</button>
+              <button class="btn" :disabled="!jql && !jqlDraft" @click="dropJql()">Remove</button>
+            </div>
+            <p v-if="jqlError" class="hint err">Jira does not take this JQL: {{ jqlError }}</p>
+            <p v-else-if="jql && jqlChanged" class="hint">Not applied yet: searches are still within the JQL before the edit.</p>
+            <p v-else-if="jql" class="hint">Searches below are within this JQL; with the field empty, everything it finds is listed.</p>
+            <p v-else class="hint">Type a JQL and press Enter; searches below are then made within it.</p>
+          </div>
           <div class="ctl">
-            <input id="jira-search" v-model="query" class="field" placeholder="KAZ-1234, KAZ or words" autocomplete="off" :title="fieldHelp" @input="typed()" @keyup.enter="searchNow()" @keyup.esc="clearSearch()" />
+            <input id="jira-search" v-model="query" class="field" :placeholder="jqlUsed ? 'KAZ-1234, KAZ or words, within the JQL' : 'KAZ-1234, KAZ or words'" autocomplete="off" :title="fieldHelp" @input="typed()" @keyup.enter="searchNow()" @keyup.esc="clearSearch()" />
             <button v-if="query && !typedKey" class="btn" @click="clearSearch()">Clear</button>
           </div>
           <div v-if="typedKey" class="ctl gap">
@@ -186,7 +212,7 @@ function queueFound(key: string, front: boolean) {
     </div>
 
     <div class="stack">
-      <Frame v-if="results && results.length" title="Jira search" :count="shownCount" :note="`${scopeText ? `${scopeText.charAt(0).toUpperCase()}${scopeText.slice(1)}, the latest updated first. ` : ''}Queue a ticket from here; its summary is read from Jira again as it is added.`">
+      <Frame v-if="results && results.length" title="Jira search" :count="shownCount" :note="`${scopeText ? `${scopeText.charAt(0).toUpperCase()}${scopeText.slice(1)}, ${orderText}. ` : ''}Queue a ticket from here; its summary is read from Jira again as it is added.`">
         <template #right><button class="btn tiny" @click="clearSearch()">Clear</button></template>
         <table>
           <thead><tr><th>Key</th><th>Summary</th><th>Status</th><th>Type</th><th>Assignee</th><th>Last run</th><th></th></tr></thead>

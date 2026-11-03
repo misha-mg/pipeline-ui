@@ -1,7 +1,7 @@
 // The console's view of the service: the API's shapes come from the server's own types, so
 // a change there is a type error here.
 import type { HistoryFilter, RunDetail, ShownRun, StateView } from '../../server/http/view.ts'
-import type { JiraSearch } from '../../server/store/jira.ts'
+import type { JiraSearch, SearchOptions } from '../../server/store/jira.ts'
 import { verdictTone, type Tone } from '../../server/history/outcome.ts'
 
 export type { AgentStage, Counts, ShownRun, StateView } from '../../server/http/view.ts'
@@ -31,7 +31,12 @@ export const api = {
     return call<History>('GET', `/api/runs${q.size ? `?${q}` : ''}`)
   },
   run: (key: string, number: number) => call<RunFiles>('GET', `/api/runs/${key}/${number}`),
-  search: (q: string, next?: string) => call<JiraSearch>('GET', `/api/jira/search?q=${encodeURIComponent(q)}${next ? `&next=${encodeURIComponent(next)}` : ''}`),
+  search: (q: string, { jql, next }: SearchOptions = {}) => {
+    const params = new URLSearchParams({ q })
+    if (jql) params.set('jql', jql)
+    if (next) params.set('next', next)
+    return call<JiraSearch>('GET', `/api/jira/search?${params}`)
+  },
   enqueue: (key: string, front: boolean) => call<{ ok: true; warning?: string }>('POST', '/api/queue', { key, front }),
   remove: (key: string) => call<{ ok: true }>('DELETE', `/api/queue/${key}`),
   reorder: (keys: string[]) => call<{ ok: true }>('PUT', '/api/queue/order', { keys }),

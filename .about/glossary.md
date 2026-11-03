@@ -43,6 +43,10 @@ that hands over to it, both from `origin/<base>`, the base branch `PIPELINE_BASE
 **Base branch**: the webui branch a run's worktree starts from and its pull request goes to
 (`PIPELINE_BASE_BRANCH`).
 
+**The JQL**: the Jira query the operator applies to the ticket search; whatever is typed is
+searched only among the tickets it finds. Kept in the browser, not in the service. Not a
+"filter" or a "saved query".
+
 **Stage**: one agent's turn in a run (investigate, implement, diff, review, app-test, `rework N`,
 `same cause?`, `pull request`), as the session's hooks report it and `timings.tsv` names it. A
 stage that ran several times is matched to its `state.md` lines in order.
