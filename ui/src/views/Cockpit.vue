@@ -84,7 +84,7 @@ const found = computed(() => (results.value ?? []).map((issue) => {
   const lastRun = history.value?.runs.find((r) => r.key === issue.key) ?? null
   return { issue, position: position === -1 ? null : position + 1, inFlight: inFlight.value?.key === issue.key, lastRun }
 }))
-// Where the search looked, as a phrase: "in KAZ", "in KAZ with “search pane”", "in every project
+// Where the search looked, for the note when nothing is found: "in KAZ", "in KAZ with “search pane”", "in every project
 // with …"; within a JQL "found by the JQL", "in KAZ with … within the JQL".
 const scopeText = computed(() => {
   const s = scope.value
@@ -95,7 +95,6 @@ const scopeText = computed(() => {
   const where = [s.project ? `in ${s.project}` : within ? '' : 'in every project', s.words ? `with “${s.words}”` : '', within ? 'within the JQL' : '']
   return where.filter(Boolean).join(' ')
 })
-const orderText = computed(() => (scope.value?.orderBy ? `ordered by ${scope.value.orderBy}` : 'the latest updated first'))
 const shownCount = computed(() => {
   const shown = results.value?.length ?? 0
   return foundTotal.value !== null && foundTotal.value > shown ? `${shown} of ${foundTotal.value.toLocaleString('en-US')}` : `${shown} found`
@@ -212,8 +211,7 @@ function queueFound(key: string, front: boolean) {
     </div>
 
     <div class="stack">
-      <Frame v-if="results && results.length" title="Jira search" :count="shownCount" :note="`${scopeText ? `${scopeText.charAt(0).toUpperCase()}${scopeText.slice(1)}, ${orderText}. ` : ''}Queue a ticket from here; its summary is read from Jira again as it is added.`">
-        <template #right><button class="btn tiny" @click="clearSearch()">Clear</button></template>
+      <Frame v-if="results && results.length" title="Jira search" :count="shownCount" note="Queue a ticket from here; its summary is read from Jira again as it is added.">
         <table>
           <thead><tr><th>Key</th><th>Summary</th><th>Status</th><th>Type</th><th>Assignee</th><th>Last run</th><th></th></tr></thead>
           <tbody>
