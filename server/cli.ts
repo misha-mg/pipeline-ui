@@ -10,11 +10,14 @@
 //   pipeline status
 //   pipeline runs [N]                 the last N runs (20)
 //   pipeline events RUN_ID            a run's events as the session reported them
+//   pipeline maintain                 a backup of the database, the log cut down (daily, deploy/)
 //
-// Every command but serve writes to the database and returns; the service acts within a second.
+// Every command but serve and maintain writes to the database and returns; the service acts
+// within a second.
 import { configFromEnv } from './config.ts'
 import { fmtDuration } from './format.ts'
 import { describeError, log } from './log.ts'
+import { maintain } from './maintain.ts'
 import { serve } from './service.ts'
 import { openDb } from './store/db.ts'
 import { jiraLookup } from './store/jira.ts'
@@ -32,7 +35,7 @@ import {
   stopLoop,
 } from './store/runs.ts'
 
-const USAGE = `usage: pipeline serve | enqueue KEY [--front] | remove KEY | reorder KEY... | list | start | stop | cancel | status | runs [N] | events RUN_ID`
+const USAGE = `usage: pipeline serve | enqueue KEY [--front] | remove KEY | reorder KEY... | list | start | stop | cancel | status | runs [N] | events RUN_ID | maintain`
 
 export async function main(argv: string[]): Promise<number> {
   const [command, ...args] = argv
@@ -52,6 +55,16 @@ export async function main(argv: string[]): Promise<number> {
     return command ? 0 : 2
   }
   const config = configFromEnv()
+  if (command === 'maintain') {
+    // Run by the timer, so it logs as the service does.
+    try {
+      maintain(config)
+      return 0
+    } catch (error) {
+      log.error('fatal', { command, error: describeError(error) })
+      return 1
+    }
+  }
   const db = openDb(config.dbPath)
   const out = (line: string) => console.log(line)
   const fail = (message: string) => {

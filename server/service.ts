@@ -23,7 +23,7 @@ const TICK_MS = 1000
 const ROUND_MS = 60_000
 
 export async function serve(config: Config): Promise<void> {
-  const db = openDb(config.dbPath)
+  const db = openDb(config.dbPath, { onMigrate: (m) => log.info('migration', { db: config.dbPath, from: m.from, to: m.to, copy: m.copy }) })
   for (const run of markRestart(db))
     log.warn('run_ended', { runId: run.id, key: run.key, ending: 'restart', note: 'in flight when the service last stopped' })
   const startedAt = nowIso()

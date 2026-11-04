@@ -44,29 +44,8 @@ export function bitbucketConfig(env: { BITBUCKET_TOKEN?: string | undefined }): 
   return env.BITBUCKET_TOKEN ? { token: env.BITBUCKET_TOKEN } : null
 }
 
-function ensurePullRequestTable(db: Db): void {
-  db.exec(`CREATE TABLE IF NOT EXISTS pull_requests (
-    url TEXT PRIMARY KEY, state TEXT NOT NULL, closed_on TEXT, fetched_at TEXT, error TEXT
-  )`)
-  // Columns added with the statistics page (2026-11-04); a PR read before them is read again once.
-  const have = db
-    .prepare('PRAGMA table_info(pull_requests)')
-    .all()
-    .map((r) => r.name as string)
-  for (const [name, type] of [
-    ['created_on', 'TEXT'],
-    ['destination', 'TEXT'],
-    ['draft', 'INTEGER'],
-    ['changes', 'TEXT'],
-    ['compared_at', 'TEXT'],
-  ] as const) {
-    if (!have.includes(name)) db.exec(`ALTER TABLE pull_requests ADD COLUMN ${name} ${type}`)
-  }
-}
-
 /** The known states, by URL; a URL never read is not in the map. */
 export function pullRequestStates(db: Db): Map<string, PullRequestState> {
-  ensurePullRequestTable(db)
   const rows = db
     .prepare('SELECT url, state, created_on, closed_on, destination, draft, changes, fetched_at, error FROM pull_requests')
     .all()
@@ -194,7 +173,6 @@ export async function compareMerged(db: Db, config: BitbucketConfig | null, git:
   if (!config) return 0
   const fetchFn = deps.fetch ?? fetch
   const now = deps.now ?? (() => new Date())
-  ensurePullRequestTable(db)
   const rows = db
     .prepare(
       `SELECT url, destination, compared_at FROM pull_requests WHERE state = 'MERGED' AND (changes IS NULL OR json_extract(changes, '$.changed') IS NULL)`,

@@ -11,17 +11,6 @@ export type KnownTicket = TicketStatus & { fetchedAt: string }
 
 const MAX_AGE_MS = 10 * 60 * 1000
 
-function ensureTicketTable(db: Db): void {
-  db.exec(`CREATE TABLE IF NOT EXISTS tickets (
-    key TEXT PRIMARY KEY, summary TEXT, status TEXT, status_category TEXT, done_at TEXT, fetched_at TEXT NOT NULL
-  )`)
-  const have = db
-    .prepare('PRAGMA table_info(tickets)')
-    .all()
-    .map((r) => r.name as string)
-  if (!have.includes('moves')) db.exec('ALTER TABLE tickets ADD COLUMN moves TEXT')
-}
-
 function movesOf(json: unknown): StatusMove[] {
   try {
     const parsed: unknown = typeof json === 'string' ? JSON.parse(json) : []
@@ -32,7 +21,6 @@ function movesOf(json: unknown): StatusMove[] {
 }
 
 export function ticketStatuses(db: Db): Map<string, KnownTicket> {
-  ensureTicketTable(db)
   const rows = db.prepare('SELECT key, summary, status, status_category, done_at, moves, fetched_at FROM tickets').all()
   return new Map(
     rows.map((r) => [
