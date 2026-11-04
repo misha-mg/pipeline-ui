@@ -40,7 +40,7 @@ const PER_ROUND = 50
 const COMPARE_PER_ROUND = 10
 const PR_URL = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/pull-requests\/(\d+)$/
 
-export function bitbucketConfig(env: Record<string, string | undefined>): BitbucketConfig | null {
+export function bitbucketConfig(env: { BITBUCKET_TOKEN?: string | undefined }): BitbucketConfig | null {
   return env.BITBUCKET_TOKEN ? { token: env.BITBUCKET_TOKEN } : null
 }
 

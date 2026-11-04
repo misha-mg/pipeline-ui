@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import { promisify } from 'node:util'
 import type { Config } from './config.ts'
-import { JIRA_SETTINGS, jiraConfig, jiraLookup } from './store/jira.ts'
+import { JIRA_SETTINGS, jiraLookup, type JiraConfig } from './store/jira.ts'
 
 export type Check = { ok: boolean; detail: string; checkedAt: string }
 export type Health = Record<'runsDir' | 'tmux' | 'jira', Check>
@@ -17,7 +17,6 @@ const exec = promisify(execFile)
 const TIMEOUT_MS = 15_000
 
 export type HealthDeps = {
-  env?: Record<string, string | undefined>
   fetch?: typeof fetch
   /** Runs a command and resolves with its stdout+stderr and whether it exited 0. */
   run?: (file: string, args: string[], cwd?: string) => Promise<{ ok: boolean; output: string }>
@@ -25,11 +24,10 @@ export type HealthDeps = {
 }
 
 export async function checkHealth(config: Config, deps: HealthDeps = {}): Promise<Health> {
-  const env = deps.env ?? process.env
   const fetchFn = deps.fetch ?? fetch
   const run = deps.run ?? defaultRun
   const now = deps.now ?? (() => new Date().toISOString())
-  const [runsDir, tmux, jira] = await Promise.all([checkRunsDir(config.runsDir), checkTmux(run), checkJira(env, fetchFn)])
+  const [runsDir, tmux, jira] = await Promise.all([checkRunsDir(config.runsDir), checkTmux(run), checkJira(config.jira, fetchFn)])
   const at = now()
   const stamp = (c: Omit<Check, 'checkedAt'>): Check => ({ ...c, checkedAt: at })
   return { runsDir: stamp(runsDir), tmux: stamp(tmux), jira: stamp(jira) }
@@ -55,8 +53,7 @@ async function checkTmux(run: NonNullable<HealthDeps['run']>): Promise<Omit<Chec
   }
 }
 
-async function checkJira(env: Record<string, string | undefined>, fetchFn: typeof fetch): Promise<Omit<Check, 'checkedAt'>> {
-  const config = jiraConfig(env)
+async function checkJira(config: JiraConfig | null, fetchFn: typeof fetch): Promise<Omit<Check, 'checkedAt'>> {
   if (!config) return { ok: false, detail: `${JIRA_SETTINGS} are not all set: tickets are queued without a summary` }
   const probe = await jiraLookup(config, fetchFn)('KAZ-1')
   if (probe.kind === 'unavailable') return { ok: false, detail: probe.error }

@@ -17,7 +17,7 @@ import { fmtDuration } from './format.ts'
 import { describeError, log } from './log.ts'
 import { serve } from './service.ts'
 import { openDb } from './store/db.ts'
-import { jiraConfig, jiraLookup } from './store/jira.ts'
+import { jiraLookup } from './store/jira.ts'
 import { enqueue, listQueue, remove, reorder } from './store/queue.ts'
 import {
   getRun,
@@ -64,7 +64,7 @@ export async function main(argv: string[]): Promise<number> {
       case 'enqueue': {
         const key = args.find((a) => !a.startsWith('--'))
         if (!key) return fail(USAGE)
-        const added = await enqueue(db, key, { front: args.includes('--front'), lookup: jiraLookup(jiraConfig(process.env)) })
+        const added = await enqueue(db, key, { front: args.includes('--front'), lookup: jiraLookup(config.jira) })
         if (!added.ok) return fail(added.message)
         if (added.warning) console.error(`warning: ${added.warning}`)
         out(

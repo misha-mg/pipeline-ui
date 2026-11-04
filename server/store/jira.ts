@@ -8,6 +8,13 @@
 import type { Lookup } from './queue.ts'
 
 export type JiraConfig = { siteUrl: string; email: string; token: string; cloudId?: string | undefined }
+/** The JIRA_* settings as the environment (or config.ts's parsed schema) gives them. */
+export type JiraEnv = {
+  JIRA_BASE_URL?: string | undefined
+  JIRA_EMAIL?: string | undefined
+  JIRA_API_TOKEN?: string | undefined
+  JIRA_CLOUD_ID?: string | undefined
+}
 
 /** A ticket as the search lists it. */
 export type JiraIssue = {
@@ -56,7 +63,7 @@ export const JIRA_SETTINGS = 'JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN'
 
 /** The Jira site (JIRA_BASE_URL) without its trailing slash; null when it is not set, or is not
  *  an http(s) URL (a bare host would make every ticket link relative and every call fail). */
-export function jiraSiteUrl(env: Record<string, string | undefined>): string | null {
+export function jiraSiteUrl(env: JiraEnv): string | null {
   const site = env.JIRA_BASE_URL?.trim().replace(/\/+$/, '')
   if (!site) return null
   try {
@@ -68,7 +75,7 @@ export function jiraSiteUrl(env: Record<string, string | undefined>): string | n
 }
 
 /** The Jira config from the environment; null when the site or the credentials are not there. */
-export function jiraConfig(env: Record<string, string | undefined>): JiraConfig | null {
+export function jiraConfig(env: JiraEnv): JiraConfig | null {
   const siteUrl = jiraSiteUrl(env)
   const email = env.JIRA_EMAIL
   const token = env.JIRA_API_TOKEN

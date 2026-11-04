@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import type { Config } from './config.ts'
 import { describeError, log } from './log.ts'
 import { checkHealth, type Health } from './health.ts'
-import { bitbucketConfig, compareMerged, refreshPullRequests } from './history/bitbucket.ts'
+import { compareMerged, refreshPullRequests } from './history/bitbucket.ts'
 import { loadRuns } from './history/runs.ts'
 import { refreshTickets } from './history/tickets.ts'
 import { createServer } from './http/api.ts'
@@ -16,7 +16,7 @@ import { entryLabel, entryOf, gitIn, prepareEntry } from './loop/entry.ts'
 import { createLoop } from './loop/loop.ts'
 import { createRunner } from './loop/runner.ts'
 import { nowIso, openDb } from './store/db.ts'
-import { jiraConfig, jiraLookup, jiraSearch, jiraSiteUrl, jiraStatuses } from './store/jira.ts'
+import { jiraLookup, jiraSearch, jiraStatuses } from './store/jira.ts'
 import { markRestart, serviceHeartbeat, stopLoop } from './store/runs.ts'
 
 const TICK_MS = 1000
@@ -63,7 +63,7 @@ export async function serve(config: Config): Promise<void> {
   let rounding = false
   let ticketsSay = ''
   const git = gitIn(config.webuiDir)
-  const statuses = jiraStatuses(jiraConfig(process.env))
+  const statuses = jiraStatuses(config.jira)
   const round = async () => {
     if (rounding) return
     rounding = true
@@ -81,9 +81,9 @@ export async function serve(config: Config): Promise<void> {
       healthSaid = said
       const runs = loadRuns(config.runsDir)
       const urls = runs.map((r) => r.prUrl).filter((u): u is string => u !== null)
-      const read = await refreshPullRequests(db, urls, bitbucketConfig(process.env))
+      const read = await refreshPullRequests(db, urls, config.bitbucket)
       if (read) log.info('pull_requests_read', { count: read })
-      const compared = await compareMerged(db, bitbucketConfig(process.env), git)
+      const compared = await compareMerged(db, config.bitbucket, git)
       if (compared) log.info('pull_requests_compared', { count: compared })
       const tickets = await refreshTickets(
         db,
@@ -112,11 +112,11 @@ export async function serve(config: Config): Promise<void> {
     runsDir: config.runsDir,
     health: () => health,
     setup,
-    jiraSite: jiraSiteUrl(process.env),
-    readers: { bitbucket: bitbucketConfig(process.env) !== null, jira: jiraConfig(process.env) !== null },
+    jiraSite: config.jiraSite,
+    readers: { bitbucket: config.bitbucket !== null, jira: config.jira !== null },
     loop,
-    lookup: jiraLookup(jiraConfig(process.env)),
-    search: jiraSearch(jiraConfig(process.env)),
+    lookup: jiraLookup(config.jira),
+    search: jiraSearch(config.jira),
     uiDir,
   })
   await new Promise<void>((resolve, reject) => server.once('error', reject).listen(config.port, config.host, resolve))
