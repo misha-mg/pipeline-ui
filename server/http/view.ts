@@ -145,7 +145,7 @@ export function shownRuns(src: ViewSources): ShownRun[] {
 }
 
 /** `verdict`: a family (`done`), a verdict (`done:pr-opened`) or `none`; `ending`: a shown ending. */
-export type HistoryFilter = { verdict?: string; ending?: string }
+export type HistoryFilter = { verdict?: string | undefined; ending?: string | undefined }
 
 /** Why a filter is not one the history knows; null when it is. */
 export function filterProblem(filter: HistoryFilter): string | null {

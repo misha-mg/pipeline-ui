@@ -14,11 +14,11 @@ import { filterProblem, historyView, runView, stateView, statsView, type ViewSou
 
 export type ApiDeps = ViewSources & {
   loop?: Pick<Loop, 'tick'>
-  lookup?: (key: string) => Promise<Lookup>
+  lookup?: ((key: string) => Promise<Lookup>) | undefined
   /** The ticket search; without it the search answers that Jira is not configured. */
-  search?: (query: string, options?: SearchOptions) => Promise<JiraSearch>
+  search?: ((query: string, options?: SearchOptions) => Promise<JiraSearch>) | undefined
   /** The directory with the built UI; nothing is served without it. */
-  uiDir?: string
+  uiDir?: string | undefined
 }
 
 type Reply = { status: number; body: unknown }

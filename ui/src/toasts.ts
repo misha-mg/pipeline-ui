@@ -8,8 +8,8 @@ export type Toast = {
   id: number
   kind: ToastKind
   title: string
-  detail?: string
-  link?: { label: string; href: string }
+  detail?: string | undefined
+  link?: { label: string; href: string } | undefined
   /** How long it stays, in ms; the bar under it runs down over that time. */
   ms: number
 }

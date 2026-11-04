@@ -22,7 +22,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   const res = await fetch(path, {
     method,
     headers: body === undefined ? {} : { 'content-type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   const data = (await res.json().catch(() => ({}))) as T & { message?: string }
   if (!res.ok) throw new ApiError(data.message ?? `${method} ${path}: ${res.status}`, res.status)

@@ -7,7 +7,7 @@
 // reached is `unavailable`.
 import type { Lookup } from './queue.ts'
 
-export type JiraConfig = { siteUrl: string; email: string; token: string; cloudId?: string }
+export type JiraConfig = { siteUrl: string; email: string; token: string; cloudId?: string | undefined }
 
 /** A ticket as the search lists it. */
 export type JiraIssue = {
@@ -88,7 +88,7 @@ function jiraClient(config: JiraConfig | null, fetchFn: typeof fetch): Call {
     return fetchFn(url, {
       method: init.method ?? 'GET',
       headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
   }
@@ -183,7 +183,7 @@ export function scopeJql(scope: SearchScope): string {
 }
 
 /** What a search asks besides the typed query: the operator's JQL to search within, and the next page's token. */
-export type SearchOptions = { jql?: string; next?: string }
+export type SearchOptions = { jql?: string | undefined; next?: string | undefined }
 
 export function jiraSearch(
   config: JiraConfig | null,

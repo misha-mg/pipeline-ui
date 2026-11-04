@@ -190,7 +190,7 @@ export type TimelineOptions = {
   /** The calendar day an instant falls on where the page is read, as `YYYY-MM-DD`. */
   dayOf: (iso: string) => string
   /** The first day shown; the earliest run's when not given. */
-  from?: string
+  from?: string | undefined
   /** The last day shown: today. */
   to: string
 }

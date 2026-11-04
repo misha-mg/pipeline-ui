@@ -35,7 +35,7 @@ export type LoopDeps = {
   /** Called when a run starts or ends, for the service's log. */
   onChange?: (what: string, run: RunRecord) => void
   /** Checked before each run, with the queue's head still queued: null, or why no run may start. */
-  preflight?: () => Promise<string | null>
+  preflight?: (() => Promise<string | null>) | undefined
   /** Called when the preflight refused a run and stopped the loop. */
   onRefused?: (why: string) => void
 }

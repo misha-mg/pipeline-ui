@@ -62,7 +62,7 @@ async function serve(deps: ApiDeps) {
     const res = await fetch(`http://127.0.0.1:${port}${p}`, {
       method,
       headers: { 'content-type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
     return { status: res.status, body: (await res.json()) as Record<string, unknown> }
   }

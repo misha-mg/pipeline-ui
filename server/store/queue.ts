@@ -39,7 +39,7 @@ function isQueued(db: Db, key: string): boolean {
 export async function enqueue(
   db: Db,
   key: string,
-  opts: { front?: boolean; lookup?: (key: string) => Promise<Lookup>; now?: () => string } = {},
+  opts: { front?: boolean; lookup?: ((key: string) => Promise<Lookup>) | undefined; now?: () => string } = {},
 ): Promise<{ ok: true; item: QueueItem; warning?: string } | QueueRefusal> {
   if (!isTicketKey(key)) return { ok: false, reason: 'invalid-key', message: `not a ticket key: ${key}` }
   if (isQueued(db, key)) return { ok: false, reason: 'duplicate', message: `${key} is already queued` }

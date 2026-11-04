@@ -11,7 +11,9 @@
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true
   },
   "include": ["server/**/*.ts"]
 }

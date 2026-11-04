@@ -142,7 +142,7 @@ export function startLoop(db: Db, now: () => string = nowIso): void {
 export function stopLoop(
   db: Db,
   reason: NonNullable<LoopState['stoppedReason']>,
-  opts: { now?: () => string; usageLimitResetsAt?: number; detail?: string } = {},
+  opts: { now?: () => string; usageLimitResetsAt?: number | undefined; detail?: string } = {},
 ): void {
   db.prepare(
     'UPDATE loop SET wanted = ?, stopped_reason = ?, stopped_at = ?, stopped_detail = ?, usage_limit_resets_at = ? WHERE id = 1',

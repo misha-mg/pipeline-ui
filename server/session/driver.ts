@@ -33,7 +33,7 @@ export type SessionInput = {
   env: Record<string, string | undefined>
   /** Cancels the session; the ending is then `aborted`. */
   signal?: AbortSignal
-  timeoutMs?: number
+  timeoutMs?: number | undefined
   /** `off`: every push and pull request is refused, so the run ends before one; `draft`: every ready pull request is. `on` when absent. */
   pullRequests?: PullRequests
 }
@@ -47,7 +47,13 @@ export type SessionEvent =
    * the call was not on disk yet as the agent stopped.
    */
   | { type: 'stage-stop'; at: string; agent: string; agentId: string; text?: string; transcript?: string }
-  | { type: 'rate-limit'; at: string; status: SDKRateLimitInfo['status']; resetsAt?: number; rateLimitType?: string }
+  | {
+      type: 'rate-limit'
+      at: string
+      status: SDKRateLimitInfo['status']
+      resetsAt?: number | undefined
+      rateLimitType?: string | undefined
+    }
   | { type: 'api-retry'; at: string; attempt: number; error?: string }
   | { type: 'refused'; at: string; tool: string; detail: string }
   | { type: 'turn'; at: string; subtype: SDKResultMessage['subtype']; isError: boolean; turns: number; costUsd: number; text: string }
@@ -55,7 +61,7 @@ export type SessionEvent =
 
 export type SessionEnding =
   | { kind: 'completed'; text: string; costUsd: number }
-  | { kind: 'usage-limit'; resetsAt?: number; text: string }
+  | { kind: 'usage-limit'; resetsAt?: number | undefined; text: string }
   | { kind: 'error'; reason: string }
   | { kind: 'aborted'; reason: 'cancelled' | 'timeout' }
   | { kind: 'no-result' }
@@ -66,7 +72,7 @@ export type QueryFn = (params: Parameters<typeof sdkQuery>[0]) => AsyncIterable<
 export type SessionDeps = {
   query?: QueryFn
   /** Every raw SDK message, for a debug log. */
-  trace?: (message: SDKMessage) => void
+  trace?: ((message: SDKMessage) => void) | undefined
   /** The SDK process's stderr. */
   stderr?: (data: string) => void
 }
@@ -160,7 +166,7 @@ export async function driveSession(
         },
         env: sessionEnv(input.env),
         abortController: controller,
-        stderr: deps.stderr,
+        ...(deps.stderr ? { stderr: deps.stderr } : {}),
       },
     })
     for await (const message of stream) {
