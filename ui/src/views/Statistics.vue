@@ -265,8 +265,8 @@ const read = computed(() => {
           <td class="summary one-line" :title="p.summary ?? ''">{{ p.summary ?? '' }}</td>
           <td class="num dim">{{ fmtTime(p.openedAt).slice(0, 10) }}</td>
           <td class="num">{{ p.outcome === 'unknown' ? '—' : open(p.openedAt, p.pr.closedOn) }}</td>
-          <td><span class="pill" :class="OUTCOME_TONE[p.outcome]" :title="p.changes && p.changes.changed === null ? p.changes.why : p.pr.error ?? ''">{{ PR_OUTCOME_LABEL[p.outcome] }}</span></td>
-          <td class="num lines"><template v-if="p.changes && p.changes.changed !== null">{{ lines(p.changes.opened) }}<template v-if="p.changes.changed"><span class="arrow">→</span>{{ lines(p.changes.merged) }}</template></template><span v-else class="dim">—</span></td>
+          <td><span class="pill" :class="OUTCOME_TONE[p.outcome]" :title="p.pr.changes?.changed === null ? p.pr.changes.why : p.pr.error ?? ''">{{ PR_OUTCOME_LABEL[p.outcome] }}</span></td>
+          <td class="num lines"><template v-if="p.pr.changes && p.pr.changes.changed !== null">{{ lines(p.pr.changes.opened) }}<template v-if="p.pr.changes.changed"><span class="arrow">→</span>{{ lines(p.pr.changes.merged) }}</template></template><span v-else class="dim">—</span></td>
           <td class="dim">{{ p.pr.destination ?? '—' }}</td>
           <td class="jira"><span v-if="p.ticket?.status" class="pill" :class="{ ok: p.ticket.statusCategory === 'done' }">{{ p.ticket.status }}</span><span v-else class="dim">—</span><span v-if="p.failed.length" class="pill bad" :title="`Sent to Failed after the merge: ${p.failed.map((at) => fmtTime(at)).join(', ')}`">failed{{ p.failed.length > 1 ? ` ${p.failed.length}×` : '' }}</span></td>
         </tr>

@@ -102,7 +102,7 @@ in `data/` survive a restart, and the loop waits for `start`.
   Jira for anything else, within a JQL while the "Within JQL" switch is on; the queue; the latest runs; the state sources folded into one lamp.
   The runs page: every run with filters and counts, and each run's reports. The statistics page:
   for the runs of a period, pull requests opened, open, merged as opened or with changes,
-  declined, tickets Done in Jira, why runs stopped, charts by day or week, and every pull request. A ticket key links
+  declined, tickets Done in Jira or sent to Failed after the merge, why runs stopped, charts by day or week, and every pull request. A ticket key links
   to `JIRA_BASE_URL`. It polls the API
   every 2 s (the history every 10 s), so two browsers show the same within 5 s.
   Its look is the drafting sheet, light or dark (`ui/public/theme.js`): the tokens and parts are

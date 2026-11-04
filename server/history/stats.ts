@@ -4,7 +4,7 @@
 // same day by day or week by week. A period
 // picks runs, not events: a PR from a run in the period counts with its merge, whenever it came.
 // No Node imports: the console's bundle loads this file, and the tests run it as it is.
-import type { PrChanges, PullRequestState } from './bitbucket.ts'
+import type { PullRequestState } from './bitbucket.ts'
 import type { KnownTicket } from './tickets.ts'
 import type { StatsRun, StatsView } from '../http/view.ts'
 import { verdictFamily } from './outcome.ts'
@@ -65,7 +65,6 @@ export type PrRow = {
   pr: PullRequestState
   /** When it was opened: Bitbucket's date, or the run's end before Bitbucket said. */
   openedAt: string | null
-  changes: PrChanges | null
   ticket: KnownTicket | null
   /** When its ticket was sent to Failed after it was merged; empty unless merged. */
   failed: string[]
@@ -79,7 +78,7 @@ export function prRows(view: StatsView, runs: StatsRun[]): PrRow[] {
     if (!pr || rows.has(pr.url)) continue
     rows.set(pr.url, {
       url: pr.url, number: pr.url.match(/(\d+)$/)?.[1] ?? '', key: r.key, run: r.number, summary: r.summary ?? view.tickets[r.key]?.summary ?? null,
-      outcome: prOutcome(pr), pr, openedAt: pr.createdOn ?? r.finishedAt, changes: pr.changes, ticket: view.tickets[r.key] ?? null,
+      outcome: prOutcome(pr), pr, openedAt: pr.createdOn ?? r.finishedAt, ticket: view.tickets[r.key] ?? null,
       failed: pr.state === 'MERGED' ? failsAfter(view.tickets[r.key], pr.closedOn) : [],
     })
   }
@@ -105,10 +104,6 @@ export type Summary = {
   /** Tickets none of whose runs in the period ended done, nor is one in flight. */
   ticketsNotFinished: number
   prs: Record<PrOutcome, number> & { opened: number; merged: number; drafts: number; into: [string, number][] }
-  /** Merged out of merged and declined; null before any closed. */
-  mergeRate: number | null
-  /** Merged as opened out of the merged that were compared; null before any. */
-  asOpenedRate: number | null
   medianToMerge: number | null
   medianRun: number | null
   /** Tickets: run, with a pull request, with one merged, of those Done in Jira, and Done without a Failed after the merge. */
@@ -132,8 +127,6 @@ export function summarize(view: StatsView, runs: StatsRun[]): Summary {
   const outcomes = Object.fromEntries(Object.keys(PR_OUTCOME_LABEL).map((o) => [o, 0])) as Record<PrOutcome, number>
   for (const p of prs) outcomes[p.outcome] += 1
   const merged = prs.filter((p) => p.pr.state === 'MERGED')
-  const declined = outcomes.declined
-  const compared = outcomes['merged-as-opened'] + outcomes['merged-with-changes']
   const toMerge = merged.flatMap((p) => (p.openedAt && p.pr.closedOn ? [(Date.parse(p.pr.closedOn) - Date.parse(p.openedAt)) / 1000] : []))
   const withPr = new Set(prs.map((p) => p.key))
   const mergedKeys = new Set(merged.map((p) => p.key))
@@ -147,8 +140,6 @@ export function summarize(view: StatsView, runs: StatsRun[]): Summary {
     stopReasons: stops,
     ticketsNotFinished: keys.filter((k) => !finished.has(k)).length,
     prs: { ...outcomes, opened: prs.length, merged: merged.length, drafts: prs.filter((p) => p.pr.draft).length, into: tally(merged.map((p) => p.pr.destination ?? 'unknown')) },
-    mergeRate: merged.length + declined ? merged.length / (merged.length + declined) : null,
-    asOpenedRate: compared ? outcomes['merged-as-opened'] / compared : null,
     medianToMerge: median(toMerge),
     medianRun: median(runs.flatMap((r) => (r.seconds === null || r.ending === 'in-flight' ? [] : [r.seconds]))),
     funnel: { run: keys.length, pr: withPr.size, merged: mergedKeys.size, done: doneKeys.length, clean: doneKeys.filter((k) => !failedKeys.has(k)).length },

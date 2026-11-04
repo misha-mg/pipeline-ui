@@ -30,8 +30,8 @@ function view(): StatsView {
       run('KAZ-7', 1, '2026-09-01T10:00:00Z', 'done:pr-opened', { prUrl: PR(7) }),
     ],
     pullRequests: {
-      [PR(1)]: pr(1, { state: 'MERGED', createdOn: '2026-10-20T11:00:00Z', closedOn: '2026-10-22T11:00:00Z', changes: { changed: false, pushes: 1, opened: same, merged: same } }),
-      [PR(2)]: pr(2, { state: 'MERGED', createdOn: '2026-10-20T11:00:00Z', closedOn: '2026-10-21T11:00:00Z', destination: 'dev', changes: { changed: true, pushes: 2, opened: same, merged: { files: 2, added: 9, removed: 1 } } }),
+      [PR(1)]: pr(1, { state: 'MERGED', createdOn: '2026-10-20T11:00:00Z', closedOn: '2026-10-22T11:00:00Z', changes: { changed: false, opened: same, merged: same } }),
+      [PR(2)]: pr(2, { state: 'MERGED', createdOn: '2026-10-20T11:00:00Z', closedOn: '2026-10-21T11:00:00Z', destination: 'dev', changes: { changed: true, opened: same, merged: { files: 2, added: 9, removed: 1 } } }),
       [PR(3)]: pr(3, { state: 'DECLINED', createdOn: '2026-10-21T11:00:00Z', closedOn: '2026-10-21T15:00:00Z', draft: true }),
       [PR(4)]: pr(4, { state: 'OPEN', createdOn: '2026-10-26T11:00:00Z' }),
       [PR(7)]: pr(7, { state: 'MERGED', createdOn: '2026-09-01T11:00:00Z', closedOn: '2026-09-02T11:00:00Z' }),
@@ -85,8 +85,6 @@ describe('the statistics', () => {
       stopReasons: [['blocked:tooling', 1], ['failed:not-converging', 1]],
       // KAZ-6 only: KAZ-5 found nothing to build in its second run.
       ticketsNotFinished: 1,
-      mergeRate: 2 / 3,
-      asOpenedRate: 0.5,
       // Two days and one day: their middle.
       medianToMerge: 1.5 * 24 * 3600,
       medianRun: 3600,

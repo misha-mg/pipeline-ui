@@ -7,7 +7,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Column, Series } from './columns.ts'
 
-const props = withDefaults(defineProps<{ series: Series[]; columns: Column[]; height?: number; label: string }>(), { height: 180 })
+const props = defineProps<{ series: Series[]; columns: Column[]; label: string }>()
 
 const box = ref<HTMLElement | null>(null)
 const width = ref(600)
@@ -18,6 +18,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
+const HEIGHT = 180
 const AXIS = 30
 const BOTTOM = 22
 const TOP = 8
@@ -31,7 +32,7 @@ const scale = computed(() => {
   return { top, ticks: Array.from({ length: top / step + 1 }, (_, i) => i * step) }
 })
 
-const plotH = computed(() => props.height - BOTTOM - TOP)
+const plotH = computed(() => HEIGHT - BOTTOM - TOP)
 const slot = computed(() => (width.value - AXIS) / Math.max(1, props.columns.length))
 const barW = computed(() => Math.max(2, Math.min(24, slot.value * 0.62)))
 const y = (v: number) => TOP + plotH.value - (v / scale.value.top) * plotH.value
@@ -86,7 +87,7 @@ const summary = computed(() => `${props.label}: ${props.columns.reduce((s, c) =>
       <li v-for="s in series" :key="s.key"><i :style="{ background: s.color }" />{{ s.label }}</li>
     </ul>
     <div ref="box" class="plot" tabindex="0" :aria-label="summary" @keydown="key" @blur="hover = null" @mouseleave="hover = null">
-      <svg :width="width" :height="height" role="img" :aria-label="summary">
+      <svg :width="width" :height="HEIGHT" role="img" :aria-label="summary">
         <g class="grid">
           <template v-for="t in scale.ticks" :key="t">
             <line :x1="AXIS" :x2="width" :y1="y(t)" :y2="y(t)" />
@@ -99,10 +100,10 @@ const summary = computed(() => `${props.label}: ${props.columns.reduce((s, c) =>
         </g>
         <g class="dates">
           <template v-for="(c, i) in columns" :key="c.day">
-            <text v-if="i % labelEvery === 0" :x="AXIS + i * slot + slot / 2" :y="height - 6" text-anchor="middle">{{ c.short }}</text>
+            <text v-if="i % labelEvery === 0" :x="AXIS + i * slot + slot / 2" :y="HEIGHT - 6" text-anchor="middle">{{ c.short }}</text>
           </template>
         </g>
-        <rect v-for="(c, i) in columns" :key="`hit-${c.day}`" class="hit" :x="AXIS + i * slot" :y="0" :width="slot" :height="height" @mouseenter="hover = i" />
+        <rect v-for="(c, i) in columns" :key="`hit-${c.day}`" class="hit" :x="AXIS + i * slot" :y="0" :width="slot" :height="HEIGHT" @mouseenter="hover = i" />
       </svg>
       <div v-if="tip" class="tip" :style="{ left: `${tip.left}px` }">
         <div class="when">{{ tip.c.long }}<span v-if="series.length > 1"> · {{ tip.total }}</span></div>

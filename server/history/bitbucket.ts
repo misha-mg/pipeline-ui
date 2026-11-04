@@ -9,11 +9,11 @@ import { compareRanges, type DiffStat, type Git } from './changes.ts'
 
 /**
  * A merged PR set against what the pipeline opened: `changed` when the lines it added and
- * removed are not the ones the pipeline pushed (a rebase alone changes nothing); `pushes` counts
- * the source commits the PR had. Null `changed` with `why` when the two could not be compared.
+ * removed are not the ones the pipeline pushed (a rebase alone changes nothing). Null `changed`
+ * with `why` when the two could not be compared.
  */
 export type PrChanges =
-  | { changed: boolean; pushes: number; opened: DiffStat; merged: DiffStat }
+  | { changed: boolean; opened: DiffStat; merged: DiffStat }
   | { changed: null; why: string }
 
 export type PullRequestState = {
@@ -154,8 +154,12 @@ export async function compareMerged(db: Db, config: BitbucketConfig | null, git:
     if (!res.ok) throw new Error(`Bitbucket answered ${res.status}`)
     return (await res.json()) as T
   }
-  /** Every page of a paged list, up to `pages` of them. */
-  const all = async <T>(url: string, pages: number): Promise<T[]> => {
+  /**
+   * Every page of a paged list, up to `pages` of them. A longer list is refused: the activity's
+   * first update and the oldest commit are on its last page, so a cut list would name the wrong
+   * commits and compare the wrong patches.
+   */
+  const all = async <T>(url: string, pages: number, what: string): Promise<T[]> => {
     const out: T[] = []
     let next: string | undefined = url
     for (let i = 0; next && i < pages; i++) {
@@ -163,6 +167,7 @@ export async function compareMerged(db: Db, config: BitbucketConfig | null, git:
       out.push(...(page.values ?? []))
       next = page.next
     }
+    if (next) throw new Error(`more than ${pages} pages of ${what}`)
     return out
   }
   let compared = 0
@@ -175,18 +180,17 @@ export async function compareMerged(db: Db, config: BitbucketConfig | null, git:
       type Update = { date?: string; source?: { commit?: { hash?: string } }; destination?: { commit?: { hash?: string } } }
       const [pr, activity, commits] = await Promise.all([
         get<{ source?: { commit?: { hash?: string } } }>(`${api}?fields=source.commit.hash`),
-        all<{ update?: Update }>(`${api}/activity?pagelen=50`, 10),
-        all<{ hash: string; parents?: { hash: string }[] }>(`${api}/commits?pagelen=50&fields=next,values.hash,values.parents.hash`, 4),
+        all<{ update?: Update }>(`${api}/activity?pagelen=50`, 10, 'activity'),
+        all<{ hash: string; parents?: { hash: string }[] }>(`${api}/commits?pagelen=50&fields=next,values.hash,values.parents.hash`, 4, 'commits'),
       ])
       const updates = activity.map((a) => a.update).filter((u): u is Update => !!u?.date).sort((a, b) => a.date!.localeCompare(b.date!))
       const first = updates[0]
       const opened = { from: first?.destination?.commit?.hash, to: first?.source?.commit?.hash }
       const merged = { from: commits.at(-1)?.parents?.[0]?.hash, to: pr.source?.commit?.hash }
-      const pushes = new Set(updates.map((u) => u.source?.commit?.hash).filter(Boolean)).size
       if (!opened.from || !opened.to || !merged.from || !merged.to) changes = { changed: null, why: 'Bitbucket did not say which commits it was opened and merged with' }
       else {
         const result = await compareRanges(git, opened as { from: string; to: string }, merged as { from: string; to: string }, (row.destination as string | null) ?? null)
-        changes = 'why' in result ? { changed: null, why: result.why } : { ...result, pushes }
+        changes = 'why' in result ? { changed: null, why: result.why } : result
       }
     } catch (error) {
       changes = { changed: null, why: error instanceof Error ? error.message : String(error) }

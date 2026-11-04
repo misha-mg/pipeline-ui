@@ -92,7 +92,7 @@ describe('compareMerged', () => {
     merged(db)
     const git = fakeGit({ '1111111...aaaaaaa': patch(['-old', '+new']), '2222222...bbbbbbb': patch(['-old', '+new  ']).replace('@@ -1,3 +1,3 @@', '@@ -9,3 +9,3 @@') })
     expect(await compareMerged(db, { token: 't' }, git, { fetch: bitbucket([]) })).toBe(1)
-    expect(pullRequestStates(db).get(PR(7))!.changes).toEqual({ changed: false, pushes: 2, opened: { files: 1, added: 1, removed: 1 }, merged: { files: 1, added: 1, removed: 1 } })
+    expect(pullRequestStates(db).get(PR(7))!.changes).toEqual({ changed: false, opened: { files: 1, added: 1, removed: 1 }, merged: { files: 1, added: 1, removed: 1 } })
     // Compared once: never again.
     const calls: string[] = []
     expect(await compareMerged(db, { token: 't' }, git, { fetch: bitbucket(calls) })).toBe(0)
@@ -122,5 +122,19 @@ describe('compareMerged', () => {
     t = new Date('2026-10-21T11:30:00Z')
     await compareMerged(db, { token: 't' }, git, { fetch: bitbucket(calls), now: () => t })
     expect(calls.length).toBe(3)
+  })
+
+  it('does not compare a PR whose commits run past the pages it reads: the oldest one would be missed', async () => {
+    const db = openDb(':memory:')
+    merged(db)
+    const git = fakeGit({})
+    const endless = (async (url: string) => {
+      const body = url.includes('/commits') ? { values: [{ hash: 'bbbbbbb', parents: [{ hash: '2222222' }] }], next: `${url.split('&page=')[0]}&page=2` }
+        : url.includes('/activity') ? { values: [] } : { source: { commit: { hash: 'bbbbbbb' } } }
+      return new Response(JSON.stringify(body), { status: 200 })
+    }) as unknown as typeof fetch
+    expect(await compareMerged(db, { token: 't' }, git, { fetch: endless })).toBe(0)
+    expect(pullRequestStates(db).get(PR(7))!.changes).toEqual({ changed: null, why: 'more than 4 pages of commits' })
+    expect(git.calls.filter((c) => c[0] === 'diff')).toEqual([])
   })
 })

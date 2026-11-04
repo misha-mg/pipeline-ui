@@ -28,7 +28,9 @@ files are compared, trailing space dropped: a rebase changes the hunks' line num
 context around them, and nothing that was written. Of the first 52 merged PRs, 38 went in as
 opened, 14 with changes; comparing whole patches (`git patch-id`) said 16, two of them only a
 rebase over moved context. A merged PR is compared once; one that could not be (a commit missing
-from the checkout) is tried again an hour later and shows as "merged, not compared".
+from the checkout, or an activity or commit list longer than the pages read, whose first update
+or oldest commit would be cut off) is tried again an hour later and shows as "merged, not
+compared".
 
 A commit missing from the checkout (a merge since the last run's fetch) is fetched with
 `git fetch --no-write-fetch-head --refmap= origin <branch>`: objects only, no ref and no
