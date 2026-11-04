@@ -8,8 +8,11 @@
     "node": ">=24"
   },
   "scripts": {
-    "check": "tsc --noEmit && vue-tsc --noEmit -p ui/tsconfig.json",
+    "start": "bin/pipeline serve",
+    "check": "tsc --noEmit && vue-tsc --noEmit -p ui/tsconfig.json && prettier --check .",
     "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "build": "vite build --config ui/vite.config.ts",
     "dev": "vite --config ui/vite.config.ts",
     "pipeline": "node --no-warnings=ExperimentalWarning server/cli.ts"
@@ -20,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^24",
     "@vitejs/plugin-vue": "^6.0.10",
+    "prettier": "^3.9.10",
     "typescript": "^5.9",
     "vite": "^7.3.7",
     "vitest": "^4",
