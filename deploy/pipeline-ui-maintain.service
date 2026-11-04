@@ -1,0 +1,14 @@
+# systemd user unit: a backup of the database and the log cut down to size (`pipeline maintain`),
+# run daily by pipeline-ui-maintain.timer. Machine-specific as pipeline-ui.service. Its output:
+# journalctl --user -u pipeline-ui-maintain.
+
+[Unit]
+Description=Pipeline console maintenance — database backup, log size
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/npb/pipeline-ui
+Environment=PATH=%h/.nvm/versions/node/v24.19.0/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TZ=Europe/Warsaw
+ExecStart=%h/npb/pipeline-ui/bin/pipeline maintain
+NoNewPrivileges=yes

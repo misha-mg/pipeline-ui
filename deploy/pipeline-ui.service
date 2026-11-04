@@ -1,0 +1,29 @@
+# systemd user unit for the service and its console. Install and operate: .about/architecture.md,
+# Deploy; .claude/skills/operate. Machine-specific: WorkingDirectory and the node path (PATH and
+# ExecStart; claude must be installed under that node, and PATH must also hold git and tmux).
+# bin/pipeline sources the pipeline's secrets file and .env before it starts node.
+
+[Unit]
+Description=Pipeline console — the queue, the loop and the runs of the webui ticket pipeline
+# A service that cannot start (a bad .env, no webui checkout) gives up after 5 tries in 10
+# minutes instead of restarting forever; /healthz then answers nothing.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+WorkingDirectory=%h/npb/pipeline-ui
+Environment=PATH=%h/.nvm/versions/node/v24.19.0/bin:/usr/local/bin:/usr/bin:/bin
+# The team's day: every time the console shows.
+Environment=TZ=Europe/Warsaw
+ExecStart=%h/npb/pipeline-ui/bin/pipeline serve
+Restart=always
+RestartSec=5
+# A stop ends the run in flight as `restart` (its session is told to end; it has up to 30 s);
+# nothing resumes by itself after the restart, the loop waits for Start.
+TimeoutStopSec=60
+NoNewPrivileges=yes
+StandardOutput=append:%h/npb/pipeline-ui/data/serve.log
+StandardError=append:%h/npb/pipeline-ui/data/serve.log
+
+[Install]
+WantedBy=default.target

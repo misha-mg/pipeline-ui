@@ -8,8 +8,9 @@ Lives next to `webui`; the only things `webui` knows about it are the `PIPELINE_
 point in `tools/ticket-pipeline/launch-session.sh` and the `PIPELINE_BASE_BRANCH` a run starts
 from.
 
-Decisions: [.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossary.md). How to
-work on it: [CLAUDE.md](CLAUDE.md).
+How it is built: [.about/architecture.md](.about/architecture.md). Decisions:
+[.about/adr/](.about/adr/). Words: [.about/glossary.md](.about/glossary.md). How to work on it:
+[CLAUDE.md](CLAUDE.md).
 
 ## Install
 
@@ -30,48 +31,14 @@ in the repository names a machine, a user or a site.
 
 ## Deploy to a server
 
-The same clone as anywhere else, with these on the server, as the user the service runs as:
-
-- **The pipeline's secrets file** (`~/.config/webui-pipeline.env`, or `PIPELINE_ENV`), the one
-  `webui`'s pipeline reads. A run sources it again inside the run: `CLAUDE_CODE_OAUTH_TOKEN`
-  signs the session in on the subscription (`ANTHROPIC_API_KEY` is dropped, so nothing is billed
-  per token; ADR session-driver), and `BITBUCKET_TOKEN` also lets the runs page show each pull
-  request's state. No `claude login` is needed.
-- **The `webui` checkout** next to this repository (or `PIPELINE_WEBUI`), whose git can fetch
-  `origin` and, when pull requests are on, push to it.
-- **`.env`**, from `.env.example`: the Jira site and credentials, and the base branch. The base
-  branch must have the entry point (ADR webui-entry-point); while `webui`'s `master` does not,
-  set `PIPELINE_BASE_BRANCH=dev`, or the loop stops before the first run and the console says
-  why.
-- **Who can reach the console.** It has no password and listens on all interfaces
-  (`PIPELINE_HOST`, default `0.0.0.0`): anyone who reaches port 8787 can queue tickets and start
-  the loop, and every run costs a Claude session and may open a pull request. Either keep the
-  port behind a firewall, or set `PIPELINE_HOST=127.0.0.1` and open the console through a
-  tunnel: `ssh -L 8787:localhost:8787 <server>`.
-
-Nothing keeps the service running after the shell that started it closes; a tmux session will
-do. Do not name it `pipeline`: that is `batch.sh`'s session, and the console reads it as a batch
-running (its tmux check fails). `batch.sh` and the loop never run on the same machine at
-the same time.
-
-```bash
-tmux new -s pipeline-ui 'bin/pipeline serve'
-```
-
-The first runs on a new machine are best made with `PIPELINE_PULL_REQUESTS=off` in `.env`: a run
-ends before its push (`blocked:tooling`) with its commits on the local ticket branch, to be
-looked at before the next one. Remove the line and restart the service to let runs open pull
-requests, or set it to `draft` to have every pull request opened as a draft.
-
-To update: wait until nothing is in flight (`bin/pipeline status`, or `bin/pipeline stop` and
-wait), then
-
-```bash
-git pull && npm ci && npm run build
-```
-
-and restart the service. A change to `ui/` alone needs only the build; the queue and the history
-in `data/` survive a restart, and the loop waits for `start`.
+The same clone as anywhere else, with the pipeline's secrets file, the `webui` checkout and
+`.env` on the server, run by the systemd user units in `deploy/` (the service, and a daily
+`maintain` that backs up the database and cuts the log): the whole of it, with the first runs on
+a new machine and how to update, is [.about/architecture.md](.about/architecture.md), Deploy;
+looking after the running service is the `operate` skill (`.claude/skills/operate/SKILL.md`).
+The console listens on all interfaces by default: keep port 8787 behind a firewall, or set
+`PIPELINE_HOST=127.0.0.1` and use an SSH tunnel; beyond the office network set `PIPELINE_USER`
+and `PIPELINE_PASSWORD` for a login.
 
 ## Parts
 
@@ -87,7 +54,12 @@ in `data/` survive a restart, and the loop waits for `start`.
   the usage limit.
 - `server/cli.ts`, `bin/pipeline` — the service (`pipeline serve`) and the commands that drive
   it through the database: `enqueue`, `remove`, `reorder`, `list`, `start`, `stop`, `cancel`,
-  `status`, `runs`, `events`.
+  `status`, `runs`, `events`; and `maintain` (a backup of the database, the log cut down),
+  run daily by the timer in `deploy/`.
+- `server/config.ts` — every setting through one zod schema into one `Config`; a bad value stops
+  the start with every problem named. `server/log.ts` (the service's JSON-lines log),
+  `server/format.ts` (dates and durations) and `server/http/guard.ts` are the same files as
+  bug-validator's.
 - `server/history/` — every run under `.pipeline-runs/` as its files tell it (as `pipeline-tui`
   reads them), the pull requests' states from Bitbucket, each merged one compared with what the
   pipeline opened (`changes.ts`, `git diff` in the webui checkout), the tickets' Jira statuses,
@@ -95,7 +67,9 @@ in `data/` survive a restart, and the loop waits for `start`.
 - `server/health.ts` — what the console depends on: `.pipeline-runs/`, the tmux session
   `batch.sh` uses, Jira.
 - `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`, `/api/stats`,
-  `/api/jira/search?q=&jql=`, the queue, loop and cancel actions) and the built UI.
+  `/api/jira/search?q=&jql=`, the queue, loop and cancel actions), `/healthz` for a monitor, and
+  the built UI; the console guard (`guard.ts`) runs first: security headers, the Host it knows,
+  an action only from its own pages, the optional login, the body cap.
 - `ui/` — the console, Vue 3 + Vite. The cockpit: a strip with the loop, the run in flight (its
   reports, Cancel), the next ticket and the target branch with whether pull requests are on; one
   Start or Stop button; one field that queues a ticket key at the end or the front and searches
@@ -138,7 +112,12 @@ bin/pipeline start            # the loop takes the next ticket within a second
 bin/pipeline status
 bin/pipeline cancel           # the run in flight ends within 30 s and is recorded cancelled
 bin/pipeline stop             # the run in flight finishes; nothing new starts
+bin/pipeline maintain         # a backup of the database into data/backups, the log cut once past 5 MB
 ```
+
+The service logs one JSON line per event (`service_start`, `run_started`, `run_ended`,
+`loop_refused`, `health_changed`, …: [.about/architecture.md](.about/architecture.md), Log);
+`GET /healthz` answers 200 while it runs and every state source is ok, 503 otherwise.
 
 After a restart the service starts nothing by itself: the run it had in flight is recorded as
 ended by the restart, the queue is kept, and the loop waits for `start`.
@@ -147,8 +126,12 @@ Where things are, each with a default for the server: `PIPELINE_WEBUI` (the webu
 `../webui`), `PIPELINE_DATA` (database and run logs, `./data`), `PIPELINE_ENV` (the secrets file),
 `PIPELINE_TIMEOUT_HOURS` (one session, 4), `PIPELINE_BASE_BRANCH` (the branch a run's worktree
 starts from and its pull request goes to, `master`), `PIPELINE_PULL_REQUESTS` (`on`, `draft` or
-`off`, `on`; `draft` opens every pull request as a draft, ADR draft-pull-requests). `PIPELINE_LAUNCH_SESSION_REF` and `PIPELINE_START_SH_REF`, the freeze's old workaround,
-stop the service from starting. The secrets file is sourced inside the run, never printed.
+`off`, `on`; `draft` opens every pull request as a draft, ADR draft-pull-requests); the console's
+`PIPELINE_HOST`, `PIPELINE_PORT`, `PIPELINE_HOSTNAMES`, `PIPELINE_USER`, `PIPELINE_PASSWORD`;
+`maintain`'s `PIPELINE_BACKUP_DIR` and `PIPELINE_LOG_FILE`. Every variable is in
+[.about/architecture.md](.about/architecture.md), Configuration. `PIPELINE_LAUNCH_SESSION_REF`
+and `PIPELINE_START_SH_REF`, the freeze's old workaround, stop the service from starting. The
+secrets file is sourced inside the run, never printed.
 
 pipeline-ui's own secrets go in `.env` at the repository's root (gitignored; `.env.example`
 names them), read by `bin/pipeline` after the pipeline's file, so its values win: `JIRA_EMAIL`
@@ -178,9 +161,10 @@ serves the UI from Vite with the API proxied to a running service.
 ## Checks
 
 ```bash
-npm run check   # tsc for the server, vue-tsc for the UI
+npm run check   # tsc for the server, vue-tsc for the UI, prettier --check
 npm test        # vitest
 npm run build   # the UI into ui/dist, which the service serves
+npm run format  # prettier --write
 ```
 
 Node 24 runs the TypeScript directly; there is no build step for the server.

@@ -62,3 +62,15 @@ later (ADR statistics).
 **Period**: on the statistics page, the runs counted: those started in the last batch, 7, 30 or
 90 days, or all time; their pull requests and tickets count with them, whenever they were merged
 or done.
+
+**Sheet**: the drafting sheet, the design system both consoles share (`ui/src/sheet.css`,
+`ui/public/theme.js`, `ui/public/fonts/`); this repository is its source of truth, bug-validator
+syncs a copy (ADR unification). "The sheet's part" is a class defined there; the console's own
+layout is `ui/src/style.css`.
+
+**Console guard**: what the HTTP server checks before it serves anything (`server/http/guard.ts`):
+the security headers, the Host it knows, that an action comes from the console's own pages, the
+optional login (`PIPELINE_USER`, `PIPELINE_PASSWORD`), the body cap.
+
+**Heartbeat**: the `service` row the running service rewrites every second (pid, started at,
+seen at). The console and `/healthz` say the service is running while it is fresher than 5 s.
