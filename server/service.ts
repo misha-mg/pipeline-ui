@@ -117,6 +117,7 @@ export async function serve(config: Config): Promise<void> {
     loop,
     lookup: jiraLookup(config.jira),
     search: jiraSearch(config.jira),
+    guard: config.guard,
     uiDir,
   })
   await new Promise<void>((resolve, reject) => server.once('error', reject).listen(config.port, config.host, resolve))

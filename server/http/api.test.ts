@@ -1,9 +1,11 @@
 import fs from 'node:fs'
+import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openDb } from '../store/db.ts'
-import { addEvent, insertRun, loopState, startLoop, updateRun } from '../store/runs.ts'
+import { addEvent, insertRun, loopState, serviceHeartbeat, startLoop, updateRun } from '../store/runs.ts'
+import type { Health } from '../health.ts'
 import { createServer, type ApiDeps } from './api.ts'
 import type { SearchOptions } from '../store/jira.ts'
 import { agentStages, runView, shownRuns, stateView, type StatsView } from './view.ts'
@@ -255,6 +257,135 @@ describe('api', () => {
       expect(js.headers.get('content-type')).toContain('javascript')
       expect(await (await get('/../../etc/passwd')).text()).toBe('<html>ui</html>')
       expect((await get('/assets/an-older-build.js')).status).toBe(404)
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()))
+    }
+  })
+})
+
+describe('the guard', () => {
+  /** A raw request, for headers fetch will not send (Host). */
+  const raw = (port: number, options: http.RequestOptions, body?: string) =>
+    new Promise<{ status: number; headers: http.IncomingHttpHeaders; text: string }>((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, ...options }, (res) => {
+        let text = ''
+        res.setEncoding('utf8')
+        res.on('data', (c: string) => (text += c))
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, text }))
+      })
+      req.on('error', reject)
+      req.end(body)
+    })
+  const listen = async (deps: ApiDeps) => {
+    const server = createServer(deps)
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+    return { port: (server.address() as { port: number }).port, close: () => new Promise<void>((r) => server.close(() => r())) }
+  }
+
+  it('puts the security headers on every answer and refuses a Host it does not know', async () => {
+    const { deps } = sources()
+    const { port, close } = await listen({ ...deps, guard: { hostnames: ['console.example'], login: null, realm: 'test' } })
+    try {
+      const state = await raw(port, { path: '/api/state', headers: { host: `127.0.0.1:${port}` } })
+      expect(state.status).toBe(200)
+      expect(state.headers['content-security-policy']).toContain("default-src 'self'")
+      expect(state.headers['x-content-type-options']).toBe('nosniff')
+      expect((await raw(port, { path: '/api/state', headers: { host: 'localhost' } })).status).toBe(200)
+      expect((await raw(port, { path: '/api/state', headers: { host: 'Console.example:8787' } })).status).toBe(200)
+      const foreign = await raw(port, { path: '/api/state', headers: { host: 'evil.example' } })
+      expect(foreign.status).toBe(421)
+      expect(foreign.headers['content-security-policy']).toContain("default-src 'self'")
+    } finally {
+      await close()
+    }
+  })
+
+  it("takes an action from the console's own pages only; a GET is always answered", async () => {
+    const { deps, db } = sources()
+    const { port, close } = await listen(deps)
+    try {
+      const post = (headers: Record<string, string>) =>
+        fetch(`http://127.0.0.1:${port}/api/queue`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...headers },
+          body: JSON.stringify({ key: 'KAZ-9' }),
+        })
+      const foreign = await post({ origin: 'https://evil.example' })
+      expect(foreign.status).toBe(403)
+      expect(((await foreign.json()) as { message: string }).message).toContain("console's own pages")
+      expect((await post({ 'sec-fetch-site': 'cross-site' })).status).toBe(403)
+      expect((await fetch(`http://127.0.0.1:${port}/api/state`, { headers: { origin: 'https://evil.example' } })).status).toBe(200)
+      expect((await post({ origin: `http://127.0.0.1:${port}` })).status).toBe(200)
+      expect(db.prepare('SELECT key FROM queue').all()).toEqual([{ key: 'KAZ-9' }])
+    } finally {
+      await close()
+    }
+  })
+
+  it('asks for the login when one is set, /healthz apart; without one nothing changes', async () => {
+    const { deps } = sources()
+    const open = await listen(deps)
+    const guarded = await listen({ ...deps, guard: { hostnames: [], login: { user: 'op', password: 'pw' }, realm: 'Pipeline console' } })
+    try {
+      expect((await fetch(`http://127.0.0.1:${open.port}/api/state`)).status).toBe(200)
+      const asked = await fetch(`http://127.0.0.1:${guarded.port}/api/state`)
+      expect(asked.status).toBe(401)
+      expect(asked.headers.get('www-authenticate')).toBe('Basic realm="Pipeline console", charset="UTF-8"')
+      const auth = (login: string) => ({ authorization: `Basic ${Buffer.from(login).toString('base64')}` })
+      expect((await fetch(`http://127.0.0.1:${guarded.port}/api/state`, { headers: auth('op:wrong') })).status).toBe(401)
+      expect((await fetch(`http://127.0.0.1:${guarded.port}/api/state`, { headers: auth('op:pw') })).status).toBe(200)
+      expect((await fetch(`http://127.0.0.1:${guarded.port}/healthz`)).status).toBe(503)
+    } finally {
+      await open.close()
+      await guarded.close()
+    }
+  })
+
+  it('refuses a body over 64 KB', async () => {
+    const { deps } = sources()
+    const { port, close } = await listen(deps)
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/queue`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: 'x'.repeat(70 * 1024) }),
+      })
+      expect(res.status).toBe(413)
+    } finally {
+      await close()
+    }
+  })
+})
+
+describe('/healthz', () => {
+  it('is ok when the heartbeat is fresh and every dependency checked is ok, 503 otherwise, and says what is in flight', async () => {
+    const { deps, db } = sources()
+    const now = () => new Date('2026-10-27T12:00:00Z')
+    let health: Health | null = null
+    const server = createServer({ ...deps, now, health: () => health })
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+    const port = (server.address() as { port: number }).port
+    const get = async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/healthz`)
+      return { status: res.status, body: (await res.json()) as Record<string, unknown> }
+    }
+    try {
+      expect(await get()).toEqual({ status: 503, body: { ok: false, state: 'stopped', loop: 'stopped', inFlight: null, health: {} } })
+      serviceHeartbeat(db, 1, '2026-10-27T11:00:00Z', () => '2026-10-27T11:59:58Z')
+      expect(await get()).toMatchObject({ status: 200, body: { ok: true, state: 'running' } })
+      const check = (ok: boolean) => ({ ok, detail: '', checkedAt: '2026-10-27T11:59:00Z' })
+      health = { runsDir: check(true), tmux: check(true), jira: check(false) }
+      expect(await get()).toMatchObject({
+        status: 503,
+        body: { ok: false, state: 'running', health: { runsDir: true, tmux: true, jira: false } },
+      })
+      health = { runsDir: check(true), tmux: check(true), jira: check(true) }
+      startLoop(db, () => '2026-10-27T11:30:00Z')
+      insertRun(db, { key: 'KAZ-5', summary: null, startedAt: '2026-10-27T11:31:00Z', logPath: null })
+      expect(await get()).toEqual({
+        status: 200,
+        body: { ok: true, state: 'running', loop: 'running', inFlight: 'KAZ-5', health: { runsDir: true, tmux: true, jira: true } },
+      })
     } finally {
       await new Promise<void>((r) => server.close(() => r()))
     }
