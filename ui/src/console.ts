@@ -46,8 +46,14 @@ function announce(prev: StateView, next: StateView): void {
   const loop = next.loop
   if (prev.loop.wanted === 'running' && loop.wanted === 'stopped') {
     if (loop.stoppedReason === 'usage-limit') {
-      const at = loop.usageLimitResetsAt ? new Date(loop.usageLimitResetsAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
-      notify('error', 'Usage limit: the loop stopped', at ? `The limit resets at ${at}; Start takes the next ticket.` : 'Start takes the next ticket once the limit resets.')
+      const at = loop.usageLimitResetsAt
+        ? new Date(loop.usageLimitResetsAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : null
+      notify(
+        'error',
+        'Usage limit: the loop stopped',
+        at ? `The limit resets at ${at}; Start takes the next ticket.` : 'Start takes the next ticket once the limit resets.',
+      )
     } else if (loop.stoppedReason === 'entry-point') notify('error', 'The entry point refused the run', loop.stoppedDetail ?? undefined)
   }
 }
@@ -67,10 +73,22 @@ async function announceEnd(runId: number, key: string): Promise<void> {
   // The verdict's word after its family, as the title says it: `pr-opened` → "pr opened".
   const word = verdict ? verdict.slice(verdict.indexOf(':') + 1).replace(/-/g, ' ') : ''
   if (run?.ending === 'cancelled') notify('info', `${key} cancelled`, run.reason ?? undefined, { label: 'Open the run', href })
-  else if (verdictFamily(verdict) === 'done' && pr) notify('success', `${key}: ${verdict === 'done:draft-pr' ? 'draft ' : ''}pull request #${prNumber(pr.url)} opened`, run?.summary ?? undefined, { label: 'Open the pull request', href: pr.url })
-  else if (verdictFamily(verdict) === 'done') notify('success', `${key}: ${word}`, run?.reason ?? run?.summary ?? undefined, { label: 'Open the run', href })
-  else if (verdict) notify('error', `${key} ${verdictFamily(verdict) ?? 'stopped'}: ${word}`, run?.reason ?? undefined, { label: 'Open the run', href })
-  else notify('error', `${key} ended: ${endingLabel(run?.ending ?? null)}`, run?.endingDetail ?? 'It left no verdict.', { label: 'Open the run', href })
+  else if (verdictFamily(verdict) === 'done' && pr)
+    notify(
+      'success',
+      `${key}: ${verdict === 'done:draft-pr' ? 'draft ' : ''}pull request #${prNumber(pr.url)} opened`,
+      run?.summary ?? undefined,
+      { label: 'Open the pull request', href: pr.url },
+    )
+  else if (verdictFamily(verdict) === 'done')
+    notify('success', `${key}: ${word}`, run?.reason ?? run?.summary ?? undefined, { label: 'Open the run', href })
+  else if (verdict)
+    notify('error', `${key} ${verdictFamily(verdict) ?? 'stopped'}: ${word}`, run?.reason ?? undefined, { label: 'Open the run', href })
+  else
+    notify('error', `${key} ended: ${endingLabel(run?.ending ?? null)}`, run?.endingDetail ?? 'It left no verdict.', {
+      label: 'Open the run',
+      href,
+    })
 }
 
 async function refreshHistory(): Promise<void> {
@@ -133,8 +151,18 @@ export const actions = {
   start: () => act(api.start, { title: 'Loop started', detail: 'It takes the queued tickets one at a time.' }, 'The loop did not start'),
   stop: () => act(api.stop, { title: 'Loop stopped', detail: 'The run in flight finishes; nothing new starts.' }, 'The loop did not stop'),
   cancel: () => act(api.cancel, { title: 'Cancelling the run', detail: 'Its session ends within 30 s.' }, 'Not cancelled'),
-  enqueue: (key: string, front: boolean) => act(() => api.enqueue(key, front), { title: `${key} queued`, detail: front ? 'At the front: it starts next.' : 'At the end of the queue.' }, `${key} cannot be queued`),
+  enqueue: (key: string, front: boolean) =>
+    act(
+      () => api.enqueue(key, front),
+      { title: `${key} queued`, detail: front ? 'At the front: it starts next.' : 'At the end of the queue.' },
+      `${key} cannot be queued`,
+    ),
   remove: (key: string) => act(() => api.remove(key), { title: `${key} removed from the queue` }, `${key} was not removed`),
   reorder: (keys: string[]) => act(() => api.reorder(keys), undefined, 'The queue was not reordered'),
-  again: (key: string) => act(() => api.enqueue(key, false), { title: `${key} queued again`, detail: 'At the end of the queue; it gets a new run.' }, `${key} cannot be queued`),
+  again: (key: string) =>
+    act(
+      () => api.enqueue(key, false),
+      { title: `${key} queued again`, detail: 'At the end of the queue; it gets a new run.' },
+      `${key} cannot be queued`,
+    ),
 }

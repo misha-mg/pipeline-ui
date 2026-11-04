@@ -3,160 +3,617 @@
    the strip, filters, bars, the column chart, toasts, the dialog) is the sheet's. */
 
 /* Cockpit: the controls left of the queue and the runs; the target branch keeps its case. */
-.cards .card .value.branch { text-transform: none; }
-.cards .card .value.live { color: var(--moss); }
-.btn.wide { width: 100%; }
-.ctl.gap { margin-top: 8px; }
-.ctl.gap .btn { flex: 1; }
-.cockpit { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: var(--gap); align-items: start; }
-@media (max-width: 1100px) { .cockpit { grid-template-columns: 1fr; } }
+.cards .card .value.branch {
+  text-transform: none;
+}
+.cards .card .value.live {
+  color: var(--moss);
+}
+.btn.wide {
+  width: 100%;
+}
+.ctl.gap {
+  margin-top: 8px;
+}
+.ctl.gap .btn {
+  flex: 1;
+}
+.cockpit {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .cockpit {
+    grid-template-columns: 1fr;
+  }
+}
 /* The JQL the search is made within: a few lines of code above the field, never wider than the
    column and at most about eight lines tall; longer JQL scrolls inside. */
-.jql { margin-bottom: 12px; }
-.jql textarea.field { display: block; width: 100%; max-width: 100%; height: auto; min-height: 64px; max-height: 176px; padding: 8px 12px; resize: vertical; overflow-y: auto; font-family: var(--mono); font-size: 13px; line-height: 1.45; }
-td.summary { max-width: 520px; }
-td .actions { display: flex; gap: 6px; justify-content: flex-end; }
-.verdict-done { color: var(--moss); } .verdict-blocked { color: var(--rust); } .verdict-failed { color: var(--rust); } .verdict-none { color: var(--faint); }
+.jql {
+  margin-bottom: 12px;
+}
+.jql textarea.field {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 64px;
+  max-height: 176px;
+  padding: 8px 12px;
+  resize: vertical;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
+}
+td.summary {
+  max-width: 520px;
+}
+td .actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.verdict-done {
+  color: var(--moss);
+}
+.verdict-blocked {
+  color: var(--rust);
+}
+.verdict-failed {
+  color: var(--rust);
+}
+.verdict-none {
+  color: var(--faint);
+}
 
 /* One run: its state as pills, its steps as a diagram of blocks joined by links, the chosen
    block's report in a panel under it with a pointer up to the block. */
-.stages { display: flex; gap: 8px; flex-wrap: wrap; margin: -8px 0 26px; }
-.stages .pulse { margin-right: 6px; }
-.stages .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.flow-frame { padding-block: 10px 12px; }
+.stages {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -8px 0 26px;
+}
+.stages .pulse {
+  margin-right: 6px;
+}
+.stages .pill {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flow-frame {
+  padding-block: 10px 12px;
+}
 /* Scrolled by swipe or wheel when the page is narrower than the diagram, with no bar over the blocks. */
-.flow { display: flex; align-items: stretch; overflow-x: auto; padding: 12px 2px 14px; scrollbar-width: none; }
-.flow::-webkit-scrollbar { display: none; }
+.flow {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  padding: 12px 2px 14px;
+  scrollbar-width: none;
+}
+.flow::-webkit-scrollbar {
+  display: none;
+}
 
 /* A block: a stage's number and lamp, its name, its agent, how long and how it went, a bar. */
 .node {
-  position: relative; flex: 1 1 0; min-width: 138px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  padding: 12px 14px 15px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: inherit;
-  font: inherit; text-align: left; cursor: pointer; overflow: hidden;
-  transition: border-color 0.4s ease, background-color 0.4s ease, box-shadow 0.3s ease, transform 0.25s ease;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 138px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 0.4s ease,
+    background-color 0.4s ease,
+    box-shadow 0.3s ease,
+    transform 0.25s ease;
 }
-.node:hover:not(:disabled) { border-color: var(--muted); transform: translateY(-2px); }
-.node:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; }
-.node .top { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 2px; }
-.node .no { font: 500 11px/1 var(--mono); color: var(--faint); letter-spacing: 0.04em; }
-.node .lamp-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--faint); transition: background-color 0.4s, border-color 0.4s; }
-.node .name { font: 600 17px/1.05 var(--cond); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); transition: color 0.4s; }
-.node .agent { max-width: 100%; font: 11px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.node .agent.ok { color: var(--moss); } .node .agent.bad { color: var(--rust); }
-.node .meta { font-size: 11.5px; line-height: 1.3; color: var(--muted); }
-.node .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: transparent; transition: background-color 0.4s; }
+.node:hover:not(:disabled) {
+  border-color: var(--muted);
+  transform: translateY(-2px);
+}
+.node:focus-visible {
+  outline: 2px solid var(--slate);
+  outline-offset: 2px;
+}
+.node .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 2px;
+}
+.node .no {
+  font: 500 11px/1 var(--mono);
+  color: var(--faint);
+  letter-spacing: 0.04em;
+}
+.node .lamp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--faint);
+  transition:
+    background-color 0.4s,
+    border-color 0.4s;
+}
+.node .name {
+  font: 600 17px/1.05 var(--cond);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+  transition: color 0.4s;
+}
+.node .agent {
+  max-width: 100%;
+  font: 11px/1.3 var(--mono);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.node .agent.ok {
+  color: var(--moss);
+}
+.node .agent.bad {
+  color: var(--rust);
+}
+.node .meta {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+.node .bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: transparent;
+  transition: background-color 0.4s;
+}
 
-.node.done .lamp-dot { background: var(--moss); border-color: var(--moss); }
-.node.done .bar { background: color-mix(in srgb, var(--moss) 70%, transparent); }
-.node.working { border-color: var(--slate); background: color-mix(in srgb, var(--slate) 7%, var(--bg)); }
-.node.working .name { color: var(--slate-ink); }
-.node.working .lamp-dot { background: var(--slate); border-color: var(--slate); animation: pulse 1.6s ease-in-out infinite; box-shadow: 0 0 0 3px color-mix(in srgb, var(--slate) 25%, transparent); }
-.node.working .bar { background: linear-gradient(90deg, transparent, var(--slate), transparent) 0 0 / 40% 100% no-repeat; animation: sweep 1.8s ease-in-out infinite; }
-.node.stopped { border-color: color-mix(in srgb, var(--rust) 55%, var(--line)); }
-.node.stopped .lamp-dot { border-color: var(--rust); }
-.node.stopped .bar { background: var(--rust); }
-.node.next { border-style: dashed; cursor: default; background: transparent; }
-.node.next .name, .node.next .agent { color: var(--faint); }
+.node.done .lamp-dot {
+  background: var(--moss);
+  border-color: var(--moss);
+}
+.node.done .bar {
+  background: color-mix(in srgb, var(--moss) 70%, transparent);
+}
+.node.working {
+  border-color: var(--slate);
+  background: color-mix(in srgb, var(--slate) 7%, var(--bg));
+}
+.node.working .name {
+  color: var(--slate-ink);
+}
+.node.working .lamp-dot {
+  background: var(--slate);
+  border-color: var(--slate);
+  animation: pulse 1.6s ease-in-out infinite;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--slate) 25%, transparent);
+}
+.node.working .bar {
+  background: linear-gradient(90deg, transparent, var(--slate), transparent) 0 0 / 40% 100% no-repeat;
+  animation: sweep 1.8s ease-in-out infinite;
+}
+.node.stopped {
+  border-color: color-mix(in srgb, var(--rust) 55%, var(--line));
+}
+.node.stopped .lamp-dot {
+  border-color: var(--rust);
+}
+.node.stopped .bar {
+  background: var(--rust);
+}
+.node.next {
+  border-style: dashed;
+  cursor: default;
+  background: transparent;
+}
+.node.next .name,
+.node.next .agent {
+  color: var(--faint);
+}
 
 /* The ticket's start and the verdict: terminals, rounder and narrower than the stages. */
-.node.start, .node.end, .node.file { flex: 0 0 auto; min-width: 112px; justify-content: center; align-items: center; text-align: center; border-radius: 26px; padding: 12px 20px; }
-.node.start .name, .node.end .name, .node.file .name { font-size: 15px; }
-.node.end { min-width: 150px; }
+.node.start,
+.node.end,
+.node.file {
+  flex: 0 0 auto;
+  min-width: 112px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  border-radius: 26px;
+  padding: 12px 20px;
+}
+.node.start .name,
+.node.end .name,
+.node.file .name {
+  font-size: 15px;
+}
+.node.end {
+  min-width: 150px;
+}
 
 /* The block shown in the panel: lifted, its edge in the accent, a pointer from the panel under it. */
-.node.on { border-color: var(--slate-ink); box-shadow: inset 0 3px 0 var(--slate-ink), 0 12px 22px -16px color-mix(in srgb, var(--text) 60%, transparent); transform: translateY(-3px); }
-.node.on:not(.working) { background: var(--field); }
+.node.on {
+  border-color: var(--slate-ink);
+  box-shadow:
+    inset 0 3px 0 var(--slate-ink),
+    0 12px 22px -16px color-mix(in srgb, var(--text) 60%, transparent);
+  transform: translateY(-3px);
+}
+.node.on:not(.working) {
+  background: var(--field);
+}
 
 /* A link: a track that fills once the next block starts, flowing while it works, and its arrow. */
-.link { flex: 0 0 30px; align-self: center; display: flex; align-items: center; margin-top: -2px; }
-.link .track { position: relative; flex: 1; height: 2px; background: var(--line); overflow: hidden; }
-.link .fill { position: absolute; inset: 0; background: var(--moss); transform: scaleX(0); transform-origin: left; transition: transform 0.7s ease, background-color 0.4s; }
-.link .head { width: 0; height: 0; border-left: 7px solid var(--line); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: border-color 0.4s 0.3s; }
-.link.filled .fill { transform: scaleX(1); }
-.link.filled .head { border-left-color: var(--moss); }
-.link.flowing .fill { transform: scaleX(1); background: repeating-linear-gradient(90deg, var(--slate) 0 6px, transparent 6px 10px); animation: flow 0.7s linear infinite; }
-.link.flowing .head { border-left-color: var(--slate); }
-.link.cut .fill { transform: scaleX(1); background: var(--rust); }
-.link.cut .head { border-left-color: var(--rust); }
+.link {
+  flex: 0 0 30px;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  margin-top: -2px;
+}
+.link .track {
+  position: relative;
+  flex: 1;
+  height: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.link .fill {
+  position: absolute;
+  inset: 0;
+  background: var(--moss);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition:
+    transform 0.7s ease,
+    background-color 0.4s;
+}
+.link .head {
+  width: 0;
+  height: 0;
+  border-left: 7px solid var(--line);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: border-color 0.4s 0.3s;
+}
+.link.filled .fill {
+  transform: scaleX(1);
+}
+.link.filled .head {
+  border-left-color: var(--moss);
+}
+.link.flowing .fill {
+  transform: scaleX(1);
+  background: repeating-linear-gradient(90deg, var(--slate) 0 6px, transparent 6px 10px);
+  animation: flow 0.7s linear infinite;
+}
+.link.flowing .head {
+  border-left-color: var(--slate);
+}
+.link.cut .fill {
+  transform: scaleX(1);
+  background: var(--rust);
+}
+.link.cut .head {
+  border-left-color: var(--rust);
+}
 
-.detail { position: relative; margin-top: 22px; }
-.detail .detail-frame { border-top-color: var(--slate-ink); }
+.detail {
+  position: relative;
+  margin-top: 22px;
+}
+.detail .detail-frame {
+  border-top-color: var(--slate-ink);
+}
 .detail.pointed::before {
-  content: ''; position: absolute; z-index: 1; top: -7px; left: calc(var(--caret-x) - 7px); width: 13px; height: 13px;
-  background: var(--bg); border-left: 1px solid var(--slate-ink); border-top: 1px solid var(--slate-ink); transform: rotate(45deg);
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: -7px;
+  left: calc(var(--caret-x) - 7px);
+  width: 13px;
+  height: 13px;
+  background: var(--bg);
+  border-left: 1px solid var(--slate-ink);
+  border-top: 1px solid var(--slate-ink);
+  transform: rotate(45deg);
   transition: left 0.35s ease;
 }
-.swap-enter-active, .swap-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
-.swap-enter-from { opacity: 0; transform: translateY(6px); }
-.swap-leave-to { opacity: 0; transform: translateY(-4px); }
-
-@keyframes flow { from { background-position: 0 0; } to { background-position: 10px 0; } }
-@keyframes sweep { from { background-position: -60% 0; } to { background-position: 160% 0; } }
-@media (prefers-reduced-motion: reduce) {
-  .node, .link .fill, .detail.pointed::before, .swap-enter-active, .swap-leave-active { transition: none; }
-  .node.working .lamp-dot, .node.working .bar, .link.flowing .fill { animation: none; }
+.swap-enter-active,
+.swap-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
-pre.report { margin: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.5; color: var(--text); max-height: 70vh; overflow: auto; }
-.report-frame { margin-top: 26px; }
-.run-summary { margin: -10px 0 22px; font-size: 15px; color: var(--text); }
+.swap-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.swap-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@keyframes flow {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 10px 0;
+  }
+}
+@keyframes sweep {
+  from {
+    background-position: -60% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .node,
+  .link .fill,
+  .detail.pointed::before,
+  .swap-enter-active,
+  .swap-leave-active {
+    transition: none;
+  }
+  .node.working .lamp-dot,
+  .node.working .bar,
+  .link.flowing .fill {
+    animation: none;
+  }
+}
+pre.report {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 70vh;
+  overflow: auto;
+}
+.report-frame {
+  margin-top: 26px;
+}
+.run-summary {
+  margin: -10px 0 22px;
+  font-size: 15px;
+  color: var(--text);
+}
 
 /* A stage that ended badly (a failed review, a blocked test, a low confidence) is marked so, not
    green like a passed one: rust lamp and bar, its result in rust. */
-.node.done.bad .lamp-dot { background: var(--rust); border-color: var(--rust); }
-.node.done.bad .bar { background: color-mix(in srgb, var(--rust) 75%, transparent); }
-.node.done.bad .meta { color: var(--rust); }
-.node.end.bad { border-color: color-mix(in srgb, var(--rust) 45%, var(--line)); }
-.node.end.ok { border-color: color-mix(in srgb, var(--moss) 45%, var(--line)); }
+.node.done.bad .lamp-dot {
+  background: var(--rust);
+  border-color: var(--rust);
+}
+.node.done.bad .bar {
+  background: color-mix(in srgb, var(--rust) 75%, transparent);
+}
+.node.done.bad .meta {
+  color: var(--rust);
+}
+.node.end.bad {
+  border-color: color-mix(in srgb, var(--rust) 45%, var(--line));
+}
+.node.end.ok {
+  border-color: color-mix(in srgb, var(--moss) 45%, var(--line));
+}
 
 /* The queue: a list, not a table, so a row can leave without the rows under it jumping. Rows
    glide to their new place on a reorder, a new one slides in with a short glow, a removed or
    started one slides out. */
-.qhead, .qrow { display: grid; grid-template-columns: 28px 104px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
-.qhead { padding: 0 0 10px; border-bottom: 1px solid var(--line); font: 500 11px/1.45 var(--sans); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
-.qlist { position: relative; }
-.qrow { padding: 9px 0; border-bottom: 1px solid var(--line-soft); background: var(--bg); }
-.qrow:last-child { border-bottom: 0; }
-.qrow .summary { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qrow .actions { display: flex; gap: 6px; }
-.q-move { transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.q-enter-active { transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); animation: glow 1.8s ease-out; }
-.q-enter-from { opacity: 0; transform: translateX(-18px); }
-.q-leave-active { position: absolute; left: 0; right: 0; transition: opacity 0.35s ease, transform 0.35s ease; }
-.q-leave-to { opacity: 0; transform: translateX(28px); }
-@keyframes glow { from { background-color: color-mix(in srgb, var(--slate) 22%, var(--bg)); } to { background-color: var(--bg); } }
+.qhead,
+.qrow {
+  display: grid;
+  grid-template-columns: 28px 104px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+.qhead {
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--line);
+  font: 500 11px/1.45 var(--sans);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.qlist {
+  position: relative;
+}
+.qrow {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+.qrow:last-child {
+  border-bottom: 0;
+}
+.qrow .summary {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qrow .actions {
+  display: flex;
+  gap: 6px;
+}
+.q-move {
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.q-enter-active {
+  transition:
+    opacity 0.45s ease,
+    transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: glow 1.8s ease-out;
+}
+.q-enter-from {
+  opacity: 0;
+  transform: translateX(-18px);
+}
+.q-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+.q-leave-to {
+  opacity: 0;
+  transform: translateX(28px);
+}
+@keyframes glow {
+  from {
+    background-color: color-mix(in srgb, var(--slate) 22%, var(--bg));
+  }
+  to {
+    background-color: var(--bg);
+  }
+}
 
 /* Lists of runs: a new run fades in at the top and the others slide down to make room. */
-.rows-move { transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.rows-enter-active { transition: opacity 0.5s ease, transform 0.5s ease; }
-.rows-enter-from { opacity: 0; transform: translateY(-10px); }
-.rows-leave-active { transition: opacity 0.3s ease; }
-.rows-leave-to { opacity: 0; }
+.rows-move {
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.rows-enter-active {
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s ease;
+}
+.rows-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+.rows-leave-active {
+  transition: opacity 0.3s ease;
+}
+.rows-leave-to {
+  opacity: 0;
+}
 
 /* A card's value when it changes (the loop starts, the next run, its next stage): out up, in from below. */
-.tick-enter-active, .tick-leave-active { transition: opacity 0.22s ease, transform 0.22s ease; display: inline-block; }
-.tick-enter-from { opacity: 0; transform: translateY(10px); }
-.tick-leave-to { opacity: 0; transform: translateY(-10px); }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.tick-enter-active,
+.tick-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+  display: inline-block;
+}
+.tick-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.tick-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .q-move, .q-enter-active, .q-leave-active, .rows-move, .rows-enter-active, .tick-enter-active, .tick-leave-active { transition: none; animation: none; }
+  .q-move,
+  .q-enter-active,
+  .q-leave-active,
+  .rows-move,
+  .rows-enter-active,
+  .tick-enter-active,
+  .tick-leave-active {
+    transition: none;
+    animation: none;
+  }
 }
 
 /* Statistics: the period's chips, a strip of eight numbers, the funnel beside the fixes sent to
    Failed and why runs stopped, four charts two by two, then the pull requests. */
-.stats-filters .row { flex-wrap: wrap; }
-.stats-filters .opts:not(.by) { flex: 1 1 18rem; }
-.stats-filters .opts.by { flex: none; }
-.stats-pair { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
-@media (max-width: 1300px) { .stats-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats-pair > :last-child { grid-column: 1 / -1; } }
-.prs td.jira { white-space: nowrap; } .prs td.jira .pill + .pill { margin-left: 6px; }
-.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
-@media (max-width: 900px) { .stats-pair, .charts { grid-template-columns: 1fr; } }
+.stats-filters .row {
+  flex-wrap: wrap;
+}
+.stats-filters .opts:not(.by) {
+  flex: 1 1 18rem;
+}
+.stats-filters .opts.by {
+  flex: none;
+}
+.stats-pair {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+@media (max-width: 1300px) {
+  .stats-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stats-pair > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+.prs td.jira {
+  white-space: nowrap;
+}
+.prs td.jira .pill + .pill {
+  margin-left: 6px;
+}
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+@media (max-width: 900px) {
+  .stats-pair,
+  .charts {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* The pull requests. */
-.pr-chips { margin-bottom: 16px; }
-table.prs td.key .jira-arrow { margin-left: 6px; text-decoration: none; color: var(--muted); }
-table.prs td.key .jira-arrow:hover { color: var(--slate-ink); }
-table.prs td.lines { font-size: 12.5px; }
-table.prs td.lines .arrow { color: var(--muted); margin: 0 6px; }
+.pr-chips {
+  margin-bottom: 16px;
+}
+table.prs td.key .jira-arrow {
+  margin-left: 6px;
+  text-decoration: none;
+  color: var(--muted);
+}
+table.prs td.key .jira-arrow:hover {
+  color: var(--slate-ink);
+}
+table.prs td.lines {
+  font-size: 12.5px;
+}
+table.prs td.lines .arrow {
+  color: var(--muted);
+  margin: 0 6px;
+}

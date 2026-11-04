@@ -11,9 +11,17 @@ import Toasts from './components/Toasts.vue'
 import { offline, startPolling, state, stopPolling } from './console.ts'
 
 const hash = ref(location.hash)
-const onHash = () => { hash.value = location.hash }
-onMounted(() => { startPolling(); window.addEventListener('hashchange', onHash) })
-onBeforeUnmount(() => { stopPolling(); window.removeEventListener('hashchange', onHash) })
+const onHash = () => {
+  hash.value = location.hash
+}
+onMounted(() => {
+  startPolling()
+  window.addEventListener('hashchange', onHash)
+})
+onBeforeUnmount(() => {
+  stopPolling()
+  window.removeEventListener('hashchange', onHash)
+})
 
 const route = computed(() => {
   if (hash.value === '#/stats') return { page: 'stats' as const }

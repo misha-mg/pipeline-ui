@@ -29,11 +29,7 @@ export async function checkHealth(config: Config, deps: HealthDeps = {}): Promis
   const fetchFn = deps.fetch ?? fetch
   const run = deps.run ?? defaultRun
   const now = deps.now ?? (() => new Date().toISOString())
-  const [runsDir, tmux, jira] = await Promise.all([
-    checkRunsDir(config.runsDir),
-    checkTmux(run),
-    checkJira(env, fetchFn),
-  ])
+  const [runsDir, tmux, jira] = await Promise.all([checkRunsDir(config.runsDir), checkTmux(run), checkJira(env, fetchFn)])
   const at = now()
   const stamp = (c: Omit<Check, 'checkedAt'>): Check => ({ ...c, checkedAt: at })
   return { runsDir: stamp(runsDir), tmux: stamp(tmux), jira: stamp(jira) }
@@ -52,7 +48,11 @@ async function checkRunsDir(runsDir: string): Promise<Omit<Check, 'checkedAt'>> 
 async function checkTmux(run: NonNullable<HealthDeps['run']>): Promise<Omit<Check, 'checkedAt'>> {
   const has = await run('tmux', ['has-session', '-t', 'pipeline'])
   if (has.ok) return { ok: false, detail: 'a batch.sh session is running (tmux pipeline): do not start the loop' }
-  return { ok: true, detail: has.output.includes('no server') || has.output.includes('No such file') ? 'no tmux server, no batch running' : 'no batch.sh session' }
+  return {
+    ok: true,
+    detail:
+      has.output.includes('no server') || has.output.includes('No such file') ? 'no tmux server, no batch running' : 'no batch.sh session',
+  }
 }
 
 async function checkJira(env: Record<string, string | undefined>, fetchFn: typeof fetch): Promise<Omit<Check, 'checkedAt'>> {
@@ -65,7 +65,11 @@ async function checkJira(env: Record<string, string | undefined>, fetchFn: typeo
 
 async function defaultRun(file: string, args: string[], cwd?: string): Promise<{ ok: boolean; output: string }> {
   try {
-    const { stdout, stderr } = await exec(file, args, { cwd, timeout: TIMEOUT_MS, env: { ...process.env, TMPDIR: process.env.TMPDIR ?? '/tmp' } })
+    const { stdout, stderr } = await exec(file, args, {
+      cwd,
+      timeout: TIMEOUT_MS,
+      env: { ...process.env, TMPDIR: process.env.TMPDIR ?? '/tmp' },
+    })
     return { ok: true, output: stdout + stderr }
   } catch (error) {
     const e = error as { stdout?: string; stderr?: string; message?: string }

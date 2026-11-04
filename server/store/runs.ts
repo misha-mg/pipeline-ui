@@ -65,11 +65,20 @@ export function listRuns(db: Db, limit = 20): RunRecord[] {
 export function updateRun(
   db: Db,
   id: number,
-  patch: Partial<Pick<RunRecord, 'summary' | 'endedAt' | 'ending' | 'endingDetail' | 'verdict' | 'runDir' | 'stage' | 'stageSince' | 'cancelRequestedAt'>>,
+  patch: Partial<
+    Pick<RunRecord, 'summary' | 'endedAt' | 'ending' | 'endingDetail' | 'verdict' | 'runDir' | 'stage' | 'stageSince' | 'cancelRequestedAt'>
+  >,
 ): void {
   const columns: Record<string, string> = {
-    summary: 'summary', endedAt: 'ended_at', ending: 'ending', endingDetail: 'ending_detail', verdict: 'verdict',
-    runDir: 'run_dir', stage: 'stage', stageSince: 'stage_since', cancelRequestedAt: 'cancel_requested_at',
+    summary: 'summary',
+    endedAt: 'ended_at',
+    ending: 'ending',
+    endingDetail: 'ending_detail',
+    verdict: 'verdict',
+    runDir: 'run_dir',
+    stage: 'stage',
+    stageSince: 'stage_since',
+    cancelRequestedAt: 'cancel_requested_at',
   }
   const entries = Object.entries(patch).filter(([k]) => k in columns)
   if (entries.length === 0) return
@@ -78,21 +87,32 @@ export function updateRun(
 }
 
 export function addEvent(db: Db, runId: number, event: SessionEvent): void {
-  db.prepare('INSERT INTO run_events (run_id, at, type, payload) VALUES (?, ?, ?, ?)').run(runId, event.at, event.type, JSON.stringify(event))
+  db.prepare('INSERT INTO run_events (run_id, at, type, payload) VALUES (?, ?, ?, ?)').run(
+    runId,
+    event.at,
+    event.type,
+    JSON.stringify(event),
+  )
 }
 
 export function listEvents(db: Db, runId: number): RunEvent[] {
-  return db.prepare('SELECT id, run_id, at, type, payload FROM run_events WHERE run_id = ? ORDER BY id').all(runId).map((row) => ({
-    id: row.id as number,
-    runId: row.run_id as number,
-    at: row.at as string,
-    type: row.type as SessionEvent['type'],
-    event: JSON.parse(row.payload as string) as SessionEvent,
-  }))
+  return db
+    .prepare('SELECT id, run_id, at, type, payload FROM run_events WHERE run_id = ? ORDER BY id')
+    .all(runId)
+    .map((row) => ({
+      id: row.id as number,
+      runId: row.run_id as number,
+      at: row.at as string,
+      type: row.type as SessionEvent['type'],
+      event: JSON.parse(row.payload as string) as SessionEvent,
+    }))
 }
 
 /** Asks for the run in flight to be cancelled; the loop acts on it on its next tick. */
-export function requestCancel(db: Db, now: () => string = nowIso): { ok: true; run: RunRecord } | { ok: false; reason: 'nothing-in-flight'; message: string } {
+export function requestCancel(
+  db: Db,
+  now: () => string = nowIso,
+): { ok: true; run: RunRecord } | { ok: false; reason: 'nothing-in-flight'; message: string } {
   const run = inFlight(db)
   if (!run) return { ok: false, reason: 'nothing-in-flight', message: 'no run is in flight' }
   if (!run.cancelRequestedAt) updateRun(db, run.id, { cancelRequestedAt: now() })
@@ -100,7 +120,9 @@ export function requestCancel(db: Db, now: () => string = nowIso): { ok: true; r
 }
 
 export function loopState(db: Db): LoopState {
-  const row = db.prepare('SELECT wanted, stopped_reason, stopped_at, stopped_detail, usage_limit_resets_at, started_at FROM loop WHERE id = 1').get()!
+  const row = db
+    .prepare('SELECT wanted, stopped_reason, stopped_at, stopped_detail, usage_limit_resets_at, started_at FROM loop WHERE id = 1')
+    .get()!
   return {
     wanted: row.wanted as LoopState['wanted'],
     stoppedReason: (row.stopped_reason as LoopState['stoppedReason']) ?? null,
@@ -112,12 +134,19 @@ export function loopState(db: Db): LoopState {
 }
 
 export function startLoop(db: Db, now: () => string = nowIso): void {
-  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = NULL, stopped_at = NULL, stopped_detail = NULL, usage_limit_resets_at = NULL, started_at = ? WHERE id = 1').run('running', now())
+  db.prepare(
+    'UPDATE loop SET wanted = ?, stopped_reason = NULL, stopped_at = NULL, stopped_detail = NULL, usage_limit_resets_at = NULL, started_at = ? WHERE id = 1',
+  ).run('running', now())
 }
 
-export function stopLoop(db: Db, reason: NonNullable<LoopState['stoppedReason']>, opts: { now?: () => string; usageLimitResetsAt?: number; detail?: string } = {}): void {
-  db.prepare('UPDATE loop SET wanted = ?, stopped_reason = ?, stopped_at = ?, stopped_detail = ?, usage_limit_resets_at = ? WHERE id = 1')
-    .run('stopped', reason, (opts.now ?? nowIso)(), opts.detail ?? null, opts.usageLimitResetsAt ?? null)
+export function stopLoop(
+  db: Db,
+  reason: NonNullable<LoopState['stoppedReason']>,
+  opts: { now?: () => string; usageLimitResetsAt?: number; detail?: string } = {},
+): void {
+  db.prepare(
+    'UPDATE loop SET wanted = ?, stopped_reason = ?, stopped_at = ?, stopped_detail = ?, usage_limit_resets_at = ? WHERE id = 1',
+  ).run('stopped', reason, (opts.now ?? nowIso)(), opts.detail ?? null, opts.usageLimitResetsAt ?? null)
 }
 
 /**
@@ -127,15 +156,17 @@ export function stopLoop(db: Db, reason: NonNullable<LoopState['stoppedReason']>
 export function markRestart(db: Db, now: () => string = nowIso): RunRecord[] {
   return transaction(db, () => {
     const open = db.prepare(`SELECT ${RUN_COLUMNS} FROM runs WHERE ending IS NULL`).all().map(runOf)
-    for (const run of open) updateRun(db, run.id, { ending: 'restart', endedAt: now(), endingDetail: 'the service restarted while the run was in flight' })
+    for (const run of open)
+      updateRun(db, run.id, { ending: 'restart', endedAt: now(), endingDetail: 'the service restarted while the run was in flight' })
     stopLoop(db, 'restart', { now })
     return open
   })
 }
 
 export function serviceHeartbeat(db: Db, pid: number, startedAt: string, now: () => string = nowIso): void {
-  db.prepare('INSERT INTO service (id, pid, started_at, seen_at) VALUES (1, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET pid = excluded.pid, started_at = excluded.started_at, seen_at = excluded.seen_at')
-    .run(pid, startedAt, now())
+  db.prepare(
+    'INSERT INTO service (id, pid, started_at, seen_at) VALUES (1, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET pid = excluded.pid, started_at = excluded.started_at, seen_at = excluded.seen_at',
+  ).run(pid, startedAt, now())
 }
 
 export function serviceInfo(db: Db): ServiceInfo | null {

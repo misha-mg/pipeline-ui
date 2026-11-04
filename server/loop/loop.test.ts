@@ -18,7 +18,9 @@ function fakeRunner() {
 }
 
 const temps: string[] = []
-afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true })
+})
 
 function setup(preflight?: () => Promise<string | null>) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-loop-'))
@@ -44,9 +46,12 @@ const completed = ev({ type: 'ended', ending: { kind: 'completed', text: 'done',
 
 describe('loop', () => {
   it('checks the entry point before a run: a refusal stops the loop and leaves the queue as it was', async () => {
-    let refusal: string | null = 'origin/master\'s tools/ticket-pipeline/launch-session.sh has no PIPELINE_SESSION'
+    let refusal: string | null = "origin/master's tools/ticket-pipeline/launch-session.sh has no PIPELINE_SESSION"
     let checks = 0
-    const { db, fake, loop } = setup(async () => { checks += 1; return refusal })
+    const { db, fake, loop } = setup(async () => {
+      checks += 1
+      return refusal
+    })
     loop.tick()
     startLoop(db)
     loop.tick()
@@ -98,7 +103,13 @@ describe('loop', () => {
     await loop.settled()
 
     const run = getRun(db, 1)!
-    expect(run).toMatchObject({ ending: 'completed', verdict: 'done:nothing-to-build', runDir, summary: 'from the assignment', stage: null })
+    expect(run).toMatchObject({
+      ending: 'completed',
+      verdict: 'done:nothing-to-build',
+      runDir,
+      summary: 'from the assignment',
+      stage: null,
+    })
     expect(run.endedAt).not.toBeNull()
     expect(listEvents(db, 1).map((e) => e.type)).toEqual(['stage-start', 'stage-stop', 'ended'])
     expect(fs.readFileSync(run.logPath!, 'utf8')).toBe('some prepare-worktree.sh output\n')
@@ -237,7 +248,10 @@ describe('endingOf', () => {
     expect(endingOf('restart', null, exit0)).toMatchObject({ ending: 'restart' })
     expect(endingOf(null, { kind: 'no-result' }, exit0)).toMatchObject({ ending: 'no-result' })
     expect(endingOf(null, { kind: 'aborted', reason: 'cancelled' }, exit0)).toMatchObject({ ending: 'cancelled' })
-    expect(endingOf(null, null, { code: null, signal: 'SIGKILL' })).toMatchObject({ ending: 'exited', detail: expect.stringContaining('SIGKILL') })
+    expect(endingOf(null, null, { code: null, signal: 'SIGKILL' })).toMatchObject({
+      ending: 'exited',
+      detail: expect.stringContaining('SIGKILL'),
+    })
     expect(endingOf(null, null, { code: 0, signal: null }, 0).detail).toContain('session program was not run')
   })
 })

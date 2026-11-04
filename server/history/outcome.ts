@@ -32,9 +32,19 @@ export function verdictTone(verdict: string | null): Tone {
 
 /** A stage's result word as the agents write it (pass, fail, done, opened, confidence low, …). */
 export function stageResultTone(result: string | null): Tone {
-  const word = result?.trim().toLowerCase().replace(/^confidence\s+/, 'confidence-').split(/[\s·—,(]/)[0] ?? ''
+  const word =
+    result
+      ?.trim()
+      .toLowerCase()
+      .replace(/^confidence\s+/, 'confidence-')
+      .split(/[\s·—,(]/)[0] ?? ''
   if (['pass', 'passed', 'done', 'opened', 'confidence-high', 'confidence-medium'].includes(word)) return 'ok'
-  if (['fail', 'failed', 'blocked', 'not-opened', 'verify-unavailable', 'verify-failed', 'brief-unimplementable', 'confidence-low'].includes(word)) return 'bad'
+  if (
+    ['fail', 'failed', 'blocked', 'not-opened', 'verify-unavailable', 'verify-failed', 'brief-unimplementable', 'confidence-low'].includes(
+      word,
+    )
+  )
+    return 'bad'
   return ''
 }
 
@@ -43,7 +53,19 @@ export function stageResultTone(result: string | null): Tone {
  * run, `unwatched` when its files closed it, `died` when they did not and nothing runs it; and
  * `in-flight` while it runs.
  */
-export const SHOWN_ENDINGS = ['completed', 'usage-limit', 'error', 'cancelled', 'timeout', 'restart', 'exited', 'no-result', 'in-flight', 'unwatched', 'died'] as const
+export const SHOWN_ENDINGS = [
+  'completed',
+  'usage-limit',
+  'error',
+  'cancelled',
+  'timeout',
+  'restart',
+  'exited',
+  'no-result',
+  'in-flight',
+  'unwatched',
+  'died',
+] as const
 export type ShownEnding = (typeof SHOWN_ENDINGS)[number]
 
 export function endingLabel(ending: string | null): string {
@@ -68,7 +90,7 @@ const AGENT_STAGE: Record<string, string> = {
 
 /** The stage an agent works in; an agent the console does not know is named as it is. */
 export function stageOfAgent(agent: string | null): string {
-  return agent ? AGENT_STAGE[agent] ?? agent : 'between stages'
+  return agent ? (AGENT_STAGE[agent] ?? agent) : 'between stages'
 }
 
 /** The stages a clean run goes through, in order. */

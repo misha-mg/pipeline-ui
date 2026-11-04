@@ -18,8 +18,10 @@ describe('configFromEnv', () => {
     expect(() => configFromEnv({ PIPELINE_PULL_REQUESTS: 'no' })).toThrow(/on, draft or off, not no/)
   })
 
-  it('refuses the code freeze\'s launch-script ref rather than ignore it', () => {
-    expect(() => configFromEnv({ PIPELINE_LAUNCH_SESSION_REF: 'pipeline-improvements' })).toThrow(/PIPELINE_LAUNCH_SESSION_REF is no longer read: set PIPELINE_BASE_BRANCH/)
+  it("refuses the code freeze's launch-script ref rather than ignore it", () => {
+    expect(() => configFromEnv({ PIPELINE_LAUNCH_SESSION_REF: 'pipeline-improvements' })).toThrow(
+      /PIPELINE_LAUNCH_SESSION_REF is no longer read: set PIPELINE_BASE_BRANCH/,
+    )
     expect(() => configFromEnv({ PIPELINE_START_SH_REF: 'pipeline-improvements' })).toThrow(/PIPELINE_START_SH_REF is no longer read/)
   })
 })

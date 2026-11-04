@@ -77,8 +77,15 @@ export function prRows(view: StatsView, runs: StatsRun[]): PrRow[] {
     const pr = r.prUrl ? view.pullRequests[r.prUrl] : undefined
     if (!pr || rows.has(pr.url)) continue
     rows.set(pr.url, {
-      url: pr.url, number: pr.url.match(/(\d+)$/)?.[1] ?? '', key: r.key, run: r.number, summary: r.summary ?? view.tickets[r.key]?.summary ?? null,
-      outcome: prOutcome(pr), pr, openedAt: pr.createdOn ?? r.finishedAt, ticket: view.tickets[r.key] ?? null,
+      url: pr.url,
+      number: pr.url.match(/(\d+)$/)?.[1] ?? '',
+      key: r.key,
+      run: r.number,
+      summary: r.summary ?? view.tickets[r.key]?.summary ?? null,
+      outcome: prOutcome(pr),
+      pr,
+      openedAt: pr.createdOn ?? r.finishedAt,
+      ticket: view.tickets[r.key] ?? null,
       failed: pr.state === 'MERGED' ? failsAfter(view.tickets[r.key], pr.closedOn) : [],
     })
   }
@@ -139,11 +146,29 @@ export function summarize(view: StatsView, runs: StatsRun[]): Summary {
     kinds,
     stopReasons: stops,
     ticketsNotFinished: keys.filter((k) => !finished.has(k)).length,
-    prs: { ...outcomes, opened: prs.length, merged: merged.length, drafts: prs.filter((p) => p.pr.draft).length, into: tally(merged.map((p) => p.pr.destination ?? 'unknown')) },
+    prs: {
+      ...outcomes,
+      opened: prs.length,
+      merged: merged.length,
+      drafts: prs.filter((p) => p.pr.draft).length,
+      into: tally(merged.map((p) => p.pr.destination ?? 'unknown')),
+    },
     medianToMerge: median(toMerge),
     medianRun: median(runs.flatMap((r) => (r.seconds === null || r.ending === 'in-flight' ? [] : [r.seconds]))),
-    funnel: { run: keys.length, pr: withPr.size, merged: mergedKeys.size, done: doneKeys.length, clean: doneKeys.filter((k) => !failedKeys.has(k)).length },
-    failed: { tickets: failedKeys.size, asOpened: failedOf('merged-as-opened'), asOpenedOf: outcomes['merged-as-opened'], withChanges: failedOf('merged-with-changes'), withChangesOf: outcomes['merged-with-changes'] },
+    funnel: {
+      run: keys.length,
+      pr: withPr.size,
+      merged: mergedKeys.size,
+      done: doneKeys.length,
+      clean: doneKeys.filter((k) => !failedKeys.has(k)).length,
+    },
+    failed: {
+      tickets: failedKeys.size,
+      asOpened: failedOf('merged-as-opened'),
+      asOpenedOf: outcomes['merged-as-opened'],
+      withChanges: failedOf('merged-with-changes'),
+      withChangesOf: outcomes['merged-with-changes'],
+    },
     mergedTicketsUnknown: [...mergedKeys].filter((k) => !view.tickets[k]?.statusCategory).length,
   }
 }
@@ -181,7 +206,14 @@ export function timeline(view: StatsView, runs: StatsRun[], options: TimelineOpt
   const first = options.from ?? runs.map((r) => dayOf(r.startedAt)).sort()[0] ?? options.to
   const buckets = new Map<string, Bucket>()
   for (let day = startOf(first); day <= options.to; day = addDays(day, bucket === 'week' ? 7 : 1)) {
-    buckets.set(day, { day, runs: { done: 0, nothing: 0, stopped: 0, none: 0 }, opened: 0, closed: { asOpened: 0, withChanges: 0, merged: 0, declined: 0 }, done: 0, failed: 0 })
+    buckets.set(day, {
+      day,
+      runs: { done: 0, nothing: 0, stopped: 0, none: 0 },
+      opened: 0,
+      closed: { asOpened: 0, withChanges: 0, merged: 0, declined: 0 },
+      done: 0,
+      failed: 0,
+    })
   }
   const at = (iso: string | null) => (iso ? buckets.get(startOf(dayOf(iso))) : undefined)
   for (const r of runs) {

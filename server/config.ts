@@ -46,7 +46,10 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
   // The code freeze's workaround, replaced by the base branch: refused rather than ignored, since
   // it used to turn pull requests off.
   for (const gone of ['PIPELINE_LAUNCH_SESSION_REF', 'PIPELINE_START_SH_REF']) {
-    if (env[gone]?.trim()) throw new Error(`${gone} is no longer read: set PIPELINE_BASE_BRANCH (and PIPELINE_PULL_REQUESTS=off for a run that must not open a pull request)`)
+    if (env[gone]?.trim())
+      throw new Error(
+        `${gone} is no longer read: set PIPELINE_BASE_BRANCH (and PIPELINE_PULL_REQUESTS=off for a run that must not open a pull request)`,
+      )
   }
   const baseBranch = env.PIPELINE_BASE_BRANCH?.trim() || 'master'
   const pr = env.PIPELINE_PULL_REQUESTS?.trim()

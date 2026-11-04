@@ -27,7 +27,9 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   serviceHeartbeat(db, process.pid, startedAt)
   const entryConfig = { webuiDir: config.webuiDir, baseBranch: config.baseBranch, entryDir: config.entryDir }
   const setup = { entry: entryLabel(entryConfig), baseBranch: config.baseBranch, pullRequests: config.pullRequests }
-  log(`service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; ${setup.entry}; pull requests ${setup.pullRequests}; the loop is stopped`)
+  log(
+    `service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; ${setup.entry}; pull requests ${setup.pullRequests}; the loop is stopped`,
+  )
 
   const runner = createRunner({ ...config, entry: entryOf(entryConfig), pullRequests: config.pullRequests })
   const loop = createLoop({
@@ -35,7 +37,8 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
     runner,
     runsDir: config.runsDir,
     logDir: config.logDir,
-    onChange: (what, run) => log(`run ${run.id} ${run.key} ${what}${run.ending ? `: ${run.ending}${run.verdict ? ` (${run.verdict})` : ''}` : ''}`),
+    onChange: (what, run) =>
+      log(`run ${run.id} ${run.key} ${what}${run.ending ? `: ${run.ending}${run.verdict ? ` (${run.verdict})` : ''}` : ''}`),
     preflight: () => prepareEntry(entryConfig),
     onRefused: (why) => log(`loop stopped, no run started: ${why}`),
   })
@@ -56,7 +59,9 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
     try {
       health = await checkHealth(config)
       // Said when it changes, not every minute.
-      const notOk = Object.entries(health).filter(([, c]) => !c.ok).map(([n, c]) => `${n}: ${c.detail}`)
+      const notOk = Object.entries(health)
+        .filter(([, c]) => !c.ok)
+        .map(([n, c]) => `${n}: ${c.detail}`)
       const said = notOk.length ? `health: ${notOk.join('; ')}` : 'health: every dependency is OK'
       if (said !== healthSaid && (healthSaid || notOk.length)) log(said)
       healthSaid = said
@@ -66,7 +71,11 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
       if (read) log(`pull requests: ${read} read`)
       const compared = await compareMerged(db, bitbucketConfig(process.env), git)
       if (compared) log(`pull requests: ${compared} merged compared with what the pipeline opened`)
-      const tickets = await refreshTickets(db, runs.map((r) => r.key), statuses)
+      const tickets = await refreshTickets(
+        db,
+        runs.map((r) => r.key),
+        statuses,
+      )
       // Said when it changes, as the health is.
       const ticketsSaid = typeof tickets === 'string' ? `ticket statuses: ${tickets}` : ''
       if (ticketsSaid !== ticketsSay) log(ticketsSaid || 'ticket statuses: read again')
@@ -81,7 +90,18 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   const rounds = setInterval(() => void round(), ROUND_MS)
 
   const uiDir = fs.existsSync(config.uiDir) ? config.uiDir : undefined
-  const server = createServer({ db, runsDir: config.runsDir, health: () => health, setup, jiraSite: jiraSiteUrl(process.env), readers: { bitbucket: bitbucketConfig(process.env) !== null, jira: jiraConfig(process.env) !== null }, loop, lookup: jiraLookup(jiraConfig(process.env)), search: jiraSearch(jiraConfig(process.env)), uiDir })
+  const server = createServer({
+    db,
+    runsDir: config.runsDir,
+    health: () => health,
+    setup,
+    jiraSite: jiraSiteUrl(process.env),
+    readers: { bitbucket: bitbucketConfig(process.env) !== null, jira: jiraConfig(process.env) !== null },
+    loop,
+    lookup: jiraLookup(jiraConfig(process.env)),
+    search: jiraSearch(jiraConfig(process.env)),
+    uiDir,
+  })
   await new Promise<void>((resolve, reject) => server.once('error', reject).listen(config.port, config.host, resolve))
   log(`console at http://${config.host}:${config.port}/${uiDir ? '' : ' (API only: the UI is not built, npm run build)'}`)
 

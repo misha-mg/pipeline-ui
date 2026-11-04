@@ -24,7 +24,16 @@ export type ApiDeps = ViewSources & {
 type Reply = { status: number; body: unknown }
 
 const BODY_LIMIT = 64 * 1024
-const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json', '.woff2': 'font/woff2', '.map': 'application/json' }
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.json': 'application/json',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json',
+}
 
 export function createServer(deps: ApiDeps): http.Server {
   return http.createServer(async (req, res) => {
@@ -116,12 +125,18 @@ function serveStatic(uiDir: string | undefined, pathname: string, res: http.Serv
   if (!found && path.extname(pathname)) return send(res, 404, 'not found')
   const file = found ? wanted : path.join(root, 'index.html')
   if (!fs.existsSync(file)) return send(res, 404, 'the UI is not built: npm run build')
-  res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream', 'cache-control': file.endsWith('index.html') ? 'no-cache' : 'max-age=31536000, immutable' })
+  res.writeHead(200, {
+    'content-type': MIME[path.extname(file)] ?? 'application/octet-stream',
+    'cache-control': file.endsWith('index.html') ? 'no-cache' : 'max-age=31536000, immutable',
+  })
   fs.createReadStream(file).pipe(res)
 }
 
 function send(res: http.ServerResponse, status: number, text: string): void {
-  res.writeHead(status, { 'content-type': text.startsWith('{') || text.startsWith('[') ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', 'cache-control': 'no-store' })
+  res.writeHead(status, {
+    'content-type': text.startsWith('{') || text.startsWith('[') ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
+    'cache-control': 'no-store',
+  })
   res.end(text)
 }
 

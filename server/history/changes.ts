@@ -19,7 +19,10 @@ const HASH = /^[0-9a-f]{7,40}$/
 
 /** The patch's file lines and its added and removed lines, trailing space dropped: what was written, not where. */
 export function patchLines(patch: string): string[] {
-  return patch.split('\n').filter((l) => /^(diff --git |[+-])/.test(l)).map((l) => l.trimEnd())
+  return patch
+    .split('\n')
+    .filter((l) => /^(diff --git |[+-])/.test(l))
+    .map((l) => l.trimEnd())
 }
 
 export function diffStat(patch: string): DiffStat {
@@ -38,7 +41,12 @@ const BRANCH = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/
  * branch the PR was merged into is fetched from origin, its objects only; when the commit is
  * still missing, the answer says which.
  */
-export async function compareRanges(git: Git, opened: Range, merged: Range, branch: string | null): Promise<{ changed: boolean; opened: DiffStat; merged: DiffStat } | { why: string }> {
+export async function compareRanges(
+  git: Git,
+  opened: Range,
+  merged: Range,
+  branch: string | null,
+): Promise<{ changed: boolean; opened: DiffStat; merged: DiffStat } | { why: string }> {
   const hashes = [opened.from, opened.to, merged.from, merged.to]
   const bad = hashes.find((h) => !HASH.test(h))
   if (bad) return { why: `not a commit: ${bad}` }

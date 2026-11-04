@@ -85,7 +85,12 @@ function jiraClient(config: JiraConfig | null, fetchFn: typeof fetch): Call {
     const headers: Record<string, string> = { Accept: 'application/json' }
     if (authenticated && config) headers.Authorization = `Basic ${Buffer.from(`${config.email}:${config.token}`).toString('base64')}`
     if (init.body !== undefined) headers['Content-Type'] = 'application/json'
-    return fetchFn(url, { method: init.method ?? 'GET', headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: AbortSignal.timeout(TIMEOUT_MS) })
+    return fetchFn(url, {
+      method: init.method ?? 'GET',
+      headers,
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
   }
   return async (apiPath, init) => {
     if (!config) return `${JIRA_SETTINGS} are not all set`
@@ -94,7 +99,8 @@ function jiraClient(config: JiraConfig | null, fetchFn: typeof fetch): Call {
         const res = await request(`${config.siteUrl}/_edge/tenant_info`, false)
         if (!res.ok) return `the site's tenant info answered ${res.status}`
         const info = (await res.json()) as { cloudId?: unknown }
-        if (typeof info.cloudId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(info.cloudId)) return 'no cloud id in the tenant info; set JIRA_CLOUD_ID'
+        if (typeof info.cloudId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(info.cloudId))
+          return 'no cloud id in the tenant info; set JIRA_CLOUD_ID'
         cloudId = info.cloudId
       }
       return await request(`https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3${apiPath}`, true, init)
@@ -149,16 +155,24 @@ export function splitJql(jql: string): { where: string | null; orderBy: string |
   const bare = jql.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, (m) => ' '.repeat(m.length))
   const at = bare.search(/(?:^|\s)order\s+by\s/i)
   const where = (at === -1 ? jql : jql.slice(0, at)).trim()
-  const orderBy = at === -1 ? '' : jql.slice(at).trim().replace(/^order\s+by\s+/i, '').trim()
+  const orderBy =
+    at === -1
+      ? ''
+      : jql
+          .slice(at)
+          .trim()
+          .replace(/^order\s+by\s+/i, '')
+          .trim()
   return { where: where || null, orderBy: orderBy || null }
 }
 
 /** The JQL's condition for a scope, without its order; the operator's JQL bracketed, so its OR stays inside. */
 export function scopeWhere(scope: SearchScope): string {
   const own = scope.jql ? `(${scope.jql})` : null
-  const where = 'key' in scope
-    ? [own, `key = ${scope.key}`]
-    : [own, scope.project ? `project = ${scope.project}` : null, scope.words ? `text ~ "${scope.words}"` : null]
+  const where =
+    'key' in scope
+      ? [own, `key = ${scope.key}`]
+      : [own, scope.project ? `project = ${scope.project}` : null, scope.words ? `text ~ "${scope.words}"` : null]
   return where.filter(Boolean).join(' AND ')
 }
 
@@ -171,7 +185,10 @@ export function scopeJql(scope: SearchScope): string {
 /** What a search asks besides the typed query: the operator's JQL to search within, and the next page's token. */
 export type SearchOptions = { jql?: string; next?: string }
 
-export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (query: string, options?: SearchOptions) => Promise<JiraSearch> {
+export function jiraSearch(
+  config: JiraConfig | null,
+  fetchFn: typeof fetch = fetch,
+): (query: string, options?: SearchOptions) => Promise<JiraSearch> {
   const call = jiraClient(config, fetchFn)
   let projects: { keys: Set<string>; at: number } | null = null
   const projectKeys = async (): Promise<Set<string>> => {
@@ -215,13 +232,17 @@ export function jiraSearch(config: JiraConfig | null, fetchFn: typeof fetch = fe
     if (!scope) return { kind: 'found', scope: null, issues: [], total: 0, next: null }
     const body: Record<string, unknown> = { jql: scopeJql(scope), fields: SEARCH_FIELDS, maxResults: SEARCH_LIMIT }
     if (next) body.nextPageToken = next
-    const [res, total] = await Promise.all([call('/search/jql', { method: 'POST', body }), 'key' in scope || next ? Promise.resolve(null) : count(scopeWhere(scope))])
+    const [res, total] = await Promise.all([
+      call('/search/jql', { method: 'POST', body }),
+      'key' in scope || next ? Promise.resolve(null) : count(scopeWhere(scope)),
+    ])
     if (typeof res === 'string') return { kind: 'unavailable', error: res }
     if (res.status === 400) {
       const said = await errorsOf(res)
       // A key Jira does not know is a 400 for `key = ...`: nothing found, not an outage. With the
       // operator's JQL the 400 may be the JQL's: only a message naming the key is the key's.
-      if ('key' in scope && (!scope.jql || said.some((m) => m.toUpperCase().includes(scope.key)))) return { kind: 'found', scope, issues: [], total: 0, next: null }
+      if ('key' in scope && (!scope.jql || said.some((m) => m.toUpperCase().includes(scope.key))))
+        return { kind: 'found', scope, issues: [], total: 0, next: null }
       if (scope.jql !== undefined) return { kind: 'invalid', error: said.join(' ') || 'Jira refused the JQL' }
     }
     if (!res.ok) return { kind: 'unavailable', error: `Jira answered ${res.status}` }
@@ -300,7 +321,9 @@ function movesOf(histories: History[]): StatusMove[] {
   return histories.flatMap((h) => {
     const at = typeof h.created === 'string' ? Date.parse(h.created) : NaN
     if (Number.isNaN(at)) return []
-    return (h.items ?? []).flatMap((it) => (it.field === 'status' && typeof it.toString === 'string' ? [{ at: new Date(at).toISOString(), to: it.toString }] : []))
+    return (h.items ?? []).flatMap((it) =>
+      it.field === 'status' && typeof it.toString === 'string' ? [{ at: new Date(at).toISOString(), to: it.toString }] : [],
+    )
   })
 }
 
@@ -331,11 +354,28 @@ export function jiraStatuses(config: JiraConfig | null, fetchFn: typeof fetch = 
   return async (keys) => {
     const tickets: TicketStatus[] = []
     for (let i = 0; i < keys.length; i += BULK_LIMIT) {
-      const res = await call('/issue/bulkfetch', { method: 'POST', body: { issueIdsOrKeys: keys.slice(i, i + BULK_LIMIT), fields: ['summary', 'status', 'statuscategorychangedate'], expand: ['changelog'] } })
+      const res = await call('/issue/bulkfetch', {
+        method: 'POST',
+        body: {
+          issueIdsOrKeys: keys.slice(i, i + BULK_LIMIT),
+          fields: ['summary', 'status', 'statuscategorychangedate'],
+          expand: ['changelog'],
+        },
+      })
       if (typeof res === 'string') return { kind: 'unavailable', error: res }
       if (!res.ok) return { kind: 'unavailable', error: `Jira answered ${res.status}` }
       try {
-        const body = (await res.json()) as { issues?: { key?: unknown; changelog?: { total?: unknown; histories?: History[] }; fields?: { summary?: unknown; status?: { name?: unknown; statusCategory?: { key?: unknown } }; statuscategorychangedate?: unknown } }[] }
+        const body = (await res.json()) as {
+          issues?: {
+            key?: unknown
+            changelog?: { total?: unknown; histories?: History[] }
+            fields?: {
+              summary?: unknown
+              status?: { name?: unknown; statusCategory?: { key?: unknown } }
+              statuscategorychangedate?: unknown
+            }
+          }[]
+        }
         for (const issue of body.issues ?? []) {
           if (typeof issue.key !== 'string') continue
           const status = issue.fields?.status
@@ -349,7 +389,14 @@ export function jiraStatuses(config: JiraConfig | null, fetchFn: typeof fetch = 
             if (typeof full === 'string') return { kind: 'unavailable', error: full }
             moves = full
           }
-          tickets.push({ key: issue.key, summary: typeof issue.fields?.summary === 'string' ? issue.fields.summary : null, status: typeof status?.name === 'string' ? status.name : null, statusCategory: category, doneAt: category === 'done' && !Number.isNaN(at) ? new Date(at).toISOString() : null, moves: moves.sort(byTime) })
+          tickets.push({
+            key: issue.key,
+            summary: typeof issue.fields?.summary === 'string' ? issue.fields.summary : null,
+            status: typeof status?.name === 'string' ? status.name : null,
+            statusCategory: category,
+            doneAt: category === 'done' && !Number.isNaN(at) ? new Date(at).toISOString() : null,
+            moves: moves.sort(byTime),
+          })
         }
       } catch (error) {
         return { kind: 'unavailable', error: error instanceof Error ? error.message : String(error) }

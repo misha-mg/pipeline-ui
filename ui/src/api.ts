@@ -10,13 +10,20 @@ export type RunFiles = RunDetail
 export type History = { runs: ShownRun[]; total: number; verdicts: Record<string, number>; endings: Record<string, number> }
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message)
   }
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, { method, headers: body === undefined ? {} : { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const res = await fetch(path, {
+    method,
+    headers: body === undefined ? {} : { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
   const data = (await res.json().catch(() => ({}))) as T & { message?: string }
   if (!res.ok) throw new ApiError(data.message ?? `${method} ${path}: ${res.status}`, res.status)
   return data
@@ -70,7 +77,17 @@ export function fmtClock(iso: string | null): string {
 
 // The outcome's words and tones come from the server's own module, so the console and the API
 // cannot name a verdict, an ending or a stage two ways.
-export { endingLabel, endingTone, stageKey, stageOfAgent, stageResultTone, stagesAfter, verdictFamily, verdictTone, type Tone } from '../../server/history/outcome.ts'
+export {
+  endingLabel,
+  endingTone,
+  stageKey,
+  stageOfAgent,
+  stageResultTone,
+  stagesAfter,
+  verdictFamily,
+  verdictTone,
+  type Tone,
+} from '../../server/history/outcome.ts'
 
 /** A tone as a pill's class: `ok`, `bad`, `slate` while it goes on, none for neither. */
 export function toneClass(tone: Tone): string {
@@ -96,4 +113,3 @@ export function fmtAgo(iso: string | null, now: string): string {
   if (!iso) return ''
   return fmtDuration(Math.max(0, Math.round((Date.parse(now) - Date.parse(iso)) / 1000)))
 }
-

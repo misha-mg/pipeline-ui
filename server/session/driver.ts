@@ -79,7 +79,8 @@ const AGENT_TEXT_WAITS = 8
 const PR_TOOL = 'mcp__bitbucket__createPullRequest'
 const DRAFT_TOOL = 'mcp__bitbucket__createDraftPullRequest'
 const PUSH_RULE = 'Bash(git push:*)'
-export const PULL_REQUESTS_OFF = 'pull requests are off for this service (PIPELINE_PULL_REQUESTS=off): the run keeps its commits on the local ticket branch and ends without a push or a pull request'
+export const PULL_REQUESTS_OFF =
+  'pull requests are off for this service (PIPELINE_PULL_REQUESTS=off): the run keeps its commits on the local ticket branch and ends without a push or a pull request'
 export const DRAFTS_ONLY = `this service opens pull requests as drafts only (PIPELINE_PULL_REQUESTS=draft): call ${DRAFT_TOOL} with the same arguments instead, and report the pull request it opens`
 
 /**
@@ -116,13 +117,21 @@ export async function driveSession(
         await new Promise((r) => setTimeout(r, 250))
         text = structuredOutput(transcript)
       }
-      emit({ type: 'stage-stop', at: stoppedAt, agent: hookInput.agent_type, agentId: hookInput.agent_id, ...(text ? { text: text.slice(0, AGENT_TEXT_LIMIT) } : {}), ...(transcript ? { transcript } : {}) })
+      emit({
+        type: 'stage-stop',
+        at: stoppedAt,
+        agent: hookInput.agent_type,
+        agentId: hookInput.agent_id,
+        ...(text ? { text: text.slice(0, AGENT_TEXT_LIMIT) } : {}),
+        ...(transcript ? { transcript } : {}),
+      })
     }
     return {}
   }
   const matcher: HookCallbackMatcher = { hooks: [onAgent] }
   const pullRequests = input.pullRequests ?? 'on'
-  const settings = pullRequests === 'off' ? withoutPublishing(input.settings) : pullRequests === 'draft' ? withoutReady(input.settings) : input.settings
+  const settings =
+    pullRequests === 'off' ? withoutPublishing(input.settings) : pullRequests === 'draft' ? withoutReady(input.settings) : input.settings
   const onTool: HookCallback = async (hookInput): Promise<HookJSONOutput> => {
     if (hookInput.hook_event_name !== 'PreToolUse') return {}
     const refused = pullRequests === 'off' ? publishing(hookInput.tool_name, hookInput.tool_input) : readyPullRequest(hookInput.tool_name)
@@ -144,7 +153,11 @@ export async function driveSession(
         mcpServers: input.mcpServers,
         permissionMode: 'dontAsk',
         additionalDirectories: [input.runsDir],
-        hooks: { SubagentStart: [matcher], SubagentStop: [matcher], ...(pullRequests === 'on' ? {} : { PreToolUse: [{ hooks: [onTool] }] }) },
+        hooks: {
+          SubagentStart: [matcher],
+          SubagentStop: [matcher],
+          ...(pullRequests === 'on' ? {} : { PreToolUse: [{ hooks: [onTool] }] }),
+        },
         env: sessionEnv(input.env),
         abortController: controller,
         stderr: deps.stderr,
@@ -225,10 +238,16 @@ export function withoutPublishing(settings: string): string {
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return settings
   const s = parsed as { permissions?: { allow?: unknown; deny?: unknown }; sandbox?: { excludedCommands?: unknown } }
-  const isPublishing = (rule: unknown) => typeof rule === 'string' && (rule === PR_TOOL || rule === DRAFT_TOOL || /^Bash\(git push\b/.test(rule) || /^git push\b/.test(rule))
+  const isPublishing = (rule: unknown) =>
+    typeof rule === 'string' && (rule === PR_TOOL || rule === DRAFT_TOOL || /^Bash\(git push\b/.test(rule) || /^git push\b/.test(rule))
   const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
-  s.permissions = { ...s.permissions, allow: list(s.permissions?.allow).filter((r) => !isPublishing(r)), deny: [...list(s.permissions?.deny), PUSH_RULE, PR_TOOL, DRAFT_TOOL] }
-  if (s.sandbox?.excludedCommands !== undefined) s.sandbox.excludedCommands = list(s.sandbox.excludedCommands).filter((c) => !isPublishing(c))
+  s.permissions = {
+    ...s.permissions,
+    allow: list(s.permissions?.allow).filter((r) => !isPublishing(r)),
+    deny: [...list(s.permissions?.deny), PUSH_RULE, PR_TOOL, DRAFT_TOOL],
+  }
+  if (s.sandbox?.excludedCommands !== undefined)
+    s.sandbox.excludedCommands = list(s.sandbox.excludedCommands).filter((c) => !isPublishing(c))
   return JSON.stringify(s)
 }
 
@@ -260,8 +279,7 @@ export function withoutReady(settings: string): string {
 export function endingOf(result: SDKResultMessage | null, rateLimit: SDKRateLimitInfo | null): SessionEnding {
   if (!result) return { kind: 'no-result' }
   const text = resultText(result)
-  const hitUsageLimit =
-    rateLimit?.status === 'rejected' || USAGE_LIMIT_ERROR_PREFIXES.some((p) => text.startsWith(p))
+  const hitUsageLimit = rateLimit?.status === 'rejected' || USAGE_LIMIT_ERROR_PREFIXES.some((p) => text.startsWith(p))
   if (hitUsageLimit) return { kind: 'usage-limit', resetsAt: rateLimit?.resetsAt, text }
   if (result.subtype !== 'success') return { kind: 'error', reason: `${result.subtype}: ${result.errors.join('; ') || text}` }
   if (result.is_error) return { kind: 'error', reason: text || 'the turn ended on an API error' }
@@ -272,4 +290,3 @@ function resultText(result: SDKResultMessage): string {
   const text = result.subtype === 'success' ? result.result : result.errors.join('; ')
   return text.length > TEXT_LIMIT ? text.slice(0, TEXT_LIMIT) : text
 }
-

@@ -33,7 +33,10 @@ describe('queue', () => {
 
   it('refuses a ticket Jira does not know, and queues without a summary when Jira is unreachable', async () => {
     const db = openDb(':memory:')
-    expect(await enqueue(db, 'KAZ-9', { lookup: async () => ({ kind: 'not-found' }) })).toMatchObject({ ok: false, reason: 'unknown-ticket' })
+    expect(await enqueue(db, 'KAZ-9', { lookup: async () => ({ kind: 'not-found' }) })).toMatchObject({
+      ok: false,
+      reason: 'unknown-ticket',
+    })
     const added = await enqueue(db, 'KAZ-1', { lookup: async () => ({ kind: 'unavailable', error: 'ECONNREFUSED' }) })
     expect(added).toMatchObject({ ok: true, item: { key: 'KAZ-1', summary: null }, warning: expect.stringContaining('ECONNREFUSED') })
     expect(keys(db)).toEqual(['KAZ-1'])
@@ -107,7 +110,9 @@ describe('jiraLookup', () => {
   it('maps 404 to not-found, other statuses, a thrown fetch and no config to unavailable', async () => {
     expect(await jiraLookup(config, fakeJira(404).fetchFn)('KAZ-1')).toEqual({ kind: 'not-found' })
     expect(await jiraLookup(config, fakeJira(401).fetchFn)('KAZ-1')).toEqual({ kind: 'unavailable', error: 'Jira answered 401' })
-    const thrower = (async () => { throw new Error('ECONNREFUSED') }) as unknown as typeof fetch
+    const thrower = (async () => {
+      throw new Error('ECONNREFUSED')
+    }) as unknown as typeof fetch
     expect(await jiraLookup(config, thrower)('KAZ-1')).toEqual({ kind: 'unavailable', error: 'ECONNREFUSED' })
     expect(await jiraLookup(null)('KAZ-1')).toMatchObject({ kind: 'unavailable' })
   })

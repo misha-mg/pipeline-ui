@@ -67,7 +67,11 @@ export function openDb(file: string): Db {
 
 /** Columns added after the first databases were made; CREATE TABLE IF NOT EXISTS skips them. */
 function migrate(db: Db): void {
-  const columns = (table: string) => db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name as string)
+  const columns = (table: string) =>
+    db
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .map((r) => r.name as string)
   if (!columns('loop').includes('started_at')) db.exec('ALTER TABLE loop ADD COLUMN started_at TEXT')
   if (!columns('loop').includes('stopped_detail')) db.exec('ALTER TABLE loop ADD COLUMN stopped_detail TEXT')
 }

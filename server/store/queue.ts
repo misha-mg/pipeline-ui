@@ -96,5 +96,10 @@ export function reorder(db: Db, keys: string[]): { ok: true; queue: QueueItem[] 
 }
 
 function itemOf(row: Record<string, unknown>): QueueItem {
-  return { key: row.key as string, summary: (row.summary as string | null) ?? null, position: row.position as number, addedAt: row.added_at as string }
+  return {
+    key: row.key as string,
+    summary: (row.summary as string | null) ?? null,
+    position: row.position as number,
+    addedAt: row.added_at as string,
+  }
 }

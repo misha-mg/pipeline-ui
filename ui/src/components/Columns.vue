@@ -13,7 +13,9 @@ const box = ref<HTMLElement | null>(null)
 const width = ref(600)
 let observer: ResizeObserver | undefined
 onMounted(() => {
-  observer = new ResizeObserver(([entry]) => { if (entry) width.value = Math.max(200, entry.contentRect.width) })
+  observer = new ResizeObserver(([entry]) => {
+    if (entry) width.value = Math.max(200, entry.contentRect.width)
+  })
   if (box.value) observer.observe(box.value)
 })
 onBeforeUnmount(() => observer?.disconnect())
@@ -41,24 +43,26 @@ const y = (v: number) => TOP + plotH.value - (v / scale.value.top) * plotH.value
 const labelEvery = computed(() => Math.max(1, Math.ceil(48 / slot.value)))
 
 /** Each column's parts, bottom up; a part under 2px is drawn at 2px so a 1 is seen. */
-const bars = computed(() => props.columns.map((c, i) => {
-  const x = AXIS + i * slot.value + (slot.value - barW.value) / 2
-  let base = TOP + plotH.value
-  const parts: { d: string; color: string }[] = []
-  const shown = c.values.map((v, s) => ({ v, s })).filter((p) => p.v > 0)
-  shown.forEach(({ v, s }, n) => {
-    const h = Math.max(2, (v / scale.value.top) * plotH.value - (n > 0 ? GAP : 0))
-    const top = base - (n > 0 ? GAP : 0) - h
-    const last = n === shown.length - 1
-    const r = last ? Math.min(4, h, barW.value / 2) : 0
-    const w = barW.value
-    // The top part's upper corners are rounded; every other edge is square.
-    const d = `M${x},${top + h} V${top + r} Q${x},${top} ${x + r},${top} H${x + w - r} Q${x + w},${top} ${x + w},${top + r} V${top + h} Z`
-    parts.push({ d, color: props.series[s]?.color ?? 'var(--faint)' })
-    base = top
-  })
-  return { x, parts, total: c.values.reduce((s, v) => s + v, 0) }
-}))
+const bars = computed(() =>
+  props.columns.map((c, i) => {
+    const x = AXIS + i * slot.value + (slot.value - barW.value) / 2
+    let base = TOP + plotH.value
+    const parts: { d: string; color: string }[] = []
+    const shown = c.values.map((v, s) => ({ v, s })).filter((p) => p.v > 0)
+    shown.forEach(({ v, s }, n) => {
+      const h = Math.max(2, (v / scale.value.top) * plotH.value - (n > 0 ? GAP : 0))
+      const top = base - (n > 0 ? GAP : 0) - h
+      const last = n === shown.length - 1
+      const r = last ? Math.min(4, h, barW.value / 2) : 0
+      const w = barW.value
+      // The top part's upper corners are rounded; every other edge is square.
+      const d = `M${x},${top + h} V${top + r} Q${x},${top} ${x + r},${top} H${x + w - r} Q${x + w},${top} ${x + w},${top + r} V${top + h} Z`
+      parts.push({ d, color: props.series[s]?.color ?? 'var(--faint)' })
+      base = top
+    })
+    return { x, parts, total: c.values.reduce((s, v) => s + v, 0) }
+  }),
+)
 
 const hover = ref<number | null>(null)
 const tip = computed(() => {
@@ -78,7 +82,9 @@ function key(e: KeyboardEvent): void {
   e.preventDefault()
 }
 
-const summary = computed(() => `${props.label}: ${props.columns.reduce((s, c) => s + c.values.reduce((a, v) => a + v, 0), 0)} in ${props.columns.length} columns`)
+const summary = computed(
+  () => `${props.label}: ${props.columns.reduce((s, c) => s + c.values.reduce((a, v) => a + v, 0), 0)} in ${props.columns.length} columns`,
+)
 </script>
 
 <template>
@@ -103,11 +109,25 @@ const summary = computed(() => `${props.label}: ${props.columns.reduce((s, c) =>
             <text v-if="i % labelEvery === 0" :x="AXIS + i * slot + slot / 2" :y="HEIGHT - 6" text-anchor="middle">{{ c.short }}</text>
           </template>
         </g>
-        <rect v-for="(c, i) in columns" :key="`hit-${c.day}`" class="hit" :x="AXIS + i * slot" :y="0" :width="slot" :height="HEIGHT" @mouseenter="hover = i" />
+        <rect
+          v-for="(c, i) in columns"
+          :key="`hit-${c.day}`"
+          class="hit"
+          :x="AXIS + i * slot"
+          :y="0"
+          :width="slot"
+          :height="HEIGHT"
+          @mouseenter="hover = i"
+        />
       </svg>
       <div v-if="tip" class="tip" :style="{ left: `${tip.left}px` }">
-        <div class="when">{{ tip.c.long }}<span v-if="series.length > 1"> · {{ tip.total }}</span></div>
-        <div v-for="(s, i) in series" :key="s.key" class="row"><i :style="{ background: s.color }" /><span>{{ s.label }}</span><b>{{ tip.c.values[i] ?? 0 }}</b></div>
+        <div class="when">
+          {{ tip.c.long }}<span v-if="series.length > 1"> · {{ tip.total }}</span>
+        </div>
+        <div v-for="(s, i) in series" :key="s.key" class="row">
+          <i :style="{ background: s.color }" /><span>{{ s.label }}</span
+          ><b>{{ tip.c.values[i] ?? 0 }}</b>
+        </div>
       </div>
     </div>
   </div>

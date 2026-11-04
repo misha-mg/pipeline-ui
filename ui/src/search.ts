@@ -19,8 +19,20 @@ export const searchError = ref<string | null>(null)
 const QUERY_KEPT = 'pipeline-ui.search'
 const JQL_KEPT = 'pipeline-ui.jql'
 const JQL_ON_KEPT = 'pipeline-ui.jql-on'
-const kept = (name: string): string | null => { try { return localStorage.getItem(name) } catch { return null } }
-const keep = (name: string, value: string): void => { try { localStorage.setItem(name, value) } catch { /* not kept */ } }
+const kept = (name: string): string | null => {
+  try {
+    return localStorage.getItem(name)
+  } catch {
+    return null
+  }
+}
+const keep = (name: string, value: string): void => {
+  try {
+    localStorage.setItem(name, value)
+  } catch {
+    /* not kept */
+  }
+}
 export const query = ref(kept(QUERY_KEPT) ?? '')
 /** The JQL applied; searches are made within it while the switch is on. Empty for none. */
 export const jql = ref(kept(JQL_KEPT) ?? '')

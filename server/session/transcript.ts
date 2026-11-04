@@ -26,7 +26,10 @@ export function structuredOutput(transcriptPath: string | undefined): string | n
     } catch {
       continue
     }
-    const blocks = entry.type === 'assistant' && Array.isArray(entry.message?.content) ? entry.message.content as { type?: string; name?: string; input?: unknown }[] : []
+    const blocks =
+      entry.type === 'assistant' && Array.isArray(entry.message?.content)
+        ? (entry.message.content as { type?: string; name?: string; input?: unknown }[])
+        : []
     // The UI's type check sees this file with ES2022's library, which has no findLast.
     const call = [...blocks].reverse().find((b) => b.type === 'tool_use' && b.name === 'StructuredOutput')
     if (call && typeof call.input === 'object' && call.input !== null) return formatOutput(call.input as Record<string, unknown>)
@@ -42,7 +45,10 @@ function formatOutput(fields: Record<string, unknown>): string {
     const strings = Array.isArray(value) && value.every((v) => typeof v === 'string') ? (value as string[]) : null
     const line = typeof value === 'string' ? value : strings ? strings.join(', ') : JSON.stringify(value)
     if (!line.includes('\n') && line.length <= 160) short.push(`${name}: ${line}`)
-    else long.push(`## ${name}\n${strings ? strings.map((v) => `- ${v}`).join('\n') : typeof value === 'string' ? value : JSON.stringify(value, null, 2)}`)
+    else
+      long.push(
+        `## ${name}\n${strings ? strings.map((v) => `- ${v}`).join('\n') : typeof value === 'string' ? value : JSON.stringify(value, null, 2)}`,
+      )
   }
   const report = typeof fields.report === 'string' ? fields.report : ''
   return [short.join('\n'), report, ...long].filter(Boolean).join('\n\n')

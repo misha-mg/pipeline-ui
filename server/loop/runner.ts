@@ -29,7 +29,16 @@ export type RunnerConfig = {
   drainMs?: number
 }
 
-const EVENT_TYPES = new Set<SessionEvent['type']>(['init', 'stage-start', 'stage-stop', 'rate-limit', 'api-retry', 'refused', 'turn', 'ended'])
+const EVENT_TYPES = new Set<SessionEvent['type']>([
+  'init',
+  'stage-start',
+  'stage-stop',
+  'rate-limit',
+  'api-retry',
+  'refused',
+  'turn',
+  'ended',
+])
 
 // The secrets never appear on a command line: the file is sourced by the child itself.
 const SCRIPT = [
@@ -82,7 +91,11 @@ export function createRunner(config: RunnerConfig): Runner {
         try {
           process.kill(-child.pid, sig)
         } catch {
-          try { child.kill(sig) } catch { /* already gone */ }
+          try {
+            child.kill(sig)
+          } catch {
+            /* already gone */
+          }
         }
       }
       const onAbort = () => {
@@ -117,7 +130,13 @@ export function createRunner(config: RunnerConfig): Runner {
 export function parseEvent(line: string): SessionEvent | null {
   try {
     const parsed: unknown = JSON.parse(line)
-    if (typeof parsed === 'object' && parsed !== null && 'type' in parsed && 'at' in parsed && EVENT_TYPES.has((parsed as SessionEvent).type)) {
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'type' in parsed &&
+      'at' in parsed &&
+      EVENT_TYPES.has((parsed as SessionEvent).type)
+    ) {
       return parsed as SessionEvent
     }
   } catch {

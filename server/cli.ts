@@ -18,7 +18,16 @@ import { openDb } from './store/db.ts'
 import { jiraConfig, jiraLookup } from './store/jira.ts'
 import { enqueue, listQueue, remove, reorder } from './store/queue.ts'
 import {
-  getRun, inFlight, listEvents, listRuns, loopState, requestCancel, serviceAlive, serviceInfo, startLoop, stopLoop,
+  getRun,
+  inFlight,
+  listEvents,
+  listRuns,
+  loopState,
+  requestCancel,
+  serviceAlive,
+  serviceInfo,
+  startLoop,
+  stopLoop,
 } from './store/runs.ts'
 
 const USAGE = `usage: pipeline serve | enqueue KEY [--front] | remove KEY | reorder KEY... | list | start | stop | cancel | status | runs [N] | events RUN_ID`
@@ -49,7 +58,9 @@ export async function main(argv: string[]): Promise<number> {
         const added = await enqueue(db, key, { front: args.includes('--front'), lookup: jiraLookup(jiraConfig(process.env)) })
         if (!added.ok) return fail(added.message)
         if (added.warning) console.error(`warning: ${added.warning}`)
-        out(`queued ${added.item.key}${added.item.summary ? ` — ${added.item.summary}` : ''} at ${position(db, key)} of ${listQueue(db).length}${serviceNote()}`)
+        out(
+          `queued ${added.item.key}${added.item.summary ? ` — ${added.item.summary}` : ''} at ${position(db, key)} of ${listQueue(db).length}${serviceNote()}`,
+        )
         return 0
       }
       case 'remove': {
@@ -93,7 +104,17 @@ export async function main(argv: string[]): Promise<number> {
         return 0
       case 'runs':
         for (const run of listRuns(db, Number(args[0] ?? 20)).reverse()) {
-          out([run.id, run.key, run.startedAt, duration(run.startedAt, run.endedAt), run.ending ?? (run.stage ? `in flight: ${run.stage}` : 'in flight'), run.verdict ?? '-', run.runDir ?? '-'].join('\t'))
+          out(
+            [
+              run.id,
+              run.key,
+              run.startedAt,
+              duration(run.startedAt, run.endedAt),
+              run.ending ?? (run.stage ? `in flight: ${run.stage}` : 'in flight'),
+              run.verdict ?? '-',
+              run.runDir ?? '-',
+            ].join('\t'),
+          )
         }
         return 0
       case 'events': {
@@ -121,7 +142,9 @@ function printQueue(queue: ReturnType<typeof listQueue>, out: (l: string) => voi
 
 function printStatus(db: ReturnType<typeof openDb>, out: (l: string) => void): void {
   const info = serviceInfo(db)
-  out(`service: ${serviceAlive(db) ? `running, pid ${info?.pid}, since ${info?.startedAt}` : info ? `not running (last seen ${info.seenAt})` : 'never started'}`)
+  out(
+    `service: ${serviceAlive(db) ? `running, pid ${info?.pid}, since ${info?.startedAt}` : info ? `not running (last seen ${info.seenAt})` : 'never started'}`,
+  )
   const state = loopState(db)
   const since = state.stoppedAt ? ` since ${state.stoppedAt}` : ''
   const resets = state.usageLimitResetsAt ? `, resets at ${new Date(state.usageLimitResetsAt * 1000).toISOString()}` : ''
@@ -135,7 +158,8 @@ function printStatus(db: ReturnType<typeof openDb>, out: (l: string) => void): v
   const queue = listQueue(db)
   out(`queue: ${queue.length === 0 ? 'empty' : queue.map((i) => i.key).join(', ')}`)
   const last = listRuns(db, 1)[0]
-  if (last && last.ending) out(`last run: ${last.id} ${last.key} ${last.ending}${last.verdict ? ` (${last.verdict})` : ''} at ${last.endedAt}`)
+  if (last && last.ending)
+    out(`last run: ${last.id} ${last.key} ${last.ending}${last.verdict ? ` (${last.verdict})` : ''} at ${last.endedAt}`)
 }
 
 function duration(from: string, to: string | null): string {

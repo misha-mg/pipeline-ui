@@ -8,9 +8,7 @@ import path from 'node:path'
 import type { SessionEnding, SessionEvent } from '../session/driver.ts'
 import { nowIso, type Db } from '../store/db.ts'
 import { queueHead, takeHead } from '../store/queue.ts'
-import {
-  addEvent, getRun, insertRun, loopState, stopLoop, updateRun, type Ending, type RunRecord,
-} from '../store/runs.ts'
+import { addEvent, getRun, insertRun, loopState, stopLoop, updateRun, type Ending, type RunRecord } from '../store/runs.ts'
 import { newRunDir, readSummary, readVerdict, runDirsOf } from './runfiles.ts'
 
 export type RunExit = { code: number | null; signal: string | null }
@@ -70,7 +68,8 @@ export function createLoop(deps: LoopDeps): Loop {
     if (checking || loopState(db).wanted !== 'running' || !queueHead(db)) return
     if (!deps.preflight) return begin()
     checking = true
-    deps.preflight()
+    deps
+      .preflight()
       .catch((error: unknown) => `the entry point could not be checked: ${error instanceof Error ? error.message : String(error)}`)
       .then((refused) => {
         if (refused) {
@@ -102,7 +101,14 @@ export function createLoop(deps: LoopDeps): Loop {
     current = { id, controller, done }
   }
 
-  async function drive(id: number, key: string, summary: string | null, logPath: string, tracePath: string, controller: AbortController): Promise<void> {
+  async function drive(
+    id: number,
+    key: string,
+    summary: string | null,
+    logPath: string,
+    tracePath: string,
+    controller: AbortController,
+  ): Promise<void> {
     const before = runDirsOf(runsDir, key)
     const log = fs.openSync(logPath, 'a')
     let ended: SessionEnding | null = null
@@ -143,7 +149,10 @@ export function createLoop(deps: LoopDeps): Loop {
     }
     updateRun(db, id, patch)
     if (ending === 'usage-limit') {
-      const resetsAt = ended && (ended as SessionEnding).kind === 'usage-limit' ? (ended as Extract<SessionEnding, { kind: 'usage-limit' }>).resetsAt : undefined
+      const resetsAt =
+        ended && (ended as SessionEnding).kind === 'usage-limit'
+          ? (ended as Extract<SessionEnding, { kind: 'usage-limit' }>).resetsAt
+          : undefined
       stopLoop(db, 'usage-limit', { now, usageLimitResetsAt: resetsAt })
     }
     deps.onChange?.('ended', getRun(db, id)!)
@@ -170,11 +179,17 @@ export function createLoop(deps: LoopDeps): Loop {
  * never ran: the launch script had no PIPELINE_SESSION, so the plain CLI ran the ticket
  * unwatched.
  */
-export function endingOf(aborted: AbortCause | null, ended: SessionEnding | null, exit: RunExit, events = 1): { ending: Ending; detail: string | null } {
+export function endingOf(
+  aborted: AbortCause | null,
+  ended: SessionEnding | null,
+  exit: RunExit,
+  events = 1,
+): { ending: Ending; detail: string | null } {
   if (aborted) return { ending: aborted, detail: ended ? `the session reported ${ended.kind}` : 'the session reported no ending' }
   if (!ended) {
     const how = exit.signal ? `signal ${exit.signal}` : `code ${exit.code ?? 'unknown'}`
-    const why = events === 0 ? '; no event arrived at all, so the session program was not run (launch-session.sh without PIPELINE_SESSION?)' : ''
+    const why =
+      events === 0 ? '; no event arrived at all, so the session program was not run (launch-session.sh without PIPELINE_SESSION?)' : ''
     return { ending: 'exited', detail: `prepare-worktree.sh exited with ${how} before the session reported an ending${why}` }
   }
   switch (ended.kind) {

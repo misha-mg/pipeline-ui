@@ -12,9 +12,7 @@ import { compareRanges, type DiffStat, type Git } from './changes.ts'
  * removed are not the ones the pipeline pushed (a rebase alone changes nothing). Null `changed`
  * with `why` when the two could not be compared.
  */
-export type PrChanges =
-  | { changed: boolean; opened: DiffStat; merged: DiffStat }
-  | { changed: null; why: string }
+export type PrChanges = { changed: boolean; opened: DiffStat; merged: DiffStat } | { changed: null; why: string }
 
 export type PullRequestState = {
   url: string
@@ -51,8 +49,17 @@ function ensurePullRequestTable(db: Db): void {
     url TEXT PRIMARY KEY, state TEXT NOT NULL, closed_on TEXT, fetched_at TEXT, error TEXT
   )`)
   // Columns added with the statistics page (2026-11-04); a PR read before them is read again once.
-  const have = db.prepare('PRAGMA table_info(pull_requests)').all().map((r) => r.name as string)
-  for (const [name, type] of [['created_on', 'TEXT'], ['destination', 'TEXT'], ['draft', 'INTEGER'], ['changes', 'TEXT'], ['compared_at', 'TEXT']] as const) {
+  const have = db
+    .prepare('PRAGMA table_info(pull_requests)')
+    .all()
+    .map((r) => r.name as string)
+  for (const [name, type] of [
+    ['created_on', 'TEXT'],
+    ['destination', 'TEXT'],
+    ['draft', 'INTEGER'],
+    ['changes', 'TEXT'],
+    ['compared_at', 'TEXT'],
+  ] as const) {
     if (!have.includes(name)) db.exec(`ALTER TABLE pull_requests ADD COLUMN ${name} ${type}`)
   }
 }
@@ -60,23 +67,40 @@ function ensurePullRequestTable(db: Db): void {
 /** The known states, by URL; a URL never read is not in the map. */
 export function pullRequestStates(db: Db): Map<string, PullRequestState> {
   ensurePullRequestTable(db)
-  const rows = db.prepare('SELECT url, state, created_on, closed_on, destination, draft, changes, fetched_at, error FROM pull_requests').all()
-  return new Map(rows.map((r) => [r.url as string, {
-    url: r.url as string,
-    state: r.state as string,
-    createdOn: (r.created_on as string | null) ?? null,
-    closedOn: (r.closed_on as string | null) ?? null,
-    destination: (r.destination as string | null) ?? null,
-    draft: r.draft === null || r.draft === undefined ? null : r.draft === 1,
-    changes: r.changes ? (JSON.parse(r.changes as string) as PrChanges) : null,
-    fetchedAt: (r.fetched_at as string | null) ?? null,
-    error: (r.error as string | null) ?? null,
-  }]))
+  const rows = db
+    .prepare('SELECT url, state, created_on, closed_on, destination, draft, changes, fetched_at, error FROM pull_requests')
+    .all()
+  return new Map(
+    rows.map((r) => [
+      r.url as string,
+      {
+        url: r.url as string,
+        state: r.state as string,
+        createdOn: (r.created_on as string | null) ?? null,
+        closedOn: (r.closed_on as string | null) ?? null,
+        destination: (r.destination as string | null) ?? null,
+        draft: r.draft === null || r.draft === undefined ? null : r.draft === 1,
+        changes: r.changes ? (JSON.parse(r.changes as string) as PrChanges) : null,
+        fetchedAt: (r.fetched_at as string | null) ?? null,
+        error: (r.error as string | null) ?? null,
+      },
+    ]),
+  )
 }
 
 /** A PR known by its URL alone: not read yet, or there is no token to read it with. */
 export function unknownPullRequest(url: string): PullRequestState {
-  return { url, state: 'unknown', createdOn: null, closedOn: null, destination: null, draft: null, changes: null, fetchedAt: null, error: null }
+  return {
+    url,
+    state: 'unknown',
+    createdOn: null,
+    closedOn: null,
+    destination: null,
+    draft: null,
+    changes: null,
+    fetchedAt: null,
+    error: null,
+  }
 }
 
 function isFinal(state: string): boolean {
@@ -95,7 +119,12 @@ type Deps = { fetch?: typeof fetch; now?: () => Date }
  * their creation and destination were asked, at most PER_ROUND of them, and writes what it
  * found. Without a config it records nothing: the state stays unknown. Returns how many it read.
  */
-export async function refreshPullRequests(db: Db, urls: Iterable<string>, config: BitbucketConfig | null, deps: Deps = {}): Promise<number> {
+export async function refreshPullRequests(
+  db: Db,
+  urls: Iterable<string>,
+  config: BitbucketConfig | null,
+  deps: Deps = {},
+): Promise<number> {
   if (!config) return 0
   const fetchFn = deps.fetch ?? fetch
   const now = deps.now ?? (() => new Date())
@@ -106,25 +135,45 @@ export async function refreshPullRequests(db: Db, urls: Iterable<string>, config
     if (isFinal(k.state)) return k.createdOn === null && !k.error
     return !k.fetchedAt || now().getTime() - Date.parse(k.fetchedAt) > MAX_AGE_MS
   })
-  const write = db.prepare(`INSERT INTO pull_requests (url, state, created_on, closed_on, destination, draft, fetched_at, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  const write =
+    db.prepare(`INSERT INTO pull_requests (url, state, created_on, closed_on, destination, draft, fetched_at, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (url) DO UPDATE SET state = excluded.state, created_on = excluded.created_on, closed_on = excluded.closed_on, destination = excluded.destination, draft = excluded.draft, fetched_at = excluded.fetched_at, error = excluded.error`)
   const failed = (url: string, error: string) => {
     const k = known.get(url)
-    write.run(url, k?.state ?? 'unknown', k?.createdOn ?? null, k?.closedOn ?? null, k?.destination ?? null, k?.draft === null || k?.draft === undefined ? null : Number(k.draft), now().toISOString(), error)
+    write.run(
+      url,
+      k?.state ?? 'unknown',
+      k?.createdOn ?? null,
+      k?.closedOn ?? null,
+      k?.destination ?? null,
+      k?.draft === null || k?.draft === undefined ? null : Number(k.draft),
+      now().toISOString(),
+      error,
+    )
   }
   let read = 0
   for (const url of due.slice(0, PER_ROUND)) {
     const api = apiBase(url)
     if (!api) continue
     try {
-      const res = await fetchFn(`${api}?fields=state,created_on,closed_on,updated_on,draft,destination.branch.name`, { headers: headers(config), signal: AbortSignal.timeout(TIMEOUT_MS) })
+      const res = await fetchFn(`${api}?fields=state,created_on,closed_on,updated_on,draft,destination.branch.name`, {
+        headers: headers(config),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      })
       if (!res.ok) {
         failed(url, `Bitbucket answered ${res.status}`)
         continue
       }
-      const body = (await res.json()) as { state?: unknown; created_on?: unknown; closed_on?: unknown; updated_on?: unknown; draft?: unknown; destination?: { branch?: { name?: unknown } } }
+      const body = (await res.json()) as {
+        state?: unknown
+        created_on?: unknown
+        closed_on?: unknown
+        updated_on?: unknown
+        draft?: unknown
+        destination?: { branch?: { name?: unknown } }
+      }
       const state = typeof body.state === 'string' ? body.state : 'unknown'
-      const closed = isFinal(state) ? str(body.closed_on) ?? str(body.updated_on) : null
+      const closed = isFinal(state) ? (str(body.closed_on) ?? str(body.updated_on)) : null
       const draft = typeof body.draft === 'boolean' ? Number(body.draft) : null
       write.run(url, state, str(body.created_on), closed, str(body.destination?.branch?.name), draft, now().toISOString(), null)
       read += 1
@@ -146,7 +195,11 @@ export async function compareMerged(db: Db, config: BitbucketConfig | null, git:
   const fetchFn = deps.fetch ?? fetch
   const now = deps.now ?? (() => new Date())
   ensurePullRequestTable(db)
-  const rows = db.prepare(`SELECT url, destination, compared_at FROM pull_requests WHERE state = 'MERGED' AND (changes IS NULL OR json_extract(changes, '$.changed') IS NULL)`).all()
+  const rows = db
+    .prepare(
+      `SELECT url, destination, compared_at FROM pull_requests WHERE state = 'MERGED' AND (changes IS NULL OR json_extract(changes, '$.changed') IS NULL)`,
+    )
+    .all()
   const due = rows.filter((r) => !r.compared_at || now().getTime() - Date.parse(r.compared_at as string) > RETRY_COMPARE_MS)
   const write = db.prepare('UPDATE pull_requests SET changes = ?, compared_at = ? WHERE url = ?')
   const get = async <T>(url: string): Promise<T> => {
@@ -181,15 +234,28 @@ export async function compareMerged(db: Db, config: BitbucketConfig | null, git:
       const [pr, activity, commits] = await Promise.all([
         get<{ source?: { commit?: { hash?: string } } }>(`${api}?fields=source.commit.hash`),
         all<{ update?: Update }>(`${api}/activity?pagelen=50`, 10, 'activity'),
-        all<{ hash: string; parents?: { hash: string }[] }>(`${api}/commits?pagelen=50&fields=next,values.hash,values.parents.hash`, 4, 'commits'),
+        all<{ hash: string; parents?: { hash: string }[] }>(
+          `${api}/commits?pagelen=50&fields=next,values.hash,values.parents.hash`,
+          4,
+          'commits',
+        ),
       ])
-      const updates = activity.map((a) => a.update).filter((u): u is Update => !!u?.date).sort((a, b) => a.date!.localeCompare(b.date!))
+      const updates = activity
+        .map((a) => a.update)
+        .filter((u): u is Update => !!u?.date)
+        .sort((a, b) => a.date!.localeCompare(b.date!))
       const first = updates[0]
       const opened = { from: first?.destination?.commit?.hash, to: first?.source?.commit?.hash }
       const merged = { from: commits.at(-1)?.parents?.[0]?.hash, to: pr.source?.commit?.hash }
-      if (!opened.from || !opened.to || !merged.from || !merged.to) changes = { changed: null, why: 'Bitbucket did not say which commits it was opened and merged with' }
+      if (!opened.from || !opened.to || !merged.from || !merged.to)
+        changes = { changed: null, why: 'Bitbucket did not say which commits it was opened and merged with' }
       else {
-        const result = await compareRanges(git, opened as { from: string; to: string }, merged as { from: string; to: string }, (row.destination as string | null) ?? null)
+        const result = await compareRanges(
+          git,
+          opened as { from: string; to: string },
+          merged as { from: string; to: string },
+          (row.destination as string | null) ?? null,
+        )
         changes = 'why' in result ? { changed: null, why: result.why } : result
       }
     } catch (error) {

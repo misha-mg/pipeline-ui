@@ -71,11 +71,13 @@ export async function prepareEntry(config: EntryConfig, git: Git = gitIn(config.
   if (prepare === null) return `${ref} has no ${PREPARE}`
   const lines = prepare.split('\n')
   const at = lines.findLastIndex((l) => HANDOVER.test(l))
-  if (at === -1) return `${ref}'s ${PREPARE} no longer ends with \`exec tools/ticket-pipeline/<script> "$@"\`: the script that launches the session cannot be found`
+  if (at === -1)
+    return `${ref}'s ${PREPARE} no longer ends with \`exec tools/ticket-pipeline/<script> "$@"\`: the script that launches the session cannot be found`
   const handsOverTo = HANDOVER.exec(lines[at]!)![1]!
   const launch = await show(handsOverTo)
   if (launch === null) return `${ref}'s ${PREPARE} hands over to ${handsOverTo}, which ${ref} does not have`
-  if (!launch.includes('PIPELINE_SESSION')) return `${ref}'s ${handsOverTo} has no PIPELINE_SESSION: a run would go unwatched to a pull request`
+  if (!launch.includes('PIPELINE_SESSION'))
+    return `${ref}'s ${handsOverTo} has no PIPELINE_SESSION: a run would go unwatched to a pull request`
   if (base !== 'master' && !prepare.includes('PIPELINE_BASE_BRANCH')) {
     return `${ref}'s ${PREPARE} has no PIPELINE_BASE_BRANCH: it would build the worktree from master and open the pull request there`
   }

@@ -15,7 +15,10 @@ function ensureTicketTable(db: Db): void {
   db.exec(`CREATE TABLE IF NOT EXISTS tickets (
     key TEXT PRIMARY KEY, summary TEXT, status TEXT, status_category TEXT, done_at TEXT, fetched_at TEXT NOT NULL
   )`)
-  const have = db.prepare('PRAGMA table_info(tickets)').all().map((r) => r.name as string)
+  const have = db
+    .prepare('PRAGMA table_info(tickets)')
+    .all()
+    .map((r) => r.name as string)
   if (!have.includes('moves')) db.exec('ALTER TABLE tickets ADD COLUMN moves TEXT')
 }
 
@@ -31,18 +34,41 @@ function movesOf(json: unknown): StatusMove[] {
 export function ticketStatuses(db: Db): Map<string, KnownTicket> {
   ensureTicketTable(db)
   const rows = db.prepare('SELECT key, summary, status, status_category, done_at, moves, fetched_at FROM tickets').all()
-  return new Map(rows.map((r) => [r.key as string, { key: r.key as string, summary: (r.summary as string | null) ?? null, status: (r.status as string | null) ?? null, statusCategory: (r.status_category as string | null) ?? null, doneAt: (r.done_at as string | null) ?? null, moves: movesOf(r.moves), fetchedAt: r.fetched_at as string }]))
+  return new Map(
+    rows.map((r) => [
+      r.key as string,
+      {
+        key: r.key as string,
+        summary: (r.summary as string | null) ?? null,
+        status: (r.status as string | null) ?? null,
+        statusCategory: (r.status_category as string | null) ?? null,
+        doneAt: (r.done_at as string | null) ?? null,
+        moves: movesOf(r.moves),
+        fetchedAt: r.fetched_at as string,
+      },
+    ]),
+  )
 }
 
 /**
  * Reads the statuses of `keys` when any of them was never read or the oldest copy is stale.
  * Returns how many it read, or why it could not.
  */
-export async function refreshTickets(db: Db, keys: Iterable<string>, statuses: (keys: string[]) => Promise<JiraStatuses>, now: () => Date = () => new Date()): Promise<number | string> {
+export async function refreshTickets(
+  db: Db,
+  keys: Iterable<string>,
+  statuses: (keys: string[]) => Promise<JiraStatuses>,
+  now: () => Date = () => new Date(),
+): Promise<number | string> {
   const known = ticketStatuses(db)
   const wanted = [...new Set(keys)].sort()
   // A copy from before the moves were kept (its column NULL) is read again at once.
-  const withoutMoves = new Set(db.prepare('SELECT key FROM tickets WHERE moves IS NULL').all().map((r) => r.key as string))
+  const withoutMoves = new Set(
+    db
+      .prepare('SELECT key FROM tickets WHERE moves IS NULL')
+      .all()
+      .map((r) => r.key as string),
+  )
   const stale = wanted.some((k) => {
     const t = known.get(k)
     return !t || now().getTime() - Date.parse(t.fetchedAt) > MAX_AGE_MS || withoutMoves.has(k)
@@ -51,7 +77,8 @@ export async function refreshTickets(db: Db, keys: Iterable<string>, statuses: (
   const found = await statuses(wanted)
   if (found.kind === 'unavailable') return found.error
   const at = now().toISOString()
-  const write = db.prepare(`INSERT INTO tickets (key, summary, status, status_category, done_at, moves, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+  const write =
+    db.prepare(`INSERT INTO tickets (key, summary, status, status_category, done_at, moves, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (key) DO UPDATE SET summary = excluded.summary, status = excluded.status, status_category = excluded.status_category, done_at = excluded.done_at, moves = excluded.moves, fetched_at = excluded.fetched_at`)
   for (const t of found.tickets) write.run(t.key, t.summary, t.status, t.statusCategory, t.doneAt, JSON.stringify(t.moves), at)
   // A key Jira does not know (moved, deleted) is kept as unknown, so it is not asked every round.

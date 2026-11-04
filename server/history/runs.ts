@@ -70,7 +70,10 @@ function loadRun(runDir: string, key: string, number: number): HistoryRun {
   const startedAt = startOf(assignment) ?? mtime(path.join(runDir, '00-assignment.md')) ?? mtime(runDir) ?? new Date(0).toISOString()
   const finishedAt = state === null ? null : mtime(path.join(runDir, 'state.md'))
   const stages = stagesOf(readText(path.join(runDir, 'timings.tsv')), state)
-  const lastStageEnd = stages.reduce<number>((end, s) => (s.startedAt && s.seconds !== null ? Math.max(end, Date.parse(s.startedAt) + s.seconds * 1000) : end), 0)
+  const lastStageEnd = stages.reduce<number>(
+    (end, s) => (s.startedAt && s.seconds !== null ? Math.max(end, Date.parse(s.startedAt) + s.seconds * 1000) : end),
+    0,
+  )
   const endMs = finishedAt ? Math.max(Date.parse(finishedAt), lastStageEnd) : lastStageEnd || null
   return {
     key,
@@ -121,8 +124,11 @@ export function reasonOf(state: string | null, verdict: Verdict | null): string 
 
 /** The pull request a done run's pull-request report names, for a state.md that does not. */
 function prUrlOfReports(runDir: string, files: string[]): string | null {
-  const report = files.filter((f) => /^\d\d-pull-request\.md$/.test(f)).sort().at(-1)
-  return report ? readText(path.join(runDir, report))?.match(PR_URL)?.[0] ?? null : null
+  const report = files
+    .filter((f) => /^\d\d-pull-request\.md$/.test(f))
+    .sort()
+    .at(-1)
+  return report ? (readText(path.join(runDir, report))?.match(PR_URL)?.[0] ?? null) : null
 }
 
 type StateStage = { key: string; agent: string | null; mode: string | null; result: string | null }
@@ -143,7 +149,10 @@ export function stateStages(state: string | null): StateStage[] {
     if (paren) {
       ;[agent, mode, rest] = [paren[1]!, paren[2]?.trim() || null, paren[3]!]
     } else {
-      const parts = rest.replace(/^[:·—–-]\s*/, '').split(/\s+[—·]\s+/).filter(Boolean)
+      const parts = rest
+        .replace(/^[:·—–-]\s*/, '')
+        .split(/\s+[—·]\s+/)
+        .filter(Boolean)
       const who = AGENT.exec(parts[0] ?? '')
       if (who) {
         ;[agent, mode] = [who[1]!, who[2]?.trim() || null]
@@ -163,7 +172,11 @@ export function stateStages(state: string | null): StateStage[] {
 export function stagesOf(timings: string | null, state: string | null): HistoryStage[] {
   const lines = stateStages(state)
   if (timings) {
-    const rows = timings.split('\n').slice(1).map((l) => l.split('\t')).filter((r) => r.length >= 4 && r[0])
+    const rows = timings
+      .split('\n')
+      .slice(1)
+      .map((l) => l.split('\t'))
+      .filter((r) => r.length >= 4 && r[0])
     if (rows.length > 0) {
       const queues = new Map<string, StateStage[]>()
       for (const line of lines) queues.set(line.key, [...(queues.get(line.key) ?? []), line])

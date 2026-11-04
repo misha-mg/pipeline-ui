@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { loadRuns, readReport, reasonOf, stagesOf, stateStages, summaryOf, verdictOf } from './runs.ts'
 
 const temps: string[] = []
-afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true })
+})
 
 function runsDir(runs: Record<string, Record<string, string>>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-history-'))
@@ -21,18 +23,27 @@ describe('loadRuns', () => {
   it('reads a closed run with timings: start, summary, verdict, PR, stages, duration', () => {
     const dir = runsDir({
       'KAZ-9016/run-1': {
-        '00-assignment.md': '# Assignment — KAZ-9016\n\n- Ticket: KAZ-9016\n- Summary: Ports table sorting\n- Time: 2026-10-14T21:00:00+02:00\n',
+        '00-assignment.md':
+          '# Assignment — KAZ-9016\n\n- Ticket: KAZ-9016\n- Summary: Ports table sorting\n- Time: 2026-10-14T21:00:00+02:00\n',
         '01-investigate.md': '# Investigation\n',
         '02-implement.md': '',
-        'state.md': 'investigate — ticket-investigator (-) — confidence high\nimplement — ticket-implementer (implement) — done\nreview — change-reviewer (-) — pass\npull-request — ticket-implementer (pull-request) — opened\npr: https://bitbucket.org/example/webui/pull-requests/622\ndone:pr-opened\n',
-        'timings.tsv': 'label\tagent\tstarted\tseconds\ninvestigate\tticket-investigator\t2026-10-14T19:00:19Z\t506\nimplement\tticket-implementer\t2026-10-14T19:08:45Z\t332\nreview\tchange-reviewer\t2026-10-14T19:14:24Z\t66\npull request\tticket-implementer\t2026-10-14T19:21:05Z\t96\n',
+        'state.md':
+          'investigate — ticket-investigator (-) — confidence high\nimplement — ticket-implementer (implement) — done\nreview — change-reviewer (-) — pass\npull-request — ticket-implementer (pull-request) — opened\npr: https://bitbucket.org/example/webui/pull-requests/622\ndone:pr-opened\n',
+        'timings.tsv':
+          'label\tagent\tstarted\tseconds\ninvestigate\tticket-investigator\t2026-10-14T19:00:19Z\t506\nimplement\tticket-implementer\t2026-10-14T19:08:45Z\t332\nreview\tchange-reviewer\t2026-10-14T19:14:24Z\t66\npull request\tticket-implementer\t2026-10-14T19:21:05Z\t96\n',
         'diff-0.patch': '',
       },
     })
     const [run] = loadRuns(dir)
     expect(run).toMatchObject({
-      key: 'KAZ-9016', number: 1, startedAt: '2026-10-14T19:00:00.000Z', summary: 'Ports table sorting', verdict: 'done:pr-opened',
-      prUrl: 'https://bitbucket.org/example/webui/pull-requests/622', reason: null, reports: ['00-assignment.md', '01-investigate.md', '02-implement.md'],
+      key: 'KAZ-9016',
+      number: 1,
+      startedAt: '2026-10-14T19:00:00.000Z',
+      summary: 'Ports table sorting',
+      verdict: 'done:pr-opened',
+      prUrl: 'https://bitbucket.org/example/webui/pull-requests/622',
+      reason: null,
+      reports: ['00-assignment.md', '01-investigate.md', '02-implement.md'],
     })
     expect(run!.finishedAt).not.toBeNull()
     // 19:21:05 + 96 s = 19:22:41, later than state.md's mtime would be in the past... the stages' end wins when later.
@@ -50,17 +61,27 @@ describe('loadRuns', () => {
       'KAZ-8056/run-1': {
         '00-assignment.md': '# KAZ-8056 — run 1 assignment\n\n- Ticket: KAZ-8056\n- Started: 2026-10-05T23:50:14+02:00\n',
         '01-investigate.md': 'KAZ-8056 (Bug, 3 - Medium). Summary: "Quoted \\"summary\\" here".\n',
-        'state.md': '03 review (change-reviewer): pass\n04 pull-request (ticket-implementer, pull-request): opened — https://bitbucket.org/example/webui/pull-requests/526\nreason: already-fixed\nblocked:tooling\n',
+        'state.md':
+          '03 review (change-reviewer): pass\n04 pull-request (ticket-implementer, pull-request): opened — https://bitbucket.org/example/webui/pull-requests/526\nreason: already-fixed\nblocked:tooling\n',
       },
     })
     const [run] = loadRuns(dir)
     expect(run).toMatchObject({
-      startedAt: '2026-10-05T21:50:14.000Z', summary: 'Quoted "summary" here', verdict: 'blocked:tooling', reason: 'already-fixed',
+      startedAt: '2026-10-05T21:50:14.000Z',
+      summary: 'Quoted "summary" here',
+      verdict: 'blocked:tooling',
+      reason: 'already-fixed',
       prUrl: 'https://bitbucket.org/example/webui/pull-requests/526',
     })
     expect(run!.stages).toEqual([
       { label: 'review', agent: 'change-reviewer', startedAt: null, seconds: null, result: 'pass' },
-      { label: 'pull request', agent: 'ticket-implementer', startedAt: null, seconds: null, result: 'opened — https://bitbucket.org/example/webui/pull-requests/526' },
+      {
+        label: 'pull request',
+        agent: 'ticket-implementer',
+        startedAt: null,
+        seconds: null,
+        result: 'opened — https://bitbucket.org/example/webui/pull-requests/526',
+      },
     ])
   })
 
@@ -99,15 +120,22 @@ describe('summaryOf and stagesOf', () => {
     expect(summaryOf('nothing here')).toBeNull()
   })
   it('keeps rework rounds from timings and matches state results by label', () => {
-    const stages = stagesOf('label\tagent\tstarted\tseconds\nreview\tchange-reviewer\t2026-10-14T19:14:24Z\t66\nrework 1\tticket-implementer\t2026-10-14T19:16:00Z\t30\n', 'review — change-reviewer (-) — fail\n')
-    expect(stages.map((s) => [s.label, s.result])).toEqual([['review', 'fail'], ['rework 1', null]])
+    const stages = stagesOf(
+      'label\tagent\tstarted\tseconds\nreview\tchange-reviewer\t2026-10-14T19:14:24Z\t66\nrework 1\tticket-implementer\t2026-10-14T19:16:00Z\t30\n',
+      'review — change-reviewer (-) — fail\n',
+    )
+    expect(stages.map((s) => [s.label, s.result])).toEqual([
+      ['review', 'fail'],
+      ['rework 1', null],
+    ])
   })
 })
 
 describe('stage lines, verdicts and reasons as the runs wrote them', () => {
-  const TIMINGS = (rows: string[][]) => ['label\tagent\tstarted\tseconds', ...rows.map((r) => [...r, '2026-10-14T19:00:00Z', '60'].join('\t'))].join('\n')
+  const TIMINGS = (rows: string[][]) =>
+    ['label\tagent\tstarted\tseconds', ...rows.map((r) => [...r, '2026-10-14T19:00:00Z', '60'].join('\t'))].join('\n')
 
-  it('gives each repeated stage its own round\'s result, in order (RPG-6183: reviews fail twice, the second app-test passes)', () => {
+  it("gives each repeated stage its own round's result, in order (RPG-6183: reviews fail twice, the second app-test passes)", () => {
     const state = [
       'investigate — ticket-investigator (-) — confidence medium',
       'implement — ticket-implementer (implement) — done',
@@ -123,21 +151,47 @@ describe('stage lines, verdicts and reasons as the runs wrote them', () => {
       'done:pr-opened',
     ].join('\n')
     const timings = TIMINGS([
-      ['investigate', 'ticket-investigator'], ['implement', 'ticket-implementer'], ['diff', 'diff-preparer'], ['review', 'change-reviewer'], ['app-test', 'app-tester'],
-      ['rework 1', 'ticket-implementer'], ['diff', 'diff-preparer'], ['review', 'change-reviewer'], ['same cause?', 'cause-judge'],
-      ['rework 2', 'ticket-implementer'], ['diff', 'diff-preparer'], ['review', 'change-reviewer'], ['app-test', 'app-tester'], ['pull request', 'ticket-implementer'],
+      ['investigate', 'ticket-investigator'],
+      ['implement', 'ticket-implementer'],
+      ['diff', 'diff-preparer'],
+      ['review', 'change-reviewer'],
+      ['app-test', 'app-tester'],
+      ['rework 1', 'ticket-implementer'],
+      ['diff', 'diff-preparer'],
+      ['review', 'change-reviewer'],
+      ['same cause?', 'cause-judge'],
+      ['rework 2', 'ticket-implementer'],
+      ['diff', 'diff-preparer'],
+      ['review', 'change-reviewer'],
+      ['app-test', 'app-tester'],
+      ['pull request', 'ticket-implementer'],
     ])
     expect(stagesOf(timings, state).map((s) => [s.label, s.result])).toEqual([
-      ['investigate', 'confidence medium'], ['implement', 'done'], ['diff', null], ['review', 'pass'], ['app-test', 'fail'],
-      ['rework 1', 'done'], ['diff', null], ['review', 'fail'], ['same cause?', null],
-      ['rework 2', 'done'], ['diff', null], ['review', 'pass'], ['app-test', 'pass'], ['pull request', 'opened'],
+      ['investigate', 'confidence medium'],
+      ['implement', 'done'],
+      ['diff', null],
+      ['review', 'pass'],
+      ['app-test', 'fail'],
+      ['rework 1', 'done'],
+      ['diff', null],
+      ['review', 'fail'],
+      ['same cause?', null],
+      ['rework 2', 'done'],
+      ['diff', null],
+      ['review', 'pass'],
+      ['app-test', 'pass'],
+      ['pull request', 'opened'],
     ])
   })
 
-  it('keeps every round of a run without timings, a rework named as one, and skips app-test\'s summary line', () => {
-    const state = 'implement — ticket-implementer (implement) — done\nreview — change-reviewer (-) — fail\nimplement — ticket-implementer (rework) — done\nreview — change-reviewer (-) — pass\napp-test: unverified:app-test — no mock\ndone:pr-opened\n'
+  it("keeps every round of a run without timings, a rework named as one, and skips app-test's summary line", () => {
+    const state =
+      'implement — ticket-implementer (implement) — done\nreview — change-reviewer (-) — fail\nimplement — ticket-implementer (rework) — done\nreview — change-reviewer (-) — pass\napp-test: unverified:app-test — no mock\ndone:pr-opened\n'
     expect(stagesOf(null, state).map((s) => [s.label, s.agent, s.result])).toEqual([
-      ['implement', 'ticket-implementer', 'done'], ['review', 'change-reviewer', 'fail'], ['rework 1', 'ticket-implementer', 'done'], ['review', 'change-reviewer', 'pass'],
+      ['implement', 'ticket-implementer', 'done'],
+      ['review', 'change-reviewer', 'fail'],
+      ['rework 1', 'ticket-implementer', 'done'],
+      ['review', 'change-reviewer', 'pass'],
     ])
   })
 
@@ -164,14 +218,26 @@ describe('stage lines, verdicts and reasons as the runs wrote them', () => {
     expect(verdictOf('maybe:later')).toBeNull()
   })
 
-  it('reads a reason over several lines, and a stop\'s last free line when it has no reason line (KAZ-8839)', () => {
-    expect(reasonOf('reason: the brief contradicts\nthe code in two places\nblocked:underspecified\n', 'blocked:underspecified')).toBe('the brief contradicts the code in two places')
-    expect(reasonOf('investigate — ticket-investigator (-) — blocked\nblocked:tooling\nThe HAR attachment was too large to read\nblocked:tooling\n', 'blocked:tooling')).toBe('The HAR attachment was too large to read')
+  it("reads a reason over several lines, and a stop's last free line when it has no reason line (KAZ-8839)", () => {
+    expect(reasonOf('reason: the brief contradicts\nthe code in two places\nblocked:underspecified\n', 'blocked:underspecified')).toBe(
+      'the brief contradicts the code in two places',
+    )
+    expect(
+      reasonOf(
+        'investigate — ticket-investigator (-) — blocked\nblocked:tooling\nThe HAR attachment was too large to read\nblocked:tooling\n',
+        'blocked:tooling',
+      ),
+    ).toBe('The HAR attachment was too large to read')
     expect(reasonOf('pull-request — ticket-implementer (pull-request) — opened\ndone:pr-opened\n', 'done:pr-opened')).toBeNull()
   })
 
-  it('finds a done run\'s pull request in its report when state.md has no URL (KAZ-8682 run-2)', () => {
-    const dir = runsDir({ 'KAZ-8682/run-2': { '04-pull-request.md': 'Opened https://bitbucket.org/example/webui/pull-requests/547 as asked.', 'state.md': 'pull-request — ticket-implementer (pull-request) — opened\ndone:pr-opened\n' } })
+  it("finds a done run's pull request in its report when state.md has no URL (KAZ-8682 run-2)", () => {
+    const dir = runsDir({
+      'KAZ-8682/run-2': {
+        '04-pull-request.md': 'Opened https://bitbucket.org/example/webui/pull-requests/547 as asked.',
+        'state.md': 'pull-request — ticket-implementer (pull-request) — opened\ndone:pr-opened\n',
+      },
+    })
     expect(loadRuns(dir)[0]!.prUrl).toBe('https://bitbucket.org/example/webui/pull-requests/547')
   })
 })

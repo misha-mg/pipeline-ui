@@ -13,7 +13,17 @@ import { SHOWN_ENDINGS, stageOfAgent, verdictFamily, type ShownEnding } from '..
 import { structuredOutput } from '../session/transcript.ts'
 import type { Db } from '../store/db.ts'
 import { listQueue, type QueueItem } from '../store/queue.ts'
-import { inFlight, listEvents, listRuns, loopState, serviceAlive, serviceInfo, type LoopState, type RunRecord, type ServiceInfo } from '../store/runs.ts'
+import {
+  inFlight,
+  listEvents,
+  listRuns,
+  loopState,
+  serviceAlive,
+  serviceInfo,
+  type LoopState,
+  type RunRecord,
+  type ServiceInfo,
+} from '../store/runs.ts'
 
 export type { ShownEnding } from '../history/outcome.ts'
 // Every ending the service records is one the console can show: a new one without a word there fails here.
@@ -89,21 +99,46 @@ function inFlightView(db: Db, run: RunRecord, now: Date): InFlightView {
 
 /** Every run under the runs directory with what the service knows of it, newest first. */
 export function shownRuns(src: ViewSources): ShownRun[] {
-  const byDir = new Map(listRuns(src.db, 10_000).filter((r) => r.runDir).map((r) => [r.runDir!, r]))
+  const byDir = new Map(
+    listRuns(src.db, 10_000)
+      .filter((r) => r.runDir)
+      .map((r) => [r.runDir!, r]),
+  )
   const flying = inFlight(src.db)
   const prs = pullRequestStates(src.db)
   const runs = loadRuns(src.runsDir).map((h): ShownRun => {
     const rec = byDir.get(h.path) ?? null
     // A run the service did not drive has no ending of its own: its files closed it (unwatched) or not (died).
-    const ending: ShownEnding = rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'unwatched' : flying?.key === h.key && !flying.runDir ? 'in-flight' : 'died')
-    return { ...h, serviceRunId: rec?.id ?? null, ending, endingDetail: rec?.endingDetail ?? null, pr: h.prUrl ? prs.get(h.prUrl) ?? unknownPullRequest(h.prUrl) : null }
+    const ending: ShownEnding =
+      rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'unwatched' : flying?.key === h.key && !flying.runDir ? 'in-flight' : 'died')
+    return {
+      ...h,
+      serviceRunId: rec?.id ?? null,
+      ending,
+      endingDetail: rec?.endingDetail ?? null,
+      pr: h.prUrl ? (prs.get(h.prUrl) ?? unknownPullRequest(h.prUrl)) : null,
+    }
   })
   // A run the service started whose directory never appeared (prepare-worktree.sh failed before the session).
   for (const rec of listRuns(src.db, 10_000)) {
     if (rec.runDir || rec.ending === null) continue
     runs.push({
-      key: rec.key, number: 0, path: '', startedAt: rec.startedAt, finishedAt: rec.endedAt, seconds: rec.endedAt ? Math.round((Date.parse(rec.endedAt) - Date.parse(rec.startedAt)) / 1000) : null,
-      summary: rec.summary, verdict: null, reason: null, prUrl: null, stages: [], reports: [], serviceRunId: rec.id, ending: rec.ending, endingDetail: rec.endingDetail, pr: null,
+      key: rec.key,
+      number: 0,
+      path: '',
+      startedAt: rec.startedAt,
+      finishedAt: rec.endedAt,
+      seconds: rec.endedAt ? Math.round((Date.parse(rec.endedAt) - Date.parse(rec.startedAt)) / 1000) : null,
+      summary: rec.summary,
+      verdict: null,
+      reason: null,
+      prUrl: null,
+      stages: [],
+      reports: [],
+      serviceRunId: rec.id,
+      ending: rec.ending,
+      endingDetail: rec.endingDetail,
+      pr: null,
     })
   }
   return runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.number - a.number)
@@ -114,8 +149,10 @@ export type HistoryFilter = { verdict?: string; ending?: string }
 
 /** Why a filter is not one the history knows; null when it is. */
 export function filterProblem(filter: HistoryFilter): string | null {
-  if (filter.verdict && !/^(none|[a-z]+(:[a-z0-9-]+)?)$/.test(filter.verdict)) return `verdict is a family, a verdict or none, not ${filter.verdict}`
-  if (filter.ending && !(SHOWN_ENDINGS as readonly string[]).includes(filter.ending)) return `ending is one of ${SHOWN_ENDINGS.join(', ')}, not ${filter.ending}`
+  if (filter.verdict && !/^(none|[a-z]+(:[a-z0-9-]+)?)$/.test(filter.verdict))
+    return `verdict is a family, a verdict or none, not ${filter.verdict}`
+  if (filter.ending && !(SHOWN_ENDINGS as readonly string[]).includes(filter.ending))
+    return `ending is one of ${SHOWN_ENDINGS.join(', ')}, not ${filter.ending}`
   return null
 }
 
@@ -123,9 +160,14 @@ export function filterProblem(filter: HistoryFilter): string | null {
  * The runs the filter lets through, and the counts each filter's choices would show: the
  * verdicts' among the runs of the chosen ending, the endings' among the runs of the chosen verdict.
  */
-export function historyView(src: ViewSources, filter: HistoryFilter = {}): { runs: ShownRun[]; total: number; verdicts: Counts; endings: Counts } {
+export function historyView(
+  src: ViewSources,
+  filter: HistoryFilter = {},
+): { runs: ShownRun[]; total: number; verdicts: Counts; endings: Counts } {
   const all = shownRuns(src)
-  const verdictMatches = (r: ShownRun) => !filter.verdict || (filter.verdict === 'none' ? r.verdict === null : verdictFamily(r.verdict) === filter.verdict || r.verdict === filter.verdict)
+  const verdictMatches = (r: ShownRun) =>
+    !filter.verdict ||
+    (filter.verdict === 'none' ? r.verdict === null : verdictFamily(r.verdict) === filter.verdict || r.verdict === filter.verdict)
   const endingMatches = (r: ShownRun) => !filter.ending || r.ending === filter.ending
   return {
     runs: all.filter((r) => verdictMatches(r) && endingMatches(r)),
@@ -160,7 +202,11 @@ export function runView(src: ViewSources, key: string, number: number): RunDetai
   const run = shownRuns(src).find((r) => r.key === key && r.number === number)
   if (!run) return null
   const names = [...run.reports, ...(fs.existsSync(path.join(run.path, 'state.md')) ? ['state.md'] : [])]
-  return { ...run, files: names.map((name) => ({ name, text: readReport(run.path, name) ?? '' })), agents: run.serviceRunId ? agentStages(src.db, run.serviceRunId, run.ending !== 'in-flight') : [] }
+  return {
+    ...run,
+    files: names.map((name) => ({ name, text: readReport(run.path, name) ?? '' })),
+    agents: run.serviceRunId ? agentStages(src.db, run.serviceRunId, run.ending !== 'in-flight') : [],
+  }
 }
 
 // An agent's transcript does not change once it stopped: what it handed back is read once.
@@ -177,7 +223,16 @@ function handedBack(transcript: string): string | null {
 export function agentStages(db: Db, runId: number, ended = false): AgentStage[] {
   const stages: AgentStage[] = []
   for (const { event } of listEvents(db, runId)) {
-    if (event.type === 'stage-start') stages.push({ agent: event.agent, agentId: event.agentId, label: stageOfAgent(event.agent), startedAt: event.at, endedAt: null, text: null, result: null })
+    if (event.type === 'stage-start')
+      stages.push({
+        agent: event.agent,
+        agentId: event.agentId,
+        label: stageOfAgent(event.agent),
+        startedAt: event.at,
+        endedAt: null,
+        text: null,
+        result: null,
+      })
     else if (event.type === 'stage-stop') {
       // The UI's type check sees this file with ES2022's library, which has no findLast.
       const open = [...stages].reverse().find((s) => s.agentId === event.agentId && s.endedAt === null)
@@ -210,16 +265,24 @@ function labelImplementers(stages: AgentStage[], ended: boolean): AgentStage[] {
     const after = stages.slice(i + 1)
     const before = stages[i - 1]
     // A rework is always followed by a diff: in a run that is over, the last one was the pull request.
-    const rework = after.length || ended
-      ? after.some((n) => n.agent === 'diff-preparer')
-      : before?.result === 'fail' ? true : before?.result ? false : null
+    const rework =
+      after.length || ended
+        ? after.some((n) => n.agent === 'diff-preparer')
+        : before?.result === 'fail'
+          ? true
+          : before?.result
+            ? false
+            : null
     s.label = rework === null ? 'rework or pull request' : rework ? `rework ${++reworks}` : 'pull request'
   })
   return stages
 }
 
 /** A run as the statistics count it. */
-export type StatsRun = Pick<ShownRun, 'key' | 'number' | 'startedAt' | 'finishedAt' | 'seconds' | 'summary' | 'verdict' | 'ending' | 'prUrl'> & { inLastBatch: boolean }
+export type StatsRun = Pick<
+  ShownRun,
+  'key' | 'number' | 'startedAt' | 'finishedAt' | 'seconds' | 'summary' | 'verdict' | 'ending' | 'prUrl'
+> & { inLastBatch: boolean }
 
 /**
  * What the statistics page counts, as it is: every run, the pull requests they opened, and their
@@ -247,14 +310,32 @@ export function statsView(src: ViewSources): StatsView {
   const tickets = ticketStatuses(src.db)
   const pullRequests: Record<string, PullRequestState> = {}
   for (const r of runs) if (r.pr) pullRequests[r.pr.url] = r.pr
-  const newest = (dates: (string | null)[]) => dates.filter((d): d is string => !!d).sort().at(-1) ?? null
+  const newest = (dates: (string | null)[]) =>
+    dates
+      .filter((d): d is string => !!d)
+      .sort()
+      .at(-1) ?? null
   return {
     now: now.toISOString(),
-    runs: runs.map((r) => ({ key: r.key, number: r.number, startedAt: r.startedAt, finishedAt: r.finishedAt, seconds: r.seconds, summary: r.summary, verdict: r.verdict, ending: r.ending, prUrl: r.prUrl, inLastBatch: batch.has(r) })),
+    runs: runs.map((r) => ({
+      key: r.key,
+      number: r.number,
+      startedAt: r.startedAt,
+      finishedAt: r.finishedAt,
+      seconds: r.seconds,
+      summary: r.summary,
+      verdict: r.verdict,
+      ending: r.ending,
+      prUrl: r.prUrl,
+      inLastBatch: batch.has(r),
+    })),
     pullRequests,
     tickets: Object.fromEntries([...new Set(runs.map((r) => r.key))].flatMap((k) => (tickets.has(k) ? [[k, tickets.get(k)!]] : []))),
     lastBatchLabel: last.label,
-    readAt: { pullRequests: newest(Object.values(pullRequests).map((p) => p.fetchedAt)), tickets: newest([...tickets.values()].map((t) => t.fetchedAt)) },
+    readAt: {
+      pullRequests: newest(Object.values(pullRequests).map((p) => p.fetchedAt)),
+      tickets: newest([...tickets.values()].map((t) => t.fetchedAt)),
+    },
     readers: src.readers ?? { bitbucket: false, jira: false },
     jiraSite: src.jiraSite ?? null,
   }
@@ -281,7 +362,12 @@ function lastBatch(src: ViewSources, runs: ShownRun[]): { label: string; members
   const loop = loopState(src.db)
   let batchDir: string | null = null
   try {
-    batchDir = fs.readdirSync(src.runsDir).filter((n) => /^batch-\d{8}-\d{6}$/.test(n)).sort().at(-1) ?? null
+    batchDir =
+      fs
+        .readdirSync(src.runsDir)
+        .filter((n) => /^batch-\d{8}-\d{6}$/.test(n))
+        .sort()
+        .at(-1) ?? null
   } catch {
     batchDir = null
   }
@@ -292,7 +378,11 @@ function lastBatch(src: ViewSources, runs: ShownRun[]): { label: string; members
   if (!batchDir) return { label: 'no batch yet', members: [] }
   let paths: string[] = []
   try {
-    paths = fs.readFileSync(path.join(src.runsDir, batchDir, 'summary.tsv'), 'utf8').split('\n').map((l) => l.split('\t')[3] ?? '').filter((p) => p.startsWith('/'))
+    paths = fs
+      .readFileSync(path.join(src.runsDir, batchDir, 'summary.tsv'), 'utf8')
+      .split('\n')
+      .map((l) => l.split('\t')[3] ?? '')
+      .filter((p) => p.startsWith('/'))
   } catch {
     /* a batch without a summary yet */
   }
