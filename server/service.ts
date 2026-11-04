@@ -2,9 +2,11 @@
 // (ended by the restart; nothing starts until someone starts the loop), serves the console
 // over HTTP, then ticks the loop every second, writes its heartbeat, and once a minute checks
 // the dependencies and reads the open pull requests' states. SIGTERM/SIGINT end the run in
-// flight as `restart`.
+// flight as `restart`. Its log is one JSON line per event on stdout (log.ts); the events are
+// listed in .about/architecture.md.
 import fs from 'node:fs'
 import type { Config } from './config.ts'
+import { describeError, log } from './log.ts'
 import { checkHealth, type Health } from './health.ts'
 import { bitbucketConfig, compareMerged, refreshPullRequests } from './history/bitbucket.ts'
 import { loadRuns } from './history/runs.ts'
@@ -20,16 +22,23 @@ import { markRestart, serviceHeartbeat, stopLoop } from './store/runs.ts'
 const TICK_MS = 1000
 const ROUND_MS = 60_000
 
-export async function serve(config: Config, log: (line: string) => void = (l) => console.log(`${nowIso()} ${l}`)): Promise<void> {
+export async function serve(config: Config): Promise<void> {
   const db = openDb(config.dbPath)
-  for (const run of markRestart(db)) log(`run ${run.id} ${run.key} was in flight when the service last stopped: ended by restart`)
+  for (const run of markRestart(db))
+    log.warn('run_ended', { runId: run.id, key: run.key, ending: 'restart', note: 'in flight when the service last stopped' })
   const startedAt = nowIso()
   serviceHeartbeat(db, process.pid, startedAt)
   const entryConfig = { webuiDir: config.webuiDir, baseBranch: config.baseBranch, entryDir: config.entryDir }
   const setup = { entry: entryLabel(entryConfig), baseBranch: config.baseBranch, pullRequests: config.pullRequests }
-  log(
-    `service started, pid ${process.pid}, database ${config.dbPath}, webui ${config.webuiDir}; ${setup.entry}; pull requests ${setup.pullRequests}; the loop is stopped`,
-  )
+  log.info('service_start', {
+    pid: process.pid,
+    db: config.dbPath,
+    webui: config.webuiDir,
+    entry: setup.entry,
+    baseBranch: config.baseBranch,
+    pullRequests: setup.pullRequests,
+    loop: 'stopped',
+  })
 
   const runner = createRunner({ ...config, entry: entryOf(entryConfig), pullRequests: config.pullRequests })
   const loop = createLoop({
@@ -38,9 +47,11 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
     runsDir: config.runsDir,
     logDir: config.logDir,
     onChange: (what, run) =>
-      log(`run ${run.id} ${run.key} ${what}${run.ending ? `: ${run.ending}${run.verdict ? ` (${run.verdict})` : ''}` : ''}`),
+      what === 'started'
+        ? log.info('run_started', { runId: run.id, key: run.key, summary: run.summary })
+        : log.info('run_ended', { runId: run.id, key: run.key, ending: run.ending, verdict: run.verdict, runDir: run.runDir }),
     preflight: () => prepareEntry(entryConfig),
-    onRefused: (why) => log(`loop stopped, no run started: ${why}`),
+    onRefused: (why) => log.error('loop_refused', { why }),
   })
   const timer = setInterval(() => {
     serviceHeartbeat(db, process.pid, startedAt)
@@ -62,26 +73,32 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
       const notOk = Object.entries(health)
         .filter(([, c]) => !c.ok)
         .map(([n, c]) => `${n}: ${c.detail}`)
-      const said = notOk.length ? `health: ${notOk.join('; ')}` : 'health: every dependency is OK'
-      if (said !== healthSaid && (healthSaid || notOk.length)) log(said)
+      const said = notOk.join('; ')
+      if (said !== healthSaid && (healthSaid || notOk.length)) {
+        if (notOk.length) log.warn('health_changed', { ok: false, problems: notOk })
+        else log.info('health_changed', { ok: true })
+      }
       healthSaid = said
       const runs = loadRuns(config.runsDir)
       const urls = runs.map((r) => r.prUrl).filter((u): u is string => u !== null)
       const read = await refreshPullRequests(db, urls, bitbucketConfig(process.env))
-      if (read) log(`pull requests: ${read} read`)
+      if (read) log.info('pull_requests_read', { count: read })
       const compared = await compareMerged(db, bitbucketConfig(process.env), git)
-      if (compared) log(`pull requests: ${compared} merged compared with what the pipeline opened`)
+      if (compared) log.info('pull_requests_compared', { count: compared })
       const tickets = await refreshTickets(
         db,
         runs.map((r) => r.key),
         statuses,
       )
       // Said when it changes, as the health is.
-      const ticketsSaid = typeof tickets === 'string' ? `ticket statuses: ${tickets}` : ''
-      if (ticketsSaid !== ticketsSay) log(ticketsSaid || 'ticket statuses: read again')
+      const ticketsSaid = typeof tickets === 'string' ? tickets : ''
+      if (ticketsSaid !== ticketsSay) {
+        if (ticketsSaid) log.warn('ticket_statuses', { ok: false, error: ticketsSaid })
+        else log.info('ticket_statuses', { ok: true, count: tickets })
+      }
       ticketsSay = ticketsSaid
     } catch (error) {
-      log(`round failed: ${error instanceof Error ? error.message : String(error)}`)
+      log.error('round_failed', { error: describeError(error) })
     } finally {
       rounding = false
     }
@@ -103,11 +120,15 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
     uiDir,
   })
   await new Promise<void>((resolve, reject) => server.once('error', reject).listen(config.port, config.host, resolve))
-  log(`console at http://${config.host}:${config.port}/${uiDir ? '' : ' (API only: the UI is not built, npm run build)'}`)
+  log.info('console_listening', {
+    url: `http://${config.host}:${config.port}/`,
+    ui: uiDir !== undefined,
+    note: uiDir ? undefined : 'API only: the UI is not built, npm run build',
+  })
 
   await new Promise<void>((resolve) => {
     const stop = (signal: string) => {
-      log(`${signal}: stopping${loop.inFlightId() !== null ? `, ending run ${loop.inFlightId()} as restart` : ''}`)
+      log.info('service_stopping', { signal, inFlight: loop.inFlightId(), ending: loop.inFlightId() !== null ? 'restart' : undefined })
       clearInterval(timer)
       clearInterval(rounds)
       server.close()
@@ -119,5 +140,5 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   // Nothing resumes by itself after a restart: the loop stays stopped until someone starts it.
   stopLoop(db, 'restart')
   db.close()
-  log('service stopped')
+  log.info('service_stopped', { pid: process.pid })
 }

@@ -14,6 +14,7 @@
 // Every command but serve writes to the database and returns; the service acts within a second.
 import { configFromEnv } from './config.ts'
 import { fmtDuration } from './format.ts'
+import { describeError, log } from './log.ts'
 import { serve } from './service.ts'
 import { openDb } from './store/db.ts'
 import { jiraConfig, jiraLookup } from './store/jira.ts'
@@ -35,15 +36,22 @@ const USAGE = `usage: pipeline serve | enqueue KEY [--front] | remove KEY | reor
 
 export async function main(argv: string[]): Promise<number> {
   const [command, ...args] = argv
-  const config = configFromEnv()
   if (command === 'serve') {
-    await serve(config)
-    return 0
+    // The service logs JSON lines (log.ts); an error before it serves anything (a bad setting
+    // included) is one too.
+    try {
+      await serve(configFromEnv())
+      return 0
+    } catch (error) {
+      log.error('fatal', { error: describeError(error) })
+      return 1
+    }
   }
   if (!command || command === 'help' || command === '--help') {
     console.log(USAGE)
     return command ? 0 : 2
   }
+  const config = configFromEnv()
   const db = openDb(config.dbPath)
   const out = (line: string) => console.log(line)
   const fail = (message: string) => {
