@@ -10,6 +10,7 @@ import {
   endingLabel,
   endingTone,
   fmtClock,
+  fmtDate,
   fmtDuration,
   fmtTime,
   prNumber,
@@ -116,7 +117,7 @@ const strip = computed(() => {
       tone: '',
       note: `${prs.length ? breakdown(prStates) : 'none'}${fetched ? ` · read ${fmtClock(fetched)}` : ''}`,
     },
-    { label: 'Time', value: fmtDuration(total), tone: '', note: first ? `since ${fmtTime(first).slice(0, 10)}` : '—' },
+    { label: 'Time', value: fmtDuration(total), tone: '', note: first ? `since ${fmtDate(first)}` : '—' },
     {
       label: 'Per run',
       value: fmtDuration(secs.length ? Math.round(total / secs.length) : null),

@@ -6,7 +6,19 @@
 // it cannot be taken back, and the session it ends cost a slot of the subscription.
 import { computed, onMounted, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
-import { endingLabel, endingTone, fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageOfAgent, toneClass, verdictClass } from '../api.ts'
+import {
+  endingLabel,
+  endingTone,
+  fmtAgo,
+  fmtClock,
+  fmtDate,
+  fmtDuration,
+  fmtTime,
+  prNumber,
+  stageOfAgent,
+  toneClass,
+  verdictClass,
+} from '../api.ts'
 import { actions, history, liveStage, runSeconds, state, ticketUrl } from '../console.ts'
 import {
   applyJql,
@@ -70,7 +82,7 @@ watch(sourcesOpen, (open) => {
 /** The clock alone for today, the date too otherwise. */
 function when(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toDateString() === new Date().toDateString() ? fmtClock(iso) : fmtTime(iso)
+  return fmtDate(iso) === fmtDate(new Date()) ? fmtClock(iso) : fmtTime(iso)
 }
 // One line under the loop's state: why it stopped, or what it does next.
 const loopNote = computed(() => {

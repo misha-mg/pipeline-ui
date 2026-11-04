@@ -9,7 +9,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
 import Columns from '../components/Columns.vue'
 import type { Column, Series } from '../components/columns.ts'
-import { api, fmtDuration, fmtTime, type StatsView } from '../api.ts'
+import { api, fmtClock, fmtDate, fmtDuration, fmtTime, type StatsView } from '../api.ts'
 import {
   PR_OUTCOME_LABEL,
   periodRuns,
@@ -132,7 +132,7 @@ const charts = computed(() => [
   },
   {
     title: 'Pull requests closed',
-    note: sum.value?.medianToMerge != null ? `Median ${span(sum.value.medianToMerge)} from opened to merged.` : '',
+    note: sum.value?.medianToMerge != null ? `Median ${fmtDuration(sum.value.medianToMerge)} from opened to merged.` : '',
     series: closedSeries.filter((s) => s.key !== 'merged' || buckets.value.some((b) => b.closed.merged)),
     columns: columns((b) => [
       b.closed.asOpened,
@@ -149,11 +149,6 @@ const charts = computed(() => [
   },
 ])
 
-/** A span of a day or more in days and hours (`6d 13h`), shorter ones as the console says them. */
-const span = (seconds: number | null) =>
-  seconds !== null && seconds >= 86400
-    ? `${Math.floor(seconds / 86400)}d ${String(Math.floor((seconds % 86400) / 3600)).padStart(2, '0')}h`
-    : fmtDuration(seconds)
 const pct = (part: number, whole: number | null | undefined) => (whole ? `${Math.round((part / whole) * 100)}%` : '—')
 const word = (verdict: string) => verdict.slice(verdict.indexOf(':') + 1).replace(/-/g, ' ')
 
@@ -277,7 +272,7 @@ const OUTCOME_TONE: Record<PrOutcome, string> = {
 const lines = (s: { added: number; removed: number }) => `+${s.added} −${s.removed}`
 const ticketUrl = (key: string) => (view.value?.jiraSite ? `${view.value.jiraSite}/browse/${encodeURIComponent(key)}` : null)
 const open = (from: string | null, to: string | null) =>
-  from ? span(Math.max(0, Math.round((Date.parse(to ?? view.value?.now ?? from) - Date.parse(from)) / 1000))) : '—'
+  from ? fmtDuration(Math.max(0, Math.round((Date.parse(to ?? view.value?.now ?? from) - Date.parse(from)) / 1000))) : '—'
 
 /** The last batch as the service names it, its time in local time: `loop started 2026-11-02 16:56`. */
 const batchLabel = (label: string) => label.replace(/^loop since (\S+)$/, (_, at: string) => `loop started ${fmtTime(at)}`)
@@ -285,7 +280,7 @@ const batchLabel = (label: string) => label.replace(/^loop since (\S+)$/, (_, at
 const read = computed(() => {
   const v = view.value
   if (!v) return ''
-  const at = (iso: string | null) => (iso ? fmtTime(iso).slice(11) : 'never')
+  const at = (iso: string | null) => (iso ? fmtClock(iso) : 'never')
   return [
     v.readers.bitbucket ? `Bitbucket read ${at(v.readAt.pullRequests)}` : null,
     v.readers.jira ? `Jira read ${at(v.readAt.tickets)}` : null,
@@ -435,7 +430,7 @@ const read = computed(() => {
             >
           </td>
           <td class="summary one-line" :title="p.summary ?? ''">{{ p.summary ?? '' }}</td>
-          <td class="num dim">{{ fmtTime(p.openedAt).slice(0, 10) }}</td>
+          <td class="num dim">{{ fmtDate(p.openedAt) }}</td>
           <td class="num">{{ p.outcome === 'unknown' ? '—' : open(p.openedAt, p.pr.closedOn) }}</td>
           <td>
             <span

@@ -13,6 +13,7 @@
 //
 // Every command but serve writes to the database and returns; the service acts within a second.
 import { configFromEnv } from './config.ts'
+import { fmtDuration } from './format.ts'
 import { serve } from './service.ts'
 import { openDb } from './store/db.ts'
 import { jiraConfig, jiraLookup } from './store/jira.ts'
@@ -163,8 +164,7 @@ function printStatus(db: ReturnType<typeof openDb>, out: (l: string) => void): v
 }
 
 function duration(from: string, to: string | null): string {
-  const s = Math.max(0, Math.round((Date.parse(to ?? new Date().toISOString()) - Date.parse(from)) / 1000))
-  return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`
+  return fmtDuration((Date.parse(to ?? new Date().toISOString()) - Date.parse(from)) / 1000)
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
