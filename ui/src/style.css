@@ -48,7 +48,8 @@
   font-size: 13px;
   line-height: 1.45;
 }
-td.summary {
+/* The search results' summary wraps, within reason; a one-line cell is the sheet's and shrinks instead. */
+td.summary:not(.one-line) {
   max-width: 520px;
 }
 td .actions {
