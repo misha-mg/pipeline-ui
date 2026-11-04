@@ -6,9 +6,6 @@
 .cards .card .value.branch {
   text-transform: none;
 }
-.cards .card .value.live {
-  color: var(--moss);
-}
 .btn.wide {
   width: 100%;
 }
