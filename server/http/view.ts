@@ -5,7 +5,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { loadRuns, readReport, type HistoryRun } from '../history/runs.ts'
-import { pullRequestStates, type PullRequestState } from '../history/bitbucket.ts'
+import { pullRequestStates, unknownPullRequest, type PullRequestState } from '../history/bitbucket.ts'
+import { ticketStatuses, type KnownTicket } from '../history/tickets.ts'
 import type { PullRequests } from '../config.ts'
 import type { Health } from '../health.ts'
 import { SHOWN_ENDINGS, stageOfAgent, verdictFamily, type ShownEnding } from '../history/outcome.ts'
@@ -52,7 +53,16 @@ export type StateView = {
 /** How each run is set up: the entry point as the console shows it, the webui branch it starts from and its pull request goes to, and whether it may open one, or only a draft. */
 export type RunSetup = { entry: string; baseBranch: string; pullRequests: PullRequests }
 
-export type ViewSources = { db: Db; runsDir: string; health: () => Health | null; setup?: RunSetup; jiraSite?: string | null; now?: () => Date }
+export type ViewSources = {
+  db: Db
+  runsDir: string
+  health: () => Health | null
+  setup?: RunSetup
+  jiraSite?: string | null
+  /** Whether Bitbucket (BITBUCKET_TOKEN) and Jira (the JIRA_* settings) are set up, for the statistics to say why a number is missing. */
+  readers?: { bitbucket: boolean; jira: boolean }
+  now?: () => Date
+}
 
 export function stateView(src: ViewSources): StateView {
   const now = (src.now ?? (() => new Date()))()
@@ -86,7 +96,7 @@ export function shownRuns(src: ViewSources): ShownRun[] {
     const rec = byDir.get(h.path) ?? null
     // A run the service did not drive has no ending of its own: its files closed it (unwatched) or not (died).
     const ending: ShownEnding = rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'unwatched' : flying?.key === h.key && !flying.runDir ? 'in-flight' : 'died')
-    return { ...h, serviceRunId: rec?.id ?? null, ending, endingDetail: rec?.endingDetail ?? null, pr: h.prUrl ? prs.get(h.prUrl) ?? { url: h.prUrl, state: 'unknown', closedOn: null, fetchedAt: null, error: null } : null }
+    return { ...h, serviceRunId: rec?.id ?? null, ending, endingDetail: rec?.endingDetail ?? null, pr: h.prUrl ? prs.get(h.prUrl) ?? unknownPullRequest(h.prUrl) : null }
   })
   // A run the service started whose directory never appeared (prepare-worktree.sh failed before the session).
   for (const rec of listRuns(src.db, 10_000)) {
@@ -208,6 +218,47 @@ function labelImplementers(stages: AgentStage[], ended: boolean): AgentStage[] {
   return stages
 }
 
+/** A run as the statistics count it. */
+export type StatsRun = Pick<ShownRun, 'key' | 'number' | 'startedAt' | 'finishedAt' | 'seconds' | 'summary' | 'verdict' | 'ending' | 'prUrl'> & { inLastBatch: boolean }
+
+/**
+ * What the statistics page counts, as it is: every run, the pull requests they opened, and their
+ * tickets' Jira statuses. The page sums them up for the period it shows (server/history/stats.ts).
+ */
+export type StatsView = {
+  now: string
+  runs: StatsRun[]
+  /** The run's pull requests by URL, as Bitbucket last said. */
+  pullRequests: Record<string, PullRequestState>
+  /** The tickets' statuses by key, as Jira last said; a ticket never read is not here. */
+  tickets: Record<string, KnownTicket>
+  lastBatchLabel: string
+  /** When Bitbucket and Jira were last read; null when never. */
+  readAt: { pullRequests: string | null; tickets: string | null }
+  readers: { bitbucket: boolean; jira: boolean }
+  jiraSite: string | null
+}
+
+export function statsView(src: ViewSources): StatsView {
+  const now = (src.now ?? (() => new Date()))()
+  const runs = shownRuns(src)
+  const last = lastBatch(src, runs)
+  const batch = new Set(last.members)
+  const tickets = ticketStatuses(src.db)
+  const pullRequests: Record<string, PullRequestState> = {}
+  for (const r of runs) if (r.pr) pullRequests[r.pr.url] = r.pr
+  const newest = (dates: (string | null)[]) => dates.filter((d): d is string => !!d).sort().at(-1) ?? null
+  return {
+    now: now.toISOString(),
+    runs: runs.map((r) => ({ key: r.key, number: r.number, startedAt: r.startedAt, finishedAt: r.finishedAt, seconds: r.seconds, summary: r.summary, verdict: r.verdict, ending: r.ending, prUrl: r.prUrl, inLastBatch: batch.has(r) })),
+    pullRequests,
+    tickets: Object.fromEntries([...new Set(runs.map((r) => r.key))].flatMap((k) => (tickets.has(k) ? [[k, tickets.get(k)!]] : []))),
+    lastBatchLabel: last.label,
+    readAt: { pullRequests: newest(Object.values(pullRequests).map((p) => p.fetchedAt)), tickets: newest([...tickets.values()].map((t) => t.fetchedAt)) },
+    readers: src.readers ?? { bitbucket: false, jira: false },
+    jiraSite: src.jiraSite ?? null,
+  }
+}
 
 function counts(src: ViewSources, runs: ShownRun[], now: Date): StateView['counts'] {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000).toISOString()

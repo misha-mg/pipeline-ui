@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { jiraConfig, jiraLookup, jiraSearch, jiraSiteUrl, scopeJql, scopeWhere, searchScope, splitJql, type JiraConfig } from './jira.ts'
+import { jiraConfig, jiraLookup, jiraSearch, jiraSiteUrl, jiraStatuses, scopeJql, scopeWhere, searchScope, splitJql, type JiraConfig } from './jira.ts'
 
 const CONFIG: JiraConfig = { siteUrl: 'https://site.example', email: 'e@x', token: 't' }
 
@@ -189,5 +189,28 @@ describe('jiraConfig', () => {
   it('is off without the site or without the credentials', () => {
     expect(jiraConfig(creds)).toBeNull()
     expect(jiraConfig({ JIRA_BASE_URL: 'https://site.example', JIRA_EMAIL: 'e@x' })).toBeNull()
+  })
+})
+
+describe('jiraStatuses', () => {
+  it('reads the statuses in bulk, 100 keys a call, leaves out a key Jira does not know, and dates Done only in the done category', async () => {
+    const keys = Array.from({ length: 101 }, (_, i) => `KAZ-${i + 1}`)
+    const jira = fakeJira((p, init) => {
+      const asked = JSON.parse(String(init.body)) as { issueIdsOrKeys: string[] }
+      expect(p).toBe('/issue/bulkfetch')
+      return Response.json({ issues: asked.issueIdsOrKeys.filter((k) => k !== 'KAZ-2').map((k) => ({ key: k, fields: { status: k === 'KAZ-1' ? { name: 'Done', statusCategory: { key: 'done' } } : { name: 'Ready To Test', statusCategory: { key: 'new' } }, statuscategorychangedate: '2026-10-22T14:22:11.559+0300' } })), issueErrors: [] })
+    })
+    const found = await jiraStatuses(CONFIG, jira.fetchFn)(keys)
+    expect(jira.calls.filter((c) => c.url.includes('bulkfetch')).length).toBe(2)
+    expect(found.kind === 'found' && found.tickets.length).toBe(100)
+    expect(found.kind === 'found' && found.tickets.slice(0, 2)).toEqual([
+      { key: 'KAZ-1', summary: null, status: 'Done', statusCategory: 'done', doneAt: '2026-10-22T11:22:11.559Z' },
+      { key: 'KAZ-3', summary: null, status: 'Ready To Test', statusCategory: 'new', doneAt: null },
+    ])
+  })
+
+  it('says Jira is unavailable when it answers an error or is not set up', async () => {
+    expect(await jiraStatuses(CONFIG, fakeJira(() => new Response('', { status: 403 })).fetchFn)(['KAZ-1'])).toEqual({ kind: 'unavailable', error: 'Jira answered 403' })
+    expect((await jiraStatuses(null)(['KAZ-1'])).kind).toBe('unavailable')
   })
 })

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// The console: a masthead with the two pages (cockpit, runs) and the light/dark switch
+// The console: a masthead with the three pages (cockpit, runs, statistics) and the light/dark switch
 // (public/theme.js handles it), and the sheet under it. The page comes from the hash, so a
 // run's address can be shared.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Cockpit from './views/Cockpit.vue'
 import RunsView from './views/RunsView.vue'
 import RunView from './views/RunView.vue'
+import Statistics from './views/Statistics.vue'
 import Toasts from './components/Toasts.vue'
 import { offline, startPolling, state, stopPolling } from './console.ts'
 
@@ -15,6 +16,7 @@ onMounted(() => { startPolling(); window.addEventListener('hashchange', onHash) 
 onBeforeUnmount(() => { stopPolling(); window.removeEventListener('hashchange', onHash) })
 
 const route = computed(() => {
+  if (hash.value === '#/stats') return { page: 'stats' as const }
   const m = /^#\/runs(?:\/([A-Z]+-\d+)\/(\d+))?$/.exec(hash.value)
   if (!m) return { page: 'cockpit' as const }
   if (m[1] && m[2]) return { page: 'run' as const, key: m[1], number: Number(m[2]) }
@@ -33,13 +35,15 @@ const where = computed(() => `console · ${location.host}`)
     <span class="spacer" />
     <nav>
       <a class="btn" :class="{ active: route.page === 'cockpit' }" href="#/">Cockpit</a>
-      <a class="btn" :class="{ active: route.page !== 'cockpit' }" href="#/runs">Runs</a>
+      <a class="btn" :class="{ active: route.page === 'runs' || route.page === 'run' }" href="#/runs">Runs</a>
+      <a class="btn" :class="{ active: route.page === 'stats' }" href="#/stats">Statistics</a>
     </nav>
     <button class="btn theme" type="button" aria-label="Switch between light and dark" />
   </header>
   <main class="sheet">
     <Cockpit v-if="route.page === 'cockpit'" />
     <RunsView v-else-if="route.page === 'runs'" />
+    <Statistics v-else-if="route.page === 'stats'" />
     <RunView v-else :ticket="route.key" :number="route.number" />
   </main>
   <Toasts />

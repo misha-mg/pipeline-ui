@@ -266,3 +266,63 @@ table.runs th:last-child, table.runs td:last-child { padding-right: 0; }
 .run-reason .label { flex: none; margin: 0; }
 .run-reason.bad { border-left-color: var(--rust); }
 .run-reason.ok { border-left-color: var(--moss); }
+
+/* Statistics: the period's chips, a strip of eight numbers, the funnel beside why runs stopped,
+   four charts two by two, then the pull requests. Chart colours say how a thing ended, from the
+   sheet's own: moss done, its lighter step done another way, rust stopped, slate a plain count,
+   faint not known (a light step's contrast is low, so every chart has a legend and a tooltip). */
+:root {
+  --chart-ok: var(--moss); --chart-ok-soft: color-mix(in srgb, var(--moss) 50%, var(--bg));
+  --chart-bad: var(--rust); --chart-count: var(--slate); --chart-none: var(--faint);
+}
+:root[data-theme="dark"] { --chart-ok-soft: color-mix(in srgb, var(--moss) 58%, var(--bg)); }
+.stats-filters .row { flex-wrap: wrap; }
+.stats-filters .opts:not(.by) { flex: 1 1 18rem; }
+.stats-filters .opts.by { flex: none; }
+.sheet .strip.frame { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+@media (max-width: 1300px) { .sheet .strip.frame { grid-template-columns: repeat(4, minmax(0, 1fr)); } .sheet .strip.frame .cell:nth-child(4n + 1) { border-left: 0; } .sheet .strip.frame .cell:nth-child(n + 5) { border-top: 1px solid var(--line-soft); } }
+.stats-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+@media (max-width: 900px) { .stats-pair, .charts { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .sheet .strip.frame { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sheet .strip.frame .cell { border-left: 1px solid var(--line-soft); border-top: 1px solid var(--line-soft); }
+  .sheet .strip.frame .cell:nth-child(odd) { border-left: 0; }
+  .sheet .strip.frame .cell:nth-child(-n + 2) { border-top: 0; }
+}
+
+/* A bar per row: the name, a thin bar in a track, the count, its share. */
+.bars { display: grid; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 3rem 3rem; align-items: center; gap: 12px; }
+.bar-row .name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-row .track { height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; }
+.bar-row .track i { display: block; height: 100%; border-radius: 4px; background: var(--chart-count); min-width: 2px; }
+.bar-row .track i.bad { background: var(--chart-bad); }
+.bar-row .track i.soft { background: var(--chart-ok-soft); }
+.bar-row .track i.none { background: var(--chart-none); }
+.bar-row b { font: 500 18px/1 var(--cond); text-align: right; }
+.bar-row .share { font-size: 12px; color: var(--muted); text-align: right; }
+@media (max-width: 640px) { .bar-row { grid-template-columns: 7.5rem minmax(0, 1fr) 2.2rem 2.2rem; gap: 8px; } }
+
+/* The column chart (Columns.vue): legend, plot, tooltip. */
+.columns .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: -4px 0 12px; padding: 0; font-size: 12px; color: var(--muted); }
+.columns .legend li, .columns .tip .row { display: inline-flex; align-items: center; gap: 7px; }
+.columns .legend i, .columns .tip i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.columns .plot { position: relative; outline: none; }
+.columns .plot:focus-visible { box-shadow: 0 0 0 1px var(--slate); }
+.columns svg { display: block; overflow: visible; }
+.columns .grid line { stroke: var(--line-soft); stroke-width: 1; shape-rendering: crispEdges; }
+.columns text { font: 11px var(--sans); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.columns .band { fill: var(--field); }
+.columns .hit { fill: transparent; }
+.columns .tip { position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; z-index: 1; background: var(--bg); border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; min-width: 150px; display: grid; gap: 4px; box-shadow: 0 2px 10px rgb(0 0 0 / 0.08); }
+.columns .tip .when { font-weight: 600; }
+.columns .tip .row span { flex: 1; color: var(--muted); }
+.columns .tip .row b { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* The pull requests. */
+.pr-chips { margin-bottom: 16px; }
+table.prs td.key .jira-arrow { margin-left: 6px; text-decoration: none; color: var(--muted); }
+table.prs td.key .jira-arrow:hover { color: var(--slate-ink); }
+table.prs td.lines { font-size: 12.5px; }
+table.prs td.lines .arrow { color: var(--muted); margin: 0 6px; }

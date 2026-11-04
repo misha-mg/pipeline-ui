@@ -6,7 +6,8 @@ import { openDb } from '../store/db.ts'
 import { addEvent, insertRun, loopState, startLoop, updateRun } from '../store/runs.ts'
 import { createServer, type ApiDeps } from './api.ts'
 import type { SearchOptions } from '../store/jira.ts'
-import { agentStages, runView, shownRuns, stateView } from './view.ts'
+import { agentStages, runView, shownRuns, stateView, type StatsView } from './view.ts'
+import { refreshTickets } from '../history/tickets.ts'
 
 const temps: string[] = []
 afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }) })
@@ -28,6 +29,11 @@ function sources() {
   const ticks: number[] = []
   const deps: ApiDeps = { db, runsDir, health: () => null, loop: { tick: () => ticks.push(1) }, now: () => new Date('2026-10-27T12:00:00Z') }
   return { db, runsDir, deps, ticks, write }
+}
+
+/** KAZ-1 is Done in Jira. */
+function refreshTicketsFrom(db: ApiDeps['db']): Promise<number | string> {
+  return refreshTickets(db, ['KAZ-1'], async () => ({ kind: 'found', tickets: [{ key: 'KAZ-1', summary: 'one', status: 'Done', statusCategory: 'done', doneAt: '2026-10-21T00:00:00.000Z' }] }))
 }
 
 async function serve(deps: ApiDeps) {
@@ -117,6 +123,23 @@ describe('api', () => {
       const one = await call('GET', '/api/runs/KAZ-1/1')
       expect(one.body.files).toEqual([{ name: '00-assignment.md', text: '- Summary: one\n- Time: 2026-10-20T10:00:00Z\n' }, { name: '01-investigate.md', text: 'inv' }, { name: 'state.md', text: 'pr: https://bitbucket.org/example/webui/pull-requests/1\ndone:pr-opened\n' }])
       expect((await call('GET', '/api/runs/KAZ-9/1')).status).toBe(404)
+    } finally {
+      await close()
+    }
+  })
+
+  it('serves the statistics: every run marked by the last batch, its pull request and its ticket\'s status', async () => {
+    const { deps, db } = sources()
+    await refreshTicketsFrom(db)
+    const { call, close } = await serve({ ...deps, readers: { bitbucket: false, jira: true } })
+    try {
+      const stats = await call('GET', '/api/stats')
+      expect(stats.status).toBe(200)
+      const body = stats.body as unknown as StatsView
+      expect(body.runs.map((r) => [r.key, r.verdict, r.inLastBatch])).toEqual([['KAZ-3', 'blocked:tooling', true], ['KAZ-2', null, false], ['KAZ-1', 'done:pr-opened', false]])
+      expect(body.pullRequests['https://bitbucket.org/example/webui/pull-requests/1']).toMatchObject({ state: 'unknown' })
+      expect(body.tickets['KAZ-1']).toMatchObject({ statusCategory: 'done' })
+      expect(body).toMatchObject({ lastBatchLabel: 'batch-20261021-000000', readers: { bitbucket: false, jira: true }, readAt: { pullRequests: null } })
     } finally {
       await close()
     }

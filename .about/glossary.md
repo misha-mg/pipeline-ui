@@ -50,3 +50,11 @@ searched only among the tickets it finds. Kept in the browser, not in the servic
 **Stage**: one agent's turn in a run (investigate, implement, diff, review, app-test, `rework N`,
 `same cause?`, `pull request`), as the session's hooks report it and `timings.tsv` names it. A
 stage that ran several times is matched to its `state.md` lines in order.
+
+**Merged as opened**: a pull request merged with the same lines added and removed as the
+pipeline pushed, whatever was rebased. **Merged with changes**: merged with lines the pipeline
+did not push, or without some it did (ADR statistics).
+
+**Period**: on the statistics page, the runs counted: those started in the last batch, 7, 30 or
+90 days, or all time; their pull requests and tickets count with them, whenever they were merged
+or done.

@@ -1,6 +1,6 @@
 # Web console for the ticket pipeline
 
-Status: in progress (2026-11-01: queue, loop, CLI, API, console and Jira search built, the search within a JQL since 2026-11-03; runs start from the base branch `PIPELINE_BASE_BRANCH`, `dev` during webui's code freeze, with pull requests off; the first real run through the loop was done on 2026-10-27)
+Status: in progress (2026-11-01: queue, loop, CLI, API, console and Jira search built, the search within a JQL since 2026-11-03, the statistics page since 2026-11-04; runs start from the base branch `PIPELINE_BASE_BRANCH`, `dev` during webui's code freeze, with pull requests off; the first real run through the loop was done on 2026-10-27)
 
 ## Problem
 
@@ -56,8 +56,16 @@ Agent SDK, and from its own records.
   not know), a run starting, moving to its next stage, opening its pull request or stopping, the
   loop stopping by itself. Changes move rather than jump: queue rows glide when reordered, slide
   in when added and out when removed or started.
-- Counts of runs by verdict for the last batch, the last 7 days and all time (the API still has
-  them; the cockpit stopped showing them on 2026-11-01, they wait for a statistics page of their own).
+- Statistics (added 2026-11-04, ADR statistics), a page of their own, for the runs started in a
+  period (the last batch, 7, 30 or 90 days, all time) and what became of them: tickets and runs;
+  pull requests opened, open, merged and into which branch, declined; merged as the pipeline
+  opened them or with changes; tickets with a merged pull request that are Done in Jira; tickets
+  no run finished, and why runs stopped (blocked or failed by verdict, nothing to build apart);
+  the median time from a pull request's opening to its merge. The tickets as a funnel: run, with
+  a pull request, merged, Done in Jira. By day or by week: runs started by how they ended, pull
+  requests opened, closed (merged as opened, with changes, declined), tickets moving into Done.
+  Then every pull request of the period with what became of it, the lines the pipeline pushed and
+  those merged when they differ, and its ticket's Jira status, filterable by outcome.
 - The webui branch a run starts from and its pull request goes to, and whether pull requests are
   on, off or drafts only (`PIPELINE_PULL_REQUESTS=draft`: every pull request opens as a draft,
   ADR draft-pull-requests).
@@ -164,6 +172,13 @@ What it shows:
   or a value Jira does not know, shows Jira's message instead of "nothing found". After a reload
   the search is as it was: what was typed, the JQL, its switch and the first page of results; switched off or removed, the search covers every
   project again.
+- The operator opens the statistics for 30 days: the numbers count the runs started in the last
+  30 days, a ticket run twice counts once in the funnel, and the charts have a column for every
+  day from the period's first to today, empty days included. A pull request whose branch was
+  rebased and merged without other change counts as merged as opened; one with a line added or
+  changed after the pipeline pushed it counts as merged with changes. Without a Bitbucket token
+  the page says the pull requests' states are unknown; without Jira, that Done is unknown; the
+  rest shows.
 - The console is opened from a browser on another machine on the network: it shows the same queue,
   run and history as the server's files, and an action taken in one browser shows in another
   within 5 s.

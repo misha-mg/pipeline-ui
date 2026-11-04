@@ -272,3 +272,48 @@ function issueOf(raw: unknown): JiraIssue | null {
     updated: typeof f.updated === 'string' ? f.updated : null,
   }
 }
+
+/** A ticket's place in its workflow, for the statistics: its summary, its status, the status's category, and when it last entered Done. */
+export type TicketStatus = {
+  key: string
+  summary: string | null
+  status: string | null
+  /** new, indeterminate or done: Jira's status category. */
+  statusCategory: string | null
+  /** When the ticket last moved into the done category; null while it is not there. */
+  doneAt: string | null
+}
+
+export type JiraStatuses = { kind: 'found'; tickets: TicketStatus[] } | { kind: 'unavailable'; error: string }
+
+const BULK_LIMIT = 100
+
+/**
+ * The statuses of `keys`, 100 at a time through /issue/bulkfetch: a key Jira does not know is
+ * left out, not an error (a JQL `key in (...)` would refuse the whole query for it).
+ */
+export function jiraStatuses(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (keys: string[]) => Promise<JiraStatuses> {
+  const call = jiraClient(config, fetchFn)
+  return async (keys) => {
+    const tickets: TicketStatus[] = []
+    for (let i = 0; i < keys.length; i += BULK_LIMIT) {
+      const res = await call('/issue/bulkfetch', { method: 'POST', body: { issueIdsOrKeys: keys.slice(i, i + BULK_LIMIT), fields: ['summary', 'status', 'statuscategorychangedate'] } })
+      if (typeof res === 'string') return { kind: 'unavailable', error: res }
+      if (!res.ok) return { kind: 'unavailable', error: `Jira answered ${res.status}` }
+      try {
+        const body = (await res.json()) as { issues?: { key?: unknown; fields?: { summary?: unknown; status?: { name?: unknown; statusCategory?: { key?: unknown } }; statuscategorychangedate?: unknown } }[] }
+        for (const issue of body.issues ?? []) {
+          if (typeof issue.key !== 'string') continue
+          const status = issue.fields?.status
+          const category = typeof status?.statusCategory?.key === 'string' ? status.statusCategory.key : null
+          const changed = issue.fields?.statuscategorychangedate
+          const at = typeof changed === 'string' ? Date.parse(changed) : NaN
+          tickets.push({ key: issue.key, summary: typeof issue.fields?.summary === 'string' ? issue.fields.summary : null, status: typeof status?.name === 'string' ? status.name : null, statusCategory: category, doneAt: category === 'done' && !Number.isNaN(at) ? new Date(at).toISOString() : null })
+        }
+      } catch (error) {
+        return { kind: 'unavailable', error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+    return { kind: 'found', tickets }
+  }
+}

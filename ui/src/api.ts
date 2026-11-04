@@ -1,10 +1,10 @@
 // The console's view of the service: the API's shapes come from the server's own types, so
 // a change there is a type error here.
-import type { HistoryFilter, RunDetail, ShownRun, StateView } from '../../server/http/view.ts'
+import type { HistoryFilter, RunDetail, ShownRun, StateView, StatsView } from '../../server/http/view.ts'
 import type { JiraSearch, SearchOptions } from '../../server/store/jira.ts'
 import { verdictTone, type Tone } from '../../server/history/outcome.ts'
 
-export type { AgentStage, Counts, ShownRun, StateView } from '../../server/http/view.ts'
+export type { AgentStage, Counts, ShownRun, StateView, StatsView } from '../../server/http/view.ts'
 export type { JiraIssue, JiraSearch, SearchScope } from '../../server/store/jira.ts'
 export type RunFiles = RunDetail
 export type History = { runs: ShownRun[]; total: number; verdicts: Record<string, number>; endings: Record<string, number> }
@@ -31,6 +31,7 @@ export const api = {
     return call<History>('GET', `/api/runs${q.size ? `?${q}` : ''}`)
   },
   run: (key: string, number: number) => call<RunFiles>('GET', `/api/runs/${key}/${number}`),
+  stats: () => call<StatsView>('GET', '/api/stats'),
   search: (q: string, { jql, next }: SearchOptions = {}) => {
     const params = new URLSearchParams({ q })
     if (jql) params.set('jql', jql)

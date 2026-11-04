@@ -12,6 +12,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import type { Git } from '../history/changes.ts'
 
 export type EntryConfig = {
   webuiDir: string
@@ -24,8 +25,7 @@ export type EntryConfig = {
 /** The script the runner starts in the webui checkout. */
 export type Entry = { prepareWorktree: string }
 
-/** Runs git in the webui checkout and resolves with its stdout; rejects when it fails. */
-export type Git = (args: string[]) => Promise<string>
+export type { Git } from '../history/changes.ts'
 
 const PREPARE = 'tools/ticket-pipeline/prepare-worktree.sh'
 /** How the prepare script hands over: its last line, naming the launch script. */
@@ -86,7 +86,7 @@ export async function prepareEntry(config: EntryConfig, git: Git = gitIn(config.
   return null
 }
 
-function gitIn(dir: string): Git {
+export function gitIn(dir: string): Git {
   return async (args) => (await exec('git', ['-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024, timeout: 120_000 })).stdout
 }
 

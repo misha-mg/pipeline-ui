@@ -6,14 +6,15 @@
 import fs from 'node:fs'
 import type { Config } from './config.ts'
 import { checkHealth, type Health } from './health.ts'
-import { bitbucketConfig, refreshPullRequests } from './history/bitbucket.ts'
+import { bitbucketConfig, compareMerged, refreshPullRequests } from './history/bitbucket.ts'
 import { loadRuns } from './history/runs.ts'
+import { refreshTickets } from './history/tickets.ts'
 import { createServer } from './http/api.ts'
-import { entryLabel, entryOf, prepareEntry } from './loop/entry.ts'
+import { entryLabel, entryOf, gitIn, prepareEntry } from './loop/entry.ts'
 import { createLoop } from './loop/loop.ts'
 import { createRunner } from './loop/runner.ts'
 import { nowIso, openDb } from './store/db.ts'
-import { jiraConfig, jiraLookup, jiraSearch, jiraSiteUrl } from './store/jira.ts'
+import { jiraConfig, jiraLookup, jiraSearch, jiraSiteUrl, jiraStatuses } from './store/jira.ts'
 import { markRestart, serviceHeartbeat, stopLoop } from './store/runs.ts'
 
 const TICK_MS = 1000
@@ -46,6 +47,9 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   let health: Health | null = null
   let healthSaid = ''
   let rounding = false
+  let ticketsSay = ''
+  const git = gitIn(config.webuiDir)
+  const statuses = jiraStatuses(jiraConfig(process.env))
   const round = async () => {
     if (rounding) return
     rounding = true
@@ -56,9 +60,17 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
       const said = notOk.length ? `health: ${notOk.join('; ')}` : 'health: every dependency is OK'
       if (said !== healthSaid && (healthSaid || notOk.length)) log(said)
       healthSaid = said
-      const urls = loadRuns(config.runsDir).map((r) => r.prUrl).filter((u): u is string => u !== null)
+      const runs = loadRuns(config.runsDir)
+      const urls = runs.map((r) => r.prUrl).filter((u): u is string => u !== null)
       const read = await refreshPullRequests(db, urls, bitbucketConfig(process.env))
       if (read) log(`pull requests: ${read} read`)
+      const compared = await compareMerged(db, bitbucketConfig(process.env), git)
+      if (compared) log(`pull requests: ${compared} merged compared with what the pipeline opened`)
+      const tickets = await refreshTickets(db, runs.map((r) => r.key), statuses)
+      // Said when it changes, as the health is.
+      const ticketsSaid = typeof tickets === 'string' ? `ticket statuses: ${tickets}` : ''
+      if (ticketsSaid !== ticketsSay) log(ticketsSaid || 'ticket statuses: read again')
+      ticketsSay = ticketsSaid
     } catch (error) {
       log(`round failed: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
@@ -69,7 +81,7 @@ export async function serve(config: Config, log: (line: string) => void = (l) =>
   const rounds = setInterval(() => void round(), ROUND_MS)
 
   const uiDir = fs.existsSync(config.uiDir) ? config.uiDir : undefined
-  const server = createServer({ db, runsDir: config.runsDir, health: () => health, setup, jiraSite: jiraSiteUrl(process.env), loop, lookup: jiraLookup(jiraConfig(process.env)), search: jiraSearch(jiraConfig(process.env)), uiDir })
+  const server = createServer({ db, runsDir: config.runsDir, health: () => health, setup, jiraSite: jiraSiteUrl(process.env), readers: { bitbucket: bitbucketConfig(process.env) !== null, jira: jiraConfig(process.env) !== null }, loop, lookup: jiraLookup(jiraConfig(process.env)), search: jiraSearch(jiraConfig(process.env)), uiDir })
   await new Promise<void>((resolve, reject) => server.once('error', reject).listen(config.port, config.host, resolve))
   log(`console at http://${config.host}:${config.port}/${uiDir ? '' : ' (API only: the UI is not built, npm run build)'}`)
 

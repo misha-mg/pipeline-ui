@@ -10,7 +10,7 @@ import type { JiraSearch, SearchOptions } from '../store/jira.ts'
 import type { Lookup } from '../store/queue.ts'
 import { enqueue, remove, reorder } from '../store/queue.ts'
 import { requestCancel, startLoop, stopLoop } from '../store/runs.ts'
-import { filterProblem, historyView, runView, stateView, type ViewSources } from './view.ts'
+import { filterProblem, historyView, runView, stateView, statsView, type ViewSources } from './view.ts'
 
 export type ApiDeps = ViewSources & {
   loop?: Pick<Loop, 'tick'>
@@ -56,6 +56,7 @@ async function handleApi(deps: ApiDeps, method: string, url: URL, body: unknown)
   const asObject = (b: unknown): Record<string, unknown> => (typeof b === 'object' && b !== null ? (b as Record<string, unknown>) : {})
 
   if (method === 'GET' && p === '/api/state') return ok(stateView(deps))
+  if (method === 'GET' && p === '/api/stats') return ok(statsView(deps))
   if (method === 'GET' && p === '/api/runs') {
     const filter = { verdict: url.searchParams.get('verdict') ?? undefined, ending: url.searchParams.get('ending') ?? undefined }
     const problem = filterProblem(filter)

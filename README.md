@@ -89,16 +89,20 @@ in `data/` survive a restart, and the loop waits for `start`.
   it through the database: `enqueue`, `remove`, `reorder`, `list`, `start`, `stop`, `cancel`,
   `status`, `runs`, `events`.
 - `server/history/` — every run under `.pipeline-runs/` as its files tell it (as `pipeline-tui`
-  reads them), and the pull requests' states from Bitbucket, kept in the database.
+  reads them), the pull requests' states from Bitbucket, each merged one compared with what the
+  pipeline opened (`changes.ts`, `git diff` in the webui checkout), the tickets' Jira statuses,
+  all kept in the database; and the statistics' sums (`stats.ts`, shared with the console).
 - `server/health.ts` — what the console depends on: `.pipeline-runs/`, the tmux session
   `batch.sh` uses, Jira.
-- `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`,
+- `server/http/` — the JSON API (`/api/state`, `/api/runs`, `/api/runs/KEY/N`, `/api/stats`,
   `/api/jira/search?q=&jql=`, the queue, loop and cancel actions) and the built UI.
 - `ui/` — the console, Vue 3 + Vite. The cockpit: a strip with the loop, the run in flight (its
   reports, Cancel), the next ticket and the target branch with whether pull requests are on; one
   Start or Stop button; one field that queues a ticket key at the end or the front and searches
   Jira for anything else, within a JQL while the "Within JQL" switch is on; the queue; the latest runs; the state sources folded into one lamp.
-  The runs page: every run with filters and counts, and each run's reports. A ticket key links
+  The runs page: every run with filters and counts, and each run's reports. The statistics page:
+  for the runs of a period, pull requests opened, open, merged as opened or with changes,
+  declined, tickets Done in Jira, why runs stopped, charts by day or week, and every pull request. A ticket key links
   to `JIRA_BASE_URL`. It polls the API
   every 2 s (the history every 10 s), so two browsers show the same within 5 s.
   Its look is the drafting sheet, light or dark (`ui/public/theme.js`): the tokens and parts are
