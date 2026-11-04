@@ -1,10 +1,11 @@
 // The Jira status of every ticket the pipeline ran, kept in the database for the statistics
 // page: whether the ticket reached Done, and when, and its summary for a run whose files lack
 // one. Read in the service's background round, every ticket at once (a few bulk calls), when the
-// copy is older than MAX_AGE; never in a request. Without Jira the statuses stay as last read,
+// copy is older than MAX_AGE; never in a request. With each status, its moves from the changelog,
+// so the page can tell a ticket that went to Failed after its merge. Without Jira the statuses stay as last read,
 // or unknown.
 import type { Db } from '../store/db.ts'
-import type { JiraStatuses, TicketStatus } from '../store/jira.ts'
+import type { JiraStatuses, StatusMove, TicketStatus } from '../store/jira.ts'
 
 export type KnownTicket = TicketStatus & { fetchedAt: string }
 
@@ -14,12 +15,23 @@ function ensureTicketTable(db: Db): void {
   db.exec(`CREATE TABLE IF NOT EXISTS tickets (
     key TEXT PRIMARY KEY, summary TEXT, status TEXT, status_category TEXT, done_at TEXT, fetched_at TEXT NOT NULL
   )`)
+  const have = db.prepare('PRAGMA table_info(tickets)').all().map((r) => r.name as string)
+  if (!have.includes('moves')) db.exec('ALTER TABLE tickets ADD COLUMN moves TEXT')
+}
+
+function movesOf(json: unknown): StatusMove[] {
+  try {
+    const parsed: unknown = typeof json === 'string' ? JSON.parse(json) : []
+    return Array.isArray(parsed) ? (parsed as StatusMove[]) : []
+  } catch {
+    return []
+  }
 }
 
 export function ticketStatuses(db: Db): Map<string, KnownTicket> {
   ensureTicketTable(db)
-  const rows = db.prepare('SELECT key, summary, status, status_category, done_at, fetched_at FROM tickets').all()
-  return new Map(rows.map((r) => [r.key as string, { key: r.key as string, summary: (r.summary as string | null) ?? null, status: (r.status as string | null) ?? null, statusCategory: (r.status_category as string | null) ?? null, doneAt: (r.done_at as string | null) ?? null, fetchedAt: r.fetched_at as string }]))
+  const rows = db.prepare('SELECT key, summary, status, status_category, done_at, moves, fetched_at FROM tickets').all()
+  return new Map(rows.map((r) => [r.key as string, { key: r.key as string, summary: (r.summary as string | null) ?? null, status: (r.status as string | null) ?? null, statusCategory: (r.status_category as string | null) ?? null, doneAt: (r.done_at as string | null) ?? null, moves: movesOf(r.moves), fetchedAt: r.fetched_at as string }]))
 }
 
 /**
@@ -29,19 +41,21 @@ export function ticketStatuses(db: Db): Map<string, KnownTicket> {
 export async function refreshTickets(db: Db, keys: Iterable<string>, statuses: (keys: string[]) => Promise<JiraStatuses>, now: () => Date = () => new Date()): Promise<number | string> {
   const known = ticketStatuses(db)
   const wanted = [...new Set(keys)].sort()
+  // A copy from before the moves were kept (its column NULL) is read again at once.
+  const withoutMoves = new Set(db.prepare('SELECT key FROM tickets WHERE moves IS NULL').all().map((r) => r.key as string))
   const stale = wanted.some((k) => {
     const t = known.get(k)
-    return !t || now().getTime() - Date.parse(t.fetchedAt) > MAX_AGE_MS
+    return !t || now().getTime() - Date.parse(t.fetchedAt) > MAX_AGE_MS || withoutMoves.has(k)
   })
   if (!stale) return 0
   const found = await statuses(wanted)
   if (found.kind === 'unavailable') return found.error
   const at = now().toISOString()
-  const write = db.prepare(`INSERT INTO tickets (key, summary, status, status_category, done_at, fetched_at) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT (key) DO UPDATE SET summary = excluded.summary, status = excluded.status, status_category = excluded.status_category, done_at = excluded.done_at, fetched_at = excluded.fetched_at`)
-  for (const t of found.tickets) write.run(t.key, t.summary, t.status, t.statusCategory, t.doneAt, at)
+  const write = db.prepare(`INSERT INTO tickets (key, summary, status, status_category, done_at, moves, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (key) DO UPDATE SET summary = excluded.summary, status = excluded.status, status_category = excluded.status_category, done_at = excluded.done_at, moves = excluded.moves, fetched_at = excluded.fetched_at`)
+  for (const t of found.tickets) write.run(t.key, t.summary, t.status, t.statusCategory, t.doneAt, JSON.stringify(t.moves), at)
   // A key Jira does not know (moved, deleted) is kept as unknown, so it is not asked every round.
   const got = new Set(found.tickets.map((t) => t.key))
-  for (const key of wanted.filter((k) => !got.has(k))) write.run(key, null, null, null, null, at)
+  for (const key of wanted.filter((k) => !got.has(k))) write.run(key, null, null, null, null, '[]', at)
   return found.tickets.length
 }

@@ -282,33 +282,74 @@ export type TicketStatus = {
   statusCategory: string | null
   /** When the ticket last moved into the done category; null while it is not there. */
   doneAt: string | null
+  /** Every move into a status, oldest first, from the changelog: what the statistics read a
+   *  ticket's path after the merge from (into Failed, back to Done). */
+  moves: StatusMove[]
 }
+
+export type StatusMove = { at: string; to: string }
 
 export type JiraStatuses = { kind: 'found'; tickets: TicketStatus[] } | { kind: 'unavailable'; error: string }
 
 const BULK_LIMIT = 100
 
+type History = { created?: unknown; items?: { field?: unknown; toString?: unknown }[] }
+
+/** The status moves in a page of changelog histories. */
+function movesOf(histories: History[]): StatusMove[] {
+  return histories.flatMap((h) => {
+    const at = typeof h.created === 'string' ? Date.parse(h.created) : NaN
+    if (Number.isNaN(at)) return []
+    return (h.items ?? []).flatMap((it) => (it.field === 'status' && typeof it.toString === 'string' ? [{ at: new Date(at).toISOString(), to: it.toString }] : []))
+  })
+}
+
+const byTime = (a: StatusMove, b: StatusMove) => a.at.localeCompare(b.at)
+
 /**
- * The statuses of `keys`, 100 at a time through /issue/bulkfetch: a key Jira does not know is
- * left out, not an error (a JQL `key in (...)` would refuse the whole query for it).
+ * The statuses of `keys`, 100 at a time through /issue/bulkfetch with the changelog expanded: a
+ * key Jira does not know is left out, not an error (a JQL `key in (...)` would refuse the whole
+ * query for it). Bulkfetch gives only the latest 40 or so histories; a ticket with more has its
+ * whole changelog read by its own pages.
  */
 export function jiraStatuses(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (keys: string[]) => Promise<JiraStatuses> {
   const call = jiraClient(config, fetchFn)
+  const fullChangelog = async (key: string): Promise<StatusMove[] | string> => {
+    const moves: StatusMove[] = []
+    for (let start = 0, page = 0; page < 20; page += 1) {
+      const res = await call(`/issue/${encodeURIComponent(key)}/changelog?startAt=${start}&maxResults=100`)
+      if (typeof res === 'string') return res
+      if (!res.ok) return `Jira answered ${res.status} for ${key}'s changelog`
+      const body = (await res.json()) as { values?: History[]; isLast?: unknown }
+      const values = body.values ?? []
+      moves.push(...movesOf(values))
+      start += values.length
+      if (body.isLast !== false || !values.length) break
+    }
+    return moves
+  }
   return async (keys) => {
     const tickets: TicketStatus[] = []
     for (let i = 0; i < keys.length; i += BULK_LIMIT) {
-      const res = await call('/issue/bulkfetch', { method: 'POST', body: { issueIdsOrKeys: keys.slice(i, i + BULK_LIMIT), fields: ['summary', 'status', 'statuscategorychangedate'] } })
+      const res = await call('/issue/bulkfetch', { method: 'POST', body: { issueIdsOrKeys: keys.slice(i, i + BULK_LIMIT), fields: ['summary', 'status', 'statuscategorychangedate'], expand: ['changelog'] } })
       if (typeof res === 'string') return { kind: 'unavailable', error: res }
       if (!res.ok) return { kind: 'unavailable', error: `Jira answered ${res.status}` }
       try {
-        const body = (await res.json()) as { issues?: { key?: unknown; fields?: { summary?: unknown; status?: { name?: unknown; statusCategory?: { key?: unknown } }; statuscategorychangedate?: unknown } }[] }
+        const body = (await res.json()) as { issues?: { key?: unknown; changelog?: { total?: unknown; histories?: History[] }; fields?: { summary?: unknown; status?: { name?: unknown; statusCategory?: { key?: unknown } }; statuscategorychangedate?: unknown } }[] }
         for (const issue of body.issues ?? []) {
           if (typeof issue.key !== 'string') continue
           const status = issue.fields?.status
           const category = typeof status?.statusCategory?.key === 'string' ? status.statusCategory.key : null
           const changed = issue.fields?.statuscategorychangedate
           const at = typeof changed === 'string' ? Date.parse(changed) : NaN
-          tickets.push({ key: issue.key, summary: typeof issue.fields?.summary === 'string' ? issue.fields.summary : null, status: typeof status?.name === 'string' ? status.name : null, statusCategory: category, doneAt: category === 'done' && !Number.isNaN(at) ? new Date(at).toISOString() : null })
+          const histories = issue.changelog?.histories ?? []
+          let moves = movesOf(histories)
+          if (typeof issue.changelog?.total === 'number' && issue.changelog.total > histories.length) {
+            const full = await fullChangelog(issue.key)
+            if (typeof full === 'string') return { kind: 'unavailable', error: full }
+            moves = full
+          }
+          tickets.push({ key: issue.key, summary: typeof issue.fields?.summary === 'string' ? issue.fields.summary : null, status: typeof status?.name === 'string' ? status.name : null, statusCategory: category, doneAt: category === 'done' && !Number.isNaN(at) ? new Date(at).toISOString() : null, moves: moves.sort(byTime) })
         }
       } catch (error) {
         return { kind: 'unavailable', error: error instanceof Error ? error.message : String(error) }

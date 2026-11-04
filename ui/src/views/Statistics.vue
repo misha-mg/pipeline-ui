@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // The statistics: what the pipeline's runs came to over a period (the last batch, 7, 30 or 90
 // days, or all time), counted by the runs started in it. A strip of numbers; the tickets'
-// funnel from a run to Done in Jira and why runs stopped; four charts by day or week (runs,
-// pull requests opened, closed, tickets Done); then every pull request with what became of it.
+// funnel from a run to Done in Jira, the merged fixes testing sent to Failed, and why runs
+// stopped; four charts by day or week (runs, pull requests opened, closed, tickets Done or
+// Failed); then every pull request with what became of it.
 // The sums are server/history/stats.ts's, over /api/stats, read once a minute.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
@@ -88,11 +89,15 @@ const closedSeries: Series[] = [
   { key: 'merged', label: 'merged, not compared', color: NONE },
   { key: 'declined', label: 'declined', color: BAD },
 ]
+const jiraSeries: Series[] = [
+  { key: 'done', label: 'Done', color: OK },
+  { key: 'failed', label: 'sent to Failed', color: BAD },
+]
 const charts = computed(() => [
-  { title: 'Runs started', series: runSeries, columns: columns((b) => [b.runs.done, b.runs.nothing, b.runs.stopped, b.runs.none]) },
-  { title: 'Pull requests opened', series: [{ key: 'opened', label: 'opened', color: 'var(--chart-count)' }], columns: columns((b) => [b.opened]) },
-  { title: 'Pull requests closed', series: closedSeries.filter((s) => s.key !== 'merged' || buckets.value.some((b) => b.closed.merged)), columns: columns((b) => [b.closed.asOpened, b.closed.withChanges, ...(buckets.value.some((x) => x.closed.merged) ? [b.closed.merged] : []), b.closed.declined]) },
-  { title: 'Tickets Done in Jira', series: [{ key: 'done', label: 'Done', color: OK }], columns: columns((b) => [b.done]) },
+  { title: 'Runs started', note: '', series: runSeries, columns: columns((b) => [b.runs.done, b.runs.nothing, b.runs.stopped, b.runs.none]) },
+  { title: 'Pull requests opened', note: '', series: [{ key: 'opened', label: 'opened', color: 'var(--chart-count)' }], columns: columns((b) => [b.opened]) },
+  { title: 'Pull requests closed', note: sum.value?.medianToMerge != null ? `Median ${span(sum.value.medianToMerge)} from opened to merged.` : '', series: closedSeries.filter((s) => s.key !== 'merged' || buckets.value.some((b) => b.closed.merged)), columns: columns((b) => [b.closed.asOpened, b.closed.withChanges, ...(buckets.value.some((x) => x.closed.merged) ? [b.closed.merged] : []), b.closed.declined]) },
+  { title: 'Tickets in Jira after the merge', note: 'A ticket sent to Failed twice counts on both days.', series: jiraSeries, columns: columns((b) => [b.done, b.failed]) },
 ])
 
 /** A span of a day or more in days and hours (`6d 13h`), shorter ones as the console says them. */
@@ -116,8 +121,8 @@ const strip = computed(() => {
     { label: 'Merged as opened', value: String(s.prs['merged-as-opened']), tone: '', note: compared ? `${pct(s.prs['merged-as-opened'], compared)} · ${s.prs['merged-with-changes']} with changes` : s.prs.merged ? 'not compared yet' : 'none merged' },
     { label: 'Declined', value: String(s.prs.declined), tone: s.prs.declined ? 'bad' : '', note: closed ? `${pct(s.prs.declined, closed)} of closed` : 'none closed' },
     { label: 'Done in Jira', value: String(s.funnel.done), tone: s.funnel.done ? 'ok' : '', note: `of ${s.funnel.merged} tickets merged${s.mergedTicketsUnknown ? ` · ${s.mergedTicketsUnknown} not read` : ''}` },
+    { label: 'Failed after merge', value: String(s.failed.tickets), tone: s.failed.tickets ? 'bad' : '', note: s.funnel.merged ? `${pct(s.failed.tickets, s.funnel.merged)} of ${s.funnel.merged} merged` : 'none merged' },
     { label: 'Not finished', value: String(s.ticketsNotFinished), tone: s.ticketsNotFinished ? 'bad' : '', note: `${s.kinds.stopped} runs blocked or failed` },
-    { label: 'To merge', value: span(s.medianToMerge), tone: '', note: 'median, opened to merged' },
   ]
 })
 
@@ -129,7 +134,18 @@ const funnel = computed(() => {
     { label: 'With a pull request', n: f.pr },
     { label: 'Merged', n: f.merged },
     { label: 'Done in Jira', n: f.done },
+    { label: 'Done, never Failed', n: f.clean },
   ].map((row) => ({ ...row, share: f.run ? row.n / f.run : 0 }))
+})
+/** The merged fixes testing sent to Failed, out of the merged: all of them, then by whether they were merged as opened. */
+const fails = computed(() => {
+  const s = sum.value
+  if (!s) return []
+  return [
+    { label: 'All merged', title: 'tickets', n: s.failed.tickets, of: s.funnel.merged },
+    { label: 'Merged as opened', title: 'pull requests', n: s.failed.asOpened, of: s.failed.asOpenedOf },
+    { label: 'Merged with changes', title: 'pull requests', n: s.failed.withChanges, of: s.failed.withChangesOf },
+  ].map((row) => ({ ...row, share: row.of ? row.n / row.of : 0 }))
 })
 const stops = computed(() => {
   const s = sum.value
@@ -205,6 +221,17 @@ const read = computed(() => {
         </div>
       </div>
     </Frame>
+    <Frame title="Failed after merge" :count="sum ? `${sum.failed.tickets} of ${sum.funnel.merged}` : ''" note="Merged fixes testing sent to Jira's Failed: the share that did not hold.">
+      <div v-if="sum?.funnel.merged" class="bars">
+        <div v-for="row in fails" :key="row.label" class="bar-row" :title="`${row.n} of ${row.of} ${row.title}`">
+          <span class="name">{{ row.label }} <span class="dim">· {{ row.of }}</span></span>
+          <span class="track"><i class="bad" :style="{ width: `${row.share * 100}%` }" /></span>
+          <b class="num">{{ row.n }}</b>
+          <span class="share num">{{ pct(row.n, row.of) }}</span>
+        </div>
+      </div>
+      <p v-else class="empty">No pull request merged.</p>
+    </Frame>
     <Frame title="Why runs stopped" :count="sum ? `${sum.kinds.stopped} of ${sum.runs} runs` : ''" note="Blocked or failed by verdict; nothing to build apart, it is not a stop.">
       <div v-if="stops.length" class="bars">
         <div v-for="row in stops" :key="row.title" class="bar-row" :title="row.title">
@@ -219,7 +246,7 @@ const read = computed(() => {
   </div>
 
   <div class="charts">
-    <Frame v-for="c in charts" :key="c.title" :title="c.title" :count="String(c.columns.reduce((s, col) => s + col.values.reduce((a, v) => a + v, 0), 0))">
+    <Frame v-for="c in charts" :key="c.title" :title="c.title" :note="c.note" :count="String(c.columns.reduce((s, col) => s + col.values.reduce((a, v) => a + v, 0), 0))">
       <Columns :series="c.series" :columns="c.columns" :label="c.title" />
     </Frame>
   </div>
@@ -241,7 +268,7 @@ const read = computed(() => {
           <td><span class="pill" :class="OUTCOME_TONE[p.outcome]" :title="p.changes && p.changes.changed === null ? p.changes.why : p.pr.error ?? ''">{{ PR_OUTCOME_LABEL[p.outcome] }}</span></td>
           <td class="num lines"><template v-if="p.changes && p.changes.changed !== null">{{ lines(p.changes.opened) }}<template v-if="p.changes.changed"><span class="arrow">→</span>{{ lines(p.changes.merged) }}</template></template><span v-else class="dim">—</span></td>
           <td class="dim">{{ p.pr.destination ?? '—' }}</td>
-          <td><span v-if="p.ticket?.status" class="pill" :class="{ ok: p.ticket.statusCategory === 'done' }">{{ p.ticket.status }}</span><span v-else class="dim">—</span></td>
+          <td class="jira"><span v-if="p.ticket?.status" class="pill" :class="{ ok: p.ticket.statusCategory === 'done' }">{{ p.ticket.status }}</span><span v-else class="dim">—</span><span v-if="p.failed.length" class="pill bad" :title="`Sent to Failed after the merge: ${p.failed.map((at) => fmtTime(at)).join(', ')}`">failed{{ p.failed.length > 1 ? ` ${p.failed.length}×` : '' }}</span></td>
         </tr>
       </tbody>
     </table>

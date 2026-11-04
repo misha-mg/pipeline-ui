@@ -13,7 +13,8 @@ const same = { files: 1, added: 2, removed: 1 }
 /**
  * KAZ-1: merged as opened, Done in Jira. KAZ-2: merged with changes, not Done. KAZ-3: declined.
  * KAZ-4: open. KAZ-5: blocked, then a second run that found nothing to build. KAZ-6: failed.
- * KAZ-7: one old run, merged without a comparison.
+ * KAZ-7: one old run, merged without a comparison. KAZ-2 was sent to Failed once before its merge
+ * (not counted) and twice after it.
  */
 function view(): StatsView {
   return {
@@ -36,8 +37,8 @@ function view(): StatsView {
       [PR(7)]: pr(7, { state: 'MERGED', createdOn: '2026-09-01T11:00:00Z', closedOn: '2026-09-02T11:00:00Z' }),
     },
     tickets: {
-      'KAZ-1': { key: 'KAZ-1', summary: null, status: 'Done', statusCategory: 'done', doneAt: '2026-10-23T09:00:00.000Z', fetchedAt: '2026-10-27T00:00:00Z' },
-      'KAZ-2': { key: 'KAZ-2', summary: 'from Jira', status: 'Ready To Test', statusCategory: 'new', doneAt: null, fetchedAt: '2026-10-27T00:00:00Z' },
+      'KAZ-1': { key: 'KAZ-1', summary: null, status: 'Done', statusCategory: 'done', doneAt: '2026-10-23T09:00:00.000Z', moves: [{ at: '2026-10-22T12:00:00.000Z', to: 'Testing' }, { at: '2026-10-23T09:00:00.000Z', to: 'Done' }], fetchedAt: '2026-10-27T00:00:00Z' },
+      'KAZ-2': { key: 'KAZ-2', summary: 'from Jira', status: 'Ready To Test', statusCategory: 'new', doneAt: null, moves: [{ at: '2026-10-20T12:00:00.000Z', to: 'Failed' }, { at: '2026-10-22T09:00:00.000Z', to: 'Failed' }, { at: '2026-10-24T09:00:00.000Z', to: 'Failed' }, { at: '2026-10-25T09:00:00.000Z', to: 'Ready To Test' }], fetchedAt: '2026-10-27T00:00:00Z' },
     },
     lastBatchLabel: 'batch-20261020-100000',
     readAt: { pullRequests: '2026-10-27T00:00:00Z', tickets: '2026-10-27T00:00:00Z' },
@@ -67,7 +68,9 @@ describe('the statistics', () => {
     v.runs.push(run('KAZ-1', 2, '2026-10-25T10:00:00Z', 'done:pr-opened', { prUrl: PR(1) }))
     const rows = prRows(v, v.runs)
     expect(rows.map((r) => r.number)).toEqual(['4', '3', '2', '1', '7'])
-    expect(rows.find((r) => r.number === '1')).toMatchObject({ run: 1, ticket: { status: 'Done' } })
+    expect(rows.find((r) => r.number === '1')).toMatchObject({ run: 1, ticket: { status: 'Done' }, failed: [] })
+    // Merged on the 21st: the Failed of the 20th was before it.
+    expect(rows.find((r) => r.number === '2')!.failed).toEqual(['2026-10-22T09:00:00.000Z', '2026-10-24T09:00:00.000Z'])
     // A run whose files have no summary takes Jira's.
     v.runs.find((r) => r.key === 'KAZ-2')!.summary = null
     expect(prRows(v, v.runs).find((r) => r.key === 'KAZ-2')!.summary).toBe('from Jira')
@@ -87,7 +90,8 @@ describe('the statistics', () => {
       // Two days and one day: their middle.
       medianToMerge: 1.5 * 24 * 3600,
       medianRun: 3600,
-      funnel: { run: 6, pr: 4, merged: 2, done: 1 },
+      funnel: { run: 6, pr: 4, merged: 2, done: 1, clean: 1 },
+      failed: { tickets: 1, asOpened: 0, asOpenedOf: 1, withChanges: 1, withChangesOf: 1 },
       mergedTicketsUnknown: 0,
     })
     expect(s.prs).toMatchObject({ opened: 4, open: 1, merged: 2, 'merged-as-opened': 1, 'merged-with-changes': 1, declined: 1, drafts: 1, into: [['dev', 1], ['master', 1]] })
@@ -103,6 +107,7 @@ describe('the statistics', () => {
     expect(on('2026-10-21')).toMatchObject({ opened: 1, closed: { withChanges: 1, declined: 1 } })
     expect(on('2026-10-22').closed).toMatchObject({ asOpened: 1 })
     expect(on('2026-10-23').done).toBe(1)
+    expect(days.map((d) => d.failed)).toEqual([0, 0, 1, 0, 1, 0, 0, 0])
     expect(on('2026-10-24')).toMatchObject({ opened: 0, done: 0, runs: { done: 0, stopped: 0 } })
     expect(on('2026-10-26').runs).toMatchObject({ done: 1, nothing: 1, stopped: 1 })
 

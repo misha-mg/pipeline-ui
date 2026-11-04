@@ -1,6 +1,7 @@
 // What the statistics page says, summed up from /api/stats for one period: the runs started in
 // it (or the last batch's), their tickets, the pull requests they opened and what became of
-// them, the tickets that reached Done in Jira, and the same day by day or week by week. A period
+// them, the tickets that reached Done in Jira or were sent to Failed after the merge, and the
+// same day by day or week by week. A period
 // picks runs, not events: a PR from a run in the period counts with its merge, whenever it came.
 // No Node imports: the console's bundle loads this file, and the tests run it as it is.
 import type { PrChanges, PullRequestState } from './bitbucket.ts'
@@ -43,6 +44,16 @@ export const PR_OUTCOME_LABEL: Record<PrOutcome, string> = {
   unknown: 'unknown',
 }
 
+/** The Jira status testing sends a ticket back to when the fix did not hold. */
+export const FAILED_STATUS = 'Failed'
+
+/** When a ticket moved into Failed after `since` (its pull request's merge), oldest first. */
+export function failsAfter(ticket: KnownTicket | null | undefined, since: string | null): string[] {
+  if (!ticket || !since) return []
+  const from = Date.parse(since)
+  return ticket.moves.filter((m) => m.to === FAILED_STATUS && Date.parse(m.at) > from).map((m) => m.at)
+}
+
 /** A pull request as the page lists it, with the run that opened it and its ticket's status. */
 export type PrRow = {
   url: string
@@ -56,6 +67,8 @@ export type PrRow = {
   openedAt: string | null
   changes: PrChanges | null
   ticket: KnownTicket | null
+  /** When its ticket was sent to Failed after it was merged; empty unless merged. */
+  failed: string[]
 }
 
 export function prRows(view: StatsView, runs: StatsRun[]): PrRow[] {
@@ -67,6 +80,7 @@ export function prRows(view: StatsView, runs: StatsRun[]): PrRow[] {
     rows.set(pr.url, {
       url: pr.url, number: pr.url.match(/(\d+)$/)?.[1] ?? '', key: r.key, run: r.number, summary: r.summary ?? view.tickets[r.key]?.summary ?? null,
       outcome: prOutcome(pr), pr, openedAt: pr.createdOn ?? r.finishedAt, changes: pr.changes, ticket: view.tickets[r.key] ?? null,
+      failed: pr.state === 'MERGED' ? failsAfter(view.tickets[r.key], pr.closedOn) : [],
     })
   }
   return [...rows.values()].sort((a, b) => (b.openedAt ?? '').localeCompare(a.openedAt ?? '') || Number(b.number) - Number(a.number))
@@ -97,8 +111,13 @@ export type Summary = {
   asOpenedRate: number | null
   medianToMerge: number | null
   medianRun: number | null
-  /** Tickets: run, with a pull request, with one merged, and of those, Done in Jira. */
-  funnel: { run: number; pr: number; merged: number; done: number }
+  /** Tickets: run, with a pull request, with one merged, of those Done in Jira, and Done without a Failed after the merge. */
+  funnel: { run: number; pr: number; merged: number; done: number; clean: number }
+  /**
+   * Tickets sent to Failed after their pull request was merged: the fixes testing did not pass.
+   * The merged pull requests are split by whether they were merged as opened.
+   */
+  failed: { tickets: number; asOpened: number; asOpenedOf: number; withChanges: number; withChangesOf: number }
   /** Tickets with a merged pull request whose Jira status is not known (not read, or Jira is off). */
   mergedTicketsUnknown: number
 }
@@ -119,6 +138,8 @@ export function summarize(view: StatsView, runs: StatsRun[]): Summary {
   const withPr = new Set(prs.map((p) => p.key))
   const mergedKeys = new Set(merged.map((p) => p.key))
   const doneKeys = [...mergedKeys].filter((k) => view.tickets[k]?.statusCategory === 'done')
+  const failedKeys = new Set(merged.filter((p) => p.failed.length).map((p) => p.key))
+  const failedOf = (o: PrOutcome) => merged.filter((p) => p.outcome === o && p.failed.length).length
   return {
     runs: runs.length,
     tickets: keys.length,
@@ -130,7 +151,8 @@ export function summarize(view: StatsView, runs: StatsRun[]): Summary {
     asOpenedRate: compared ? outcomes['merged-as-opened'] / compared : null,
     medianToMerge: median(toMerge),
     medianRun: median(runs.flatMap((r) => (r.seconds === null || r.ending === 'in-flight' ? [] : [r.seconds]))),
-    funnel: { run: keys.length, pr: withPr.size, merged: mergedKeys.size, done: doneKeys.length },
+    funnel: { run: keys.length, pr: withPr.size, merged: mergedKeys.size, done: doneKeys.length, clean: doneKeys.filter((k) => !failedKeys.has(k)).length },
+    failed: { tickets: failedKeys.size, asOpened: failedOf('merged-as-opened'), asOpenedOf: outcomes['merged-as-opened'], withChanges: failedOf('merged-with-changes'), withChangesOf: outcomes['merged-with-changes'] },
     mergedTicketsUnknown: [...mergedKeys].filter((k) => !view.tickets[k]?.statusCategory).length,
   }
 }
@@ -143,6 +165,8 @@ export type Bucket = {
   closed: { asOpened: number; withChanges: number; merged: number; declined: number }
   /** Tickets with a merged pull request that moved into Done in Jira. */
   done: number
+  /** Moves into Failed after a merge: a ticket sent back twice counts on both days. */
+  failed: number
 }
 
 export type TimelineOptions = {
@@ -158,7 +182,7 @@ export type TimelineOptions = {
 /**
  * The period's events in buckets from `from` to `to`, every bucket there even when nothing
  * happened in it: runs by the day they started, pull requests by the day they were opened and
- * closed, tickets by the day they moved into Done.
+ * closed, tickets by the day they moved into Done or, after the merge, into Failed.
  */
 export function timeline(view: StatsView, runs: StatsRun[], options: TimelineOptions): Bucket[] {
   const { dayOf, bucket } = options
@@ -166,7 +190,7 @@ export function timeline(view: StatsView, runs: StatsRun[], options: TimelineOpt
   const first = options.from ?? runs.map((r) => dayOf(r.startedAt)).sort()[0] ?? options.to
   const buckets = new Map<string, Bucket>()
   for (let day = startOf(first); day <= options.to; day = addDays(day, bucket === 'week' ? 7 : 1)) {
-    buckets.set(day, { day, runs: { done: 0, nothing: 0, stopped: 0, none: 0 }, opened: 0, closed: { asOpened: 0, withChanges: 0, merged: 0, declined: 0 }, done: 0 })
+    buckets.set(day, { day, runs: { done: 0, nothing: 0, stopped: 0, none: 0 }, opened: 0, closed: { asOpened: 0, withChanges: 0, merged: 0, declined: 0 }, done: 0, failed: 0 })
   }
   const at = (iso: string | null) => (iso ? buckets.get(startOf(dayOf(iso))) : undefined)
   for (const r of runs) {
@@ -187,6 +211,11 @@ export function timeline(view: StatsView, runs: StatsRun[], options: TimelineOpt
   for (const key of new Set(prs.filter((p) => p.pr.state === 'MERGED').map((p) => p.key))) {
     const b = at(view.tickets[key]?.doneAt ?? null)
     if (b) b.done += 1
+  }
+  // A ticket with two merged pull requests has the same move under both: counted once.
+  for (const move of new Set(prs.flatMap((p) => p.failed.map((when) => `${when} ${p.key}`)))) {
+    const b = at(move.slice(0, move.indexOf(' ')))
+    if (b) b.failed += 1
   }
   return [...buckets.values()]
 }

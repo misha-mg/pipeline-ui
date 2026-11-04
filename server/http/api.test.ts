@@ -33,7 +33,7 @@ function sources() {
 
 /** KAZ-1 is Done in Jira. */
 function refreshTicketsFrom(db: ApiDeps['db']): Promise<number | string> {
-  return refreshTickets(db, ['KAZ-1'], async () => ({ kind: 'found', tickets: [{ key: 'KAZ-1', summary: 'one', status: 'Done', statusCategory: 'done', doneAt: '2026-10-21T00:00:00.000Z' }] }))
+  return refreshTickets(db, ['KAZ-1'], async () => ({ kind: 'found', tickets: [{ key: 'KAZ-1', summary: 'one', status: 'Done', statusCategory: 'done', doneAt: '2026-10-21T00:00:00.000Z', moves: [] }] }))
 }
 
 async function serve(deps: ApiDeps) {

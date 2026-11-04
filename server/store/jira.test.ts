@@ -204,8 +204,31 @@ describe('jiraStatuses', () => {
     expect(jira.calls.filter((c) => c.url.includes('bulkfetch')).length).toBe(2)
     expect(found.kind === 'found' && found.tickets.length).toBe(100)
     expect(found.kind === 'found' && found.tickets.slice(0, 2)).toEqual([
-      { key: 'KAZ-1', summary: null, status: 'Done', statusCategory: 'done', doneAt: '2026-10-22T11:22:11.559Z' },
-      { key: 'KAZ-3', summary: null, status: 'Ready To Test', statusCategory: 'new', doneAt: null },
+      { key: 'KAZ-1', summary: null, status: 'Done', statusCategory: 'done', doneAt: '2026-10-22T11:22:11.559Z', moves: [] },
+      { key: 'KAZ-3', summary: null, status: 'Ready To Test', statusCategory: 'new', doneAt: null, moves: [] },
+    ])
+  })
+
+  it('reads the status moves from the expanded changelog, oldest first, and a long changelog by its own pages', async () => {
+    const move = (created: string, to: string) => ({ created, items: [{ field: 'assignee', toString: 'Someone' }, { field: 'status', toString: to }] })
+    const jira = fakeJira((p, init) => {
+      if (p === '/issue/bulkfetch') {
+        expect(JSON.parse(String(init.body)).expand).toEqual(['changelog'])
+        return Response.json({ issues: [
+          // Newest first, as bulkfetch gives them.
+          { key: 'KAZ-1', fields: { status: { name: 'Done', statusCategory: { key: 'done' } } }, changelog: { total: 2, histories: [move('2026-10-23T10:00:00.000+0300', 'Done'), move('2026-10-22T10:00:00.000+0300', 'Failed')] } },
+          { key: 'KAZ-2', fields: { status: { name: 'Testing', statusCategory: { key: 'indeterminate' } } }, changelog: { total: 3, histories: [move('2026-10-23T10:00:00.000Z', 'Testing')] } },
+        ] })
+      }
+      expect(p.startsWith('/issue/KAZ-2/changelog?startAt=')).toBe(true)
+      return p.includes('startAt=0')
+        ? Response.json({ values: [move('2026-10-20T10:00:00.000Z', 'In Progress'), move('2026-10-21T10:00:00.000Z', 'Failed')], isLast: false })
+        : Response.json({ values: [move('2026-10-23T10:00:00.000Z', 'Testing')], isLast: true })
+    })
+    const found = await jiraStatuses(CONFIG, jira.fetchFn)(['KAZ-1', 'KAZ-2'])
+    expect(found.kind === 'found' && found.tickets.map((t) => [t.key, t.moves])).toEqual([
+      ['KAZ-1', [{ at: '2026-10-22T07:00:00.000Z', to: 'Failed' }, { at: '2026-10-23T07:00:00.000Z', to: 'Done' }]],
+      ['KAZ-2', [{ at: '2026-10-20T10:00:00.000Z', to: 'In Progress' }, { at: '2026-10-21T10:00:00.000Z', to: 'Failed' }, { at: '2026-10-23T10:00:00.000Z', to: 'Testing' }]],
     ])
   })
 

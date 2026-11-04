@@ -55,6 +55,10 @@ stage that ran several times is matched to its `state.md` lines in order.
 pipeline pushed, whatever was rebased. **Merged with changes**: merged with lines the pipeline
 did not push, or without some it did (ADR statistics).
 
+**Failed after merge**: a ticket that testing sent to Jira's `Failed` status after the
+pipeline's pull request for it was merged: a fix that did not hold, whatever became of the ticket
+later (ADR statistics).
+
 **Period**: on the statistics page, the runs counted: those started in the last batch, 7, 30 or
 90 days, or all time; their pull requests and tickets count with them, whenever they were merged
 or done.

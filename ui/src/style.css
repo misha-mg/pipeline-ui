@@ -267,7 +267,8 @@ table.runs th:last-child, table.runs td:last-child { padding-right: 0; }
 .run-reason.bad { border-left-color: var(--rust); }
 .run-reason.ok { border-left-color: var(--moss); }
 
-/* Statistics: the period's chips, a strip of eight numbers, the funnel beside why runs stopped,
+/* Statistics: the period's chips, a strip of eight numbers, the funnel beside the fixes sent to
+   Failed and why runs stopped,
    four charts two by two, then the pull requests. Chart colours say how a thing ended, from the
    sheet's own: moss done, its lighter step done another way, rust stopped, slate a plain count,
    faint not known (a light step's contrast is low, so every chart has a legend and a tooltip). */
@@ -281,7 +282,9 @@ table.runs th:last-child, table.runs td:last-child { padding-right: 0; }
 .stats-filters .opts.by { flex: none; }
 .sheet .strip.frame { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 @media (max-width: 1300px) { .sheet .strip.frame { grid-template-columns: repeat(4, minmax(0, 1fr)); } .sheet .strip.frame .cell:nth-child(4n + 1) { border-left: 0; } .sheet .strip.frame .cell:nth-child(n + 5) { border-top: 1px solid var(--line-soft); } }
-.stats-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.stats-pair { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+@media (max-width: 1300px) { .stats-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats-pair > :last-child { grid-column: 1 / -1; } }
+.prs td.jira { white-space: nowrap; } .prs td.jira .pill + .pill { margin-left: 6px; }
 .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
 @media (max-width: 900px) { .stats-pair, .charts { grid-template-columns: 1fr; } }
 @media (max-width: 640px) {

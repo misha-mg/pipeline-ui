@@ -43,5 +43,16 @@ service's background round, kept in a `tickets` table; a key Jira does not know 
 rather than failing the call, as a JQL `key in (...)` would. The ticket's summary comes with it,
 for older runs whose files have none.
 
+**Failed after merge** (added 2026-11-04) is a move into the Jira status named `Failed` (the
+workflow's status testing sends a ticket back to) after the ticket's pipeline pull request was
+merged: the fix did not hold. A Failed before the merge is review, not the fix, and is not
+counted. It is read from the changelog, not the current status: a failed ticket is reopened and
+usually ends in Done, so its status alone hides it. The changelog comes in the same bulkfetch
+(`expand: changelog`), which carries only the latest 40 or so histories; a ticket with more has
+its changelog read by its own pages. Each ticket keeps its status moves in the `tickets` table;
+a copy from before they were kept is read again once. The share is of the tickets merged, and
+the merged pull requests are split by merged as opened or with changes, since a fix someone had
+to change before the merge fails more often.
+
 The cockpit's counts by verdict for the last batch, 7 days and all time (dropped from the cockpit
 on 2026-11-01) are the page's periods now; the state API still carries them.

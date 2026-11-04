@@ -60,10 +60,13 @@ Agent SDK, and from its own records.
   period (the last batch, 7, 30 or 90 days, all time) and what became of them: tickets and runs;
   pull requests opened, open, merged and into which branch, declined; merged as the pipeline
   opened them or with changes; tickets with a merged pull request that are Done in Jira; tickets
+  sent to Failed in Jira after their pull request was merged, as a share of the merged, split by
+  merged as opened or with changes (added 2026-11-04: the share of fixes that did not hold); tickets
   no run finished, and why runs stopped (blocked or failed by verdict, nothing to build apart);
   the median time from a pull request's opening to its merge. The tickets as a funnel: run, with
-  a pull request, merged, Done in Jira. By day or by week: runs started by how they ended, pull
-  requests opened, closed (merged as opened, with changes, declined), tickets moving into Done.
+  a pull request, merged, Done in Jira, Done without a Failed after the merge. By day or by week:
+  runs started by how they ended, pull requests opened, closed (merged as opened, with changes,
+  declined), tickets moving into Done or, after the merge, into Failed.
   Then every pull request of the period with what became of it, the lines the pipeline pushed and
   those merged when they differ, and its ticket's Jira status, filterable by outcome.
 - The webui branch a run starts from and its pull request goes to, and whether pull requests are
@@ -178,7 +181,9 @@ What it shows:
   rebased and merged without other change counts as merged as opened; one with a line added or
   changed after the pipeline pushed it counts as merged with changes. Without a Bitbucket token
   the page says the pull requests' states are unknown; without Jira, that Done is unknown; the
-  rest shows.
+  rest shows. A ticket sent to Failed before its pull request was merged does not count as failed
+  after merge; one sent to Failed after it counts once, however many times, and on each day in
+  the chart.
 - The console is opened from a browser on another machine on the network: it shows the same queue,
   run and history as the server's files, and an action taken in one browser shows in another
   within 5 s.
