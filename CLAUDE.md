@@ -50,9 +50,12 @@ import paths, no enums or parameter properties (`tsconfig.json` enforces it).
 - Jira and Bitbucket are only read. Jira goes through `server/store/jira.ts`, by
   `api.atlassian.com/ex/jira/<cloudId>`: the token is a scoped one, and the site's own URL
   answers 401/404 to it. A 404 there is not a wrong key.
-- `ui/src/sheet.css` is the design system shared with bug-validator (its
-  `src/ui/static/sheet.css`): an edit to one is copied to the other. The console's own layout
-  goes in `ui/src/style.css`.
+- `ui/src/sheet.css`, `ui/public/theme.js` and `ui/public/fonts/` are the design system (the
+  sheet) shared with bug-validator, and this repository is its source of truth: bug-validator
+  copies the three with its `npm run sheet:sync`, and a test there fails when its copy falls
+  behind. Every reusable part (cards, the strip, filters, bars, the column chart, toasts, the
+  confirmation dialog) goes in the sheet; only the console's own layout goes in
+  `ui/src/style.css`.
 - Never print the secrets files (`~/.config/webui-pipeline.env`, `.env`) or an unfiltered `env`.
 
 ## The running service

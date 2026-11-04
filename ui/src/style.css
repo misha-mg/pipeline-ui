@@ -1,88 +1,22 @@
-/* The console's own layout, on the drafting sheet (sheet.css): the cockpit's cards and columns,
-   the dependencies, a run's stages and reports. */
+/* The console's own layout, on the drafting sheet (sheet.css): the cockpit's columns, the queue,
+   a run's diagram and reports, the statistics' pairs and charts. Every reusable part (cards,
+   the strip, filters, bars, the column chart, toasts, the dialog) is the sheet's. */
 
-/* Cockpit: a strip of four compact cards, the controls left of the queue and the runs. */
-.cards { grid-template-columns: repeat(4, 1fr); margin-bottom: 30px; }
-.cards .card { padding: 16px 20px 18px; }
-.cards .label { margin-bottom: 8px; }
-.cards .card .value { font-size: 30px; }
+/* Cockpit: the controls left of the queue and the runs; the target branch keeps its case. */
 .cards .card .value.branch { text-transform: none; }
 .cards .card .value.live { color: var(--moss); }
-.cards .card .note { margin-top: 6px; }
-.cards .card .note.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cards .card .note.err { color: var(--rust); }
-.cards .acts { display: flex; gap: 6px; margin-top: 10px; }
 .btn.wide { width: 100%; }
 .ctl.gap { margin-top: 8px; }
 .ctl.gap .btn { flex: 1; }
 .cockpit { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: var(--gap); align-items: start; }
-@media (max-width: 1100px) { .cards { grid-template-columns: repeat(2, 1fr); } .cockpit { grid-template-columns: 1fr; } }
-.block { margin-top: 24px; }
-/* The block's label with the JQL switch at its right; the switch shows on or off at a glance. */
-.block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.block-head .label { margin: 0; }
-.switch { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: var(--muted); font: 600 11px/1 var(--cond); letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; }
-.switch:hover { color: var(--text); }
-.switch .track { position: relative; flex: none; width: 28px; height: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); transition: background 0.15s, border-color 0.15s; }
-.switch .knob { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: transform 0.15s, background 0.15s; }
-.switch[aria-checked='true'] { color: var(--slate-ink); }
-.switch[aria-checked='true'] .track { background: var(--slate); border-color: var(--slate); }
-.switch[aria-checked='true'] .knob { transform: translateX(12px); background: var(--on-slate); }
-.switch:focus-visible { outline: none; }
-.switch:focus-visible .track { outline: 2px solid var(--slate); outline-offset: 2px; }
+@media (max-width: 1100px) { .cockpit { grid-template-columns: 1fr; } }
 /* The JQL the search is made within: a few lines of code above the field, never wider than the
    column and at most about eight lines tall; longer JQL scrolls inside. */
 .jql { margin-bottom: 12px; }
 .jql textarea.field { display: block; width: 100%; max-width: 100%; height: auto; min-height: 64px; max-height: 176px; padding: 8px 12px; resize: vertical; overflow-y: auto; font-family: var(--mono); font-size: 13px; line-height: 1.45; }
-.more { display: flex; justify-content: center; padding-top: 16px; }
 td.summary { max-width: 520px; }
 td .actions { display: flex; gap: 6px; justify-content: flex-end; }
 .verdict-done { color: var(--moss); } .verdict-blocked { color: var(--rust); } .verdict-failed { color: var(--rust); } .verdict-none { color: var(--faint); }
-/* Run history: a strip of cells, what the runs shown add up to, then the filters, a labelled row
-   for the verdict and one for the ending; the verdicts by family, each family boxed with its own. */
-.strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0; margin: -6px 0 22px; }
-.strip .cell { padding: 16px 20px 15px; min-width: 0; border-left: 1px solid var(--line-soft); }
-.strip .cell:first-child { border-left: 0; }
-.strip .label { margin-bottom: 8px; }
-.strip .value { font: 500 30px/1 var(--cond); letter-spacing: 0.02em; }
-.strip .value.ok { color: var(--moss); } .strip .value.bad { color: var(--rust); }
-.strip .note { margin-top: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 1100px) { .strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } .strip .cell:nth-child(3n + 1) { border-left: 0; } .strip .cell:nth-child(n + 4) { border-top: 1px solid var(--line-soft); } }
-@media (max-width: 640px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .strip .cell { border-left: 1px solid var(--line-soft); border-top: 1px solid var(--line-soft); } .strip .cell:nth-child(odd) { border-left: 0; } .strip .cell:nth-child(-n + 2) { border-top: 0; } }
-.filters { display: grid; gap: 10px; margin: 0 0 24px; }
-.filters .row { display: flex; align-items: flex-start; gap: 16px; }
-.filters .row > .label { flex: 0 0 64px; margin: 0; line-height: 30px; }
-.filters .opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.filters .group { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 2px; border: 1px solid var(--line-soft); border-radius: 3px; }
-.filters .group .chip { height: 24px; border-color: transparent; }
-.filters .group .chip:hover { border-color: var(--line); }
-.filters .group .chip.on { border-color: var(--slate-ink); }
-.filters .group .chip.fam { letter-spacing: 0.18em; }
-.filters .group.done .chip.fam { color: var(--moss); }
-.filters .group.blocked .chip.fam, .filters .group.failed .chip.fam { color: var(--rust); }
-.filters .group .chip.sub { text-transform: none; letter-spacing: 0.04em; font: 500 12px/1 var(--sans); }
-.filters .clear { flex: none; margin-top: 3px; }
-
-/* State sources: folded to a lamp and a word, opened to one line per source. */
-.sources { padding-block: 16px; cursor: pointer; }
-.sources:hover .chevron, .sources:hover .fold .label { color: var(--text); }
-.fold { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; }
-.fold .label { margin: 0; }
-.fold .state { font-size: 12px; color: var(--muted); flex: 1; }
-.fold .state.err { color: var(--rust); }
-.fold .chevron { font: 500 18px/1 var(--cond); color: var(--muted); }
-.lamp { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--faint); }
-.lamp.ok { background: var(--moss); box-shadow: 0 0 0 3px color-mix(in srgb, var(--moss) 22%, transparent); }
-.lamp.bad { background: var(--rust); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rust) 22%, transparent); }
-.sources .deps { margin-top: 12px; }
-
-/* Dependencies: one line each, its detail cut to the width. */
-.dep { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); min-width: 0; }
-.dep:last-of-type { border-bottom: 0; }
-.dep .text { flex: 1; min-width: 0; }
-.dep .name { font-weight: 500; }
-.dep .detail { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dep .pill { flex: none; }
 
 /* One run: its state as pills, its steps as a diagram of blocks joined by links, the chosen
    block's report in a panel under it with a pointer up to the block. */
@@ -97,7 +31,7 @@ td .actions { display: flex; gap: 6px; justify-content: flex-end; }
 /* A block: a stage's number and lamp, its name, its agent, how long and how it went, a bar. */
 .node {
   position: relative; flex: 1 1 0; min-width: 138px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  padding: 12px 14px 15px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: inherit;
+  padding: 12px 14px 15px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: inherit;
   font: inherit; text-align: left; cursor: pointer; overflow: hidden;
   transition: border-color 0.4s ease, background-color 0.4s ease, box-shadow 0.3s ease, transform 0.25s ease;
 }
@@ -164,32 +98,15 @@ td .actions { display: flex; gap: 6px; justify-content: flex-end; }
 }
 pre.report { margin: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.5; color: var(--text); max-height: 70vh; overflow: auto; }
 .report-frame { margin-top: 26px; }
-
-/* The run in flight in a list of runs: a tinted band and a pulsing dot. The table stops at the
-   frame's padding (22px a side); a strip on each end cell carries the band out to the frame's
-   edges (a cell's box-shadow is not drawn there), and the dot sits in the left one, out of the
-   text's way. */
-tr.live td { background: color-mix(in srgb, var(--slate) 10%, transparent); }
-tr.live td:first-child, tr.live td:last-child { position: relative; }
-tr.live td:first-child::before, tr.live td:last-child::after { content: ''; position: absolute; top: 0; bottom: 0; width: 22px; background: inherit; }
-tr.live td:first-child::before { left: -22px; }
-tr.live td:last-child::after { right: -22px; }
-tr.live td:first-child .pulse { position: absolute; z-index: 1; left: -15px; top: 50%; margin: -3.5px 0 0; }
-.pulse { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--moss); vertical-align: 1px; animation: pulse 1.6s ease-in-out infinite; }
-@keyframes pulse { 50% { opacity: 0.25; } }
-@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
-td.jira a { text-decoration: none; font-size: 15px; line-height: 1; color: var(--muted); }
-td.jira a:hover { color: var(--slate-ink); }
-/* A cell cut to one line with an ellipsis: max-width 0 lets the table give it the room left. */
-td.one-line { max-width: 0; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .run-summary { margin: -10px 0 22px; font-size: 15px; color: var(--text); }
-/* Lists of runs: their pills sit side by side, so the columns get more air than the sheet's 10px. */
-table.runs th, table.runs td { padding-right: 22px; }
-table.runs th:last-child, table.runs td:last-child { padding-right: 0; }
 
-/* No corner crosses on this console's frames: sheet.css keeps them for bug-validator, here they
-   were more noise than drawing. */
-.frame::before { display: none; }
+/* A stage that ended badly (a failed review, a blocked test, a low confidence) is marked so, not
+   green like a passed one: rust lamp and bar, its result in rust. */
+.node.done.bad .lamp-dot { background: var(--rust); border-color: var(--rust); }
+.node.done.bad .bar { background: color-mix(in srgb, var(--rust) 75%, transparent); }
+.node.done.bad .meta { color: var(--rust); }
+.node.end.bad { border-color: color-mix(in srgb, var(--rust) 45%, var(--line)); }
+.node.end.ok { border-color: color-mix(in srgb, var(--moss) 45%, var(--line)); }
 
 /* The queue: a list, not a table, so a row can leave without the rows under it jumping. Rows
    glide to their new place on a reorder, a new one slides in with a short glow, a removed or
@@ -222,106 +139,20 @@ table.runs th:last-child, table.runs td:last-child { padding-right: 0; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-/* Notifications: a stack at the bottom right, the newest lowest, each a hairline card with its
-   kind's colour at the left edge, an icon, the message, and a bar that runs down while it stays. */
-.toasts { position: fixed; bottom: 20px; right: 20px; z-index: 50; width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-.toast {
-  position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 12px; align-items: start; overflow: hidden;
-  padding: 13px 12px 15px 14px; border: 1px solid var(--line); border-left: 3px solid var(--tone); border-radius: 3px;
-  background: var(--bg); box-shadow: 0 14px 30px -18px color-mix(in srgb, var(--text) 70%, transparent); pointer-events: auto;
-  --tone: var(--slate);
-}
-.toast.success { --tone: var(--moss); }
-.toast.error { --tone: var(--rust); }
-.toast .icon { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 13px/1 var(--sans); color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
-.toast .title { font: 600 15px/1.2 var(--cond); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); overflow-wrap: anywhere; }
-.toast .detail { margin-top: 4px; font-size: 12.5px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
-.toast .small-link { display: inline-block; margin-top: 8px; color: var(--tone); }
-.toast .close { border: 0; background: none; color: var(--faint); font-size: 18px; line-height: 1; padding: 2px 4px; cursor: pointer; }
-.toast .close:hover { color: var(--text); }
-.toast .life { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--tone); opacity: 0.55; transform-origin: left; animation: life var(--life) linear forwards; }
-.toast:hover .life { animation-play-state: paused; }
-@keyframes life { from { transform: scaleX(1); } to { transform: scaleX(0); } }
-.toast-enter-active { transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.15); }
-.toast-enter-from { opacity: 0; transform: translateY(24px) scale(0.97); }
-.toast-leave-active { position: absolute; width: 100%; transition: opacity 0.3s ease, transform 0.3s ease; }
-.toast-leave-to { opacity: 0; transform: translateX(40px); }
-.toast-move { transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-
 @media (prefers-reduced-motion: reduce) {
-  .q-move, .q-enter-active, .q-leave-active, .rows-move, .rows-enter-active, .tick-enter-active, .tick-leave-active, .toast-enter-active, .toast-leave-active, .toast-move { transition: none; animation: none; }
-  .toast .life { animation: none; }
+  .q-move, .q-enter-active, .q-leave-active, .rows-move, .rows-enter-active, .tick-enter-active, .tick-leave-active { transition: none; animation: none; }
 }
-
-/* A stage that ended badly (a failed review, a blocked test, a low confidence) is marked so, not
-   green like a passed one: rust lamp and bar, its result in rust. */
-.node.done.bad .lamp-dot { background: var(--rust); border-color: var(--rust); }
-.node.done.bad .bar { background: color-mix(in srgb, var(--rust) 75%, transparent); }
-.node.done.bad .meta { color: var(--rust); }
-.node.end.bad { border-color: color-mix(in srgb, var(--rust) 45%, var(--line)); }
-.node.end.ok { border-color: color-mix(in srgb, var(--moss) 45%, var(--line)); }
-
-/* Why a run stopped (or how its session ended), whole and wrapped, under its pills. */
-.run-reason { display: flex; gap: 14px; align-items: baseline; margin: -12px 0 22px; padding: 10px 14px; border-left: 3px solid var(--line); background: var(--field); font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
-.run-reason .label { flex: none; margin: 0; }
-.run-reason.bad { border-left-color: var(--rust); }
-.run-reason.ok { border-left-color: var(--moss); }
 
 /* Statistics: the period's chips, a strip of eight numbers, the funnel beside the fixes sent to
-   Failed and why runs stopped,
-   four charts two by two, then the pull requests. Chart colours say how a thing ended, from the
-   sheet's own: moss done, its lighter step done another way, rust stopped, slate a plain count,
-   faint not known (a light step's contrast is low, so every chart has a legend and a tooltip). */
-:root {
-  --chart-ok: var(--moss); --chart-ok-soft: color-mix(in srgb, var(--moss) 50%, var(--bg));
-  --chart-bad: var(--rust); --chart-count: var(--slate); --chart-none: var(--faint);
-}
-:root[data-theme="dark"] { --chart-ok-soft: color-mix(in srgb, var(--moss) 58%, var(--bg)); }
+   Failed and why runs stopped, four charts two by two, then the pull requests. */
 .stats-filters .row { flex-wrap: wrap; }
 .stats-filters .opts:not(.by) { flex: 1 1 18rem; }
 .stats-filters .opts.by { flex: none; }
-.sheet .strip.frame { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-@media (max-width: 1300px) { .sheet .strip.frame { grid-template-columns: repeat(4, minmax(0, 1fr)); } .sheet .strip.frame .cell:nth-child(4n + 1) { border-left: 0; } .sheet .strip.frame .cell:nth-child(n + 5) { border-top: 1px solid var(--line-soft); } }
 .stats-pair { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
 @media (max-width: 1300px) { .stats-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats-pair > :last-child { grid-column: 1 / -1; } }
 .prs td.jira { white-space: nowrap; } .prs td.jira .pill + .pill { margin-left: 6px; }
 .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
 @media (max-width: 900px) { .stats-pair, .charts { grid-template-columns: 1fr; } }
-@media (max-width: 640px) {
-  .sheet .strip.frame { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sheet .strip.frame .cell { border-left: 1px solid var(--line-soft); border-top: 1px solid var(--line-soft); }
-  .sheet .strip.frame .cell:nth-child(odd) { border-left: 0; }
-  .sheet .strip.frame .cell:nth-child(-n + 2) { border-top: 0; }
-}
-
-/* A bar per row: the name, a thin bar in a track, the count, its share. */
-.bars { display: grid; gap: 10px; }
-.bar-row { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 3rem 3rem; align-items: center; gap: 12px; }
-.bar-row .name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bar-row .track { height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; }
-.bar-row .track i { display: block; height: 100%; border-radius: 4px; background: var(--chart-count); min-width: 2px; }
-.bar-row .track i.bad { background: var(--chart-bad); }
-.bar-row .track i.soft { background: var(--chart-ok-soft); }
-.bar-row .track i.none { background: var(--chart-none); }
-.bar-row b { font: 500 18px/1 var(--cond); text-align: right; }
-.bar-row .share { font-size: 12px; color: var(--muted); text-align: right; }
-@media (max-width: 640px) { .bar-row { grid-template-columns: 7.5rem minmax(0, 1fr) 2.2rem 2.2rem; gap: 8px; } }
-
-/* The column chart (Columns.vue): legend, plot, tooltip. */
-.columns .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: -4px 0 12px; padding: 0; font-size: 12px; color: var(--muted); }
-.columns .legend li, .columns .tip .row { display: inline-flex; align-items: center; gap: 7px; }
-.columns .legend i, .columns .tip i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
-.columns .plot { position: relative; outline: none; }
-.columns .plot:focus-visible { box-shadow: 0 0 0 1px var(--slate); }
-.columns svg { display: block; overflow: visible; }
-.columns .grid line { stroke: var(--line-soft); stroke-width: 1; shape-rendering: crispEdges; }
-.columns text { font: 11px var(--sans); fill: var(--muted); font-variant-numeric: tabular-nums; }
-.columns .band { fill: var(--field); }
-.columns .hit { fill: transparent; }
-.columns .tip { position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; z-index: 1; background: var(--bg); border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; min-width: 150px; display: grid; gap: 4px; box-shadow: 0 2px 10px rgb(0 0 0 / 0.08); }
-.columns .tip .when { font-weight: 600; }
-.columns .tip .row span { flex: 1; color: var(--muted); }
-.columns .tip .row b { font-weight: 500; font-variant-numeric: tabular-nums; }
 
 /* The pull requests. */
 .pr-chips { margin-bottom: 16px; }

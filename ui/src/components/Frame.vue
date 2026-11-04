@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A frame of the sheet (sheet.css draws its border and corner crosses), with an optional
+// A frame of the sheet (sheet.css draws its hairline border), with an optional
 // title line (the name, a count, a note, something on the right).
 defineProps<{ title?: string; count?: string; note?: string }>()
 </script>

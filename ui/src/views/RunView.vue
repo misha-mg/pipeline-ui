@@ -197,7 +197,7 @@ onUnmounted(() => window.removeEventListener('resize', placeCaret))
       <a v-if="run.pr" class="pill" :class="prStateClass(run.pr.state) || 'slate'" :href="run.pr.url" target="_blank" rel="noopener" style="text-decoration: none">PR #{{ prNumber(run.pr.url) }} · {{ run.pr.state.toLowerCase() }}</a>
     </div>
 
-    <p v-if="run.reason || run.endingDetail" class="run-reason" :class="verdictTone(run.verdict) || toneClass(endingTone(run.ending))">
+    <p v-if="run.reason || run.endingDetail" class="reason" :class="verdictTone(run.verdict) || toneClass(endingTone(run.ending))">
       <span class="label">{{ run.reason ? 'Why' : 'Ending' }}</span>{{ run.reason ?? run.endingDetail }}
     </p>
     <Frame class="flow-frame">

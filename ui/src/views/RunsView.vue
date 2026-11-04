@@ -100,7 +100,7 @@ function prState(run: ShownRun): string {
       <span class="label">Verdict</span>
       <div class="opts">
         <button class="chip" :class="{ on: !filter.verdict }" @click="setFilter({ ...filter, verdict: '' })">All <b>{{ allCount }}</b></button>
-        <div v-for="g in families" :key="g.family" class="group" :class="g.family">
+        <div v-for="g in families" :key="g.family" class="group" :class="g.family === 'done' ? 'ok' : g.family === 'blocked' || g.family === 'failed' ? 'bad' : ''">
           <button class="chip fam" :class="{ on: filter.verdict === g.family }" @click="pickVerdict(g.family)">{{ g.family }} <b>{{ g.total }}</b></button>
           <button v-for="m in g.members" :key="m.verdict" class="chip sub" :class="{ on: filter.verdict === m.verdict }" @click="pickVerdict(m.verdict)">{{ m.label }} <b>{{ m.count }}</b></button>
         </div>
@@ -118,7 +118,7 @@ function prState(run: ShownRun): string {
   </div>
 
   <Frame>
-    <table class="runs">
+    <table class="wide runs">
       <thead><tr><th>Ticket</th><th>Jira</th><th>Run</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR · state</th><th>Duration</th></tr></thead>
       <tbody>
         <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">

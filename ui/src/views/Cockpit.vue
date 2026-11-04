@@ -2,7 +2,8 @@
 // The cockpit: a strip with the loop, what is in flight, what is next and where runs go; the
 // controls; the queue, the latest runs and the state sources. One field queues a ticket by its
 // key or searches Jira, within the operator's JQL when one is applied; the run in flight is cancelled from its own card. Explanations sit in
-// tooltips, so the sheet says only what is happening.
+// tooltips, so the sheet says only what is happening. Cancelling the run in flight asks first:
+// it cannot be taken back, and the session it ends cost a slot of the subscription.
 import { computed, onMounted, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
 import { endingLabel, endingTone, fmtAgo, fmtClock, fmtDuration, fmtTime, prNumber, stageOfAgent, toneClass, verdictClass } from '../api.ts'
@@ -122,6 +123,16 @@ onMounted(restoreSearch)
 function queueFound(key: string, front: boolean) {
   void actions.enqueue(key, front)
 }
+// The confirmation of a cancel: a modal dialog of the sheet; removing a queued ticket does not
+// ask, since the ticket can be queued again.
+const cancelDialog = ref<HTMLDialogElement | null>(null)
+function askCancel() {
+  cancelDialog.value?.showModal()
+}
+function confirmCancel() {
+  cancelDialog.value?.close()
+  void actions.cancel()
+}
 </script>
 
 <template>
@@ -140,7 +151,7 @@ function queueFound(key: string, front: boolean) {
         <div class="note one">{{ inFlightNote }}<template v-if="inFlight.cancelRequestedAt"> · <span class="err">cancelling</span></template></div>
         <div class="acts">
           <a v-if="runNumber(inFlight.runDir)" class="btn tiny" :href="`#/runs/${inFlight.key}/${runNumber(inFlight.runDir)}`">Reports</a>
-          <button class="btn tiny danger" :disabled="!!inFlight.cancelRequestedAt" title="Ends the session within 30 s. The run is recorded cancelled with the stage it was in; its worktree and reports stay." @click="actions.cancel()">Cancel</button>
+          <button class="btn tiny danger" :disabled="!!inFlight.cancelRequestedAt" title="Ends the session within 30 s. The run is recorded cancelled with the stage it was in; its worktree and reports stay." @click="askCancel()">Cancel</button>
         </div>
       </template>
       <div v-else class="note">nothing running</div>
@@ -158,6 +169,12 @@ function queueFound(key: string, front: boolean) {
       </div>
     </Frame>
   </div>
+
+  <dialog ref="cancelDialog" class="frame confirm" aria-labelledby="cancel-title">
+    <div class="frame-head"><h2 id="cancel-title">Cancel {{ inFlight?.key ?? 'the run' }}?</h2><span v-if="inFlight" class="note">{{ stageOfAgent(inFlight.stage) }} · {{ fmtDuration(inFlight.seconds) }} so far</span></div>
+    <p>The session ends within 30 s and the run is recorded cancelled with the stage it was in. Its worktree, its branch and the reports written so far stay; the next queued ticket starts if the loop is running. The ticket can be queued again for a new run.</p>
+    <form method="dialog"><button type="button" class="btn primary" @click="confirmCancel()">Cancel the run</button><button class="btn" autofocus>Keep it running</button></form>
+  </dialog>
 
   <div class="cockpit">
     <div class="stack">
@@ -259,7 +276,7 @@ function queueFound(key: string, front: boolean) {
 
       <Frame title="Recent runs" note="From .pipeline-runs and the service's own records.">
         <template #right><a class="small-link" href="#/runs">All runs</a></template>
-        <table v-if="recent.length" class="runs">
+        <table v-if="recent.length" class="wide runs">
           <thead><tr><th>Ticket</th><th>Jira</th><th>Summary</th><th>Verdict</th><th>Ending</th><th>PR</th><th>Duration</th><th>Started</th></tr></thead>
           <TransitionGroup tag="tbody" name="rows">
             <tr v-for="run in recent" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">

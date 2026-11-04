@@ -202,7 +202,7 @@ const read = computed(() => {
     </div>
   </div>
 
-  <Frame class="strip">
+  <Frame class="strip eight">
     <div v-for="cell in strip" :key="cell.label" class="cell">
       <div class="label">{{ cell.label }}</div>
       <div class="value" :class="cell.tone">{{ cell.value }}</div>
@@ -256,7 +256,7 @@ const read = computed(() => {
       <button class="chip" :class="{ on: !outcome }" @click="outcome = ''">All <b>{{ prs.length }}</b></button>
       <button v-for="x in outcomes" :key="x.o" class="chip" :class="{ on: outcome === x.o }" @click="outcome = outcome === x.o ? '' : x.o">{{ PR_OUTCOME_LABEL[x.o] }} <b>{{ x.n }}</b></button>
     </div>
-    <table class="runs prs">
+    <table class="wide prs">
       <thead><tr><th>PR</th><th>Ticket</th><th>Summary</th><th>Opened</th><th>Open for</th><th>Became</th><th>Lines</th><th>Into</th><th>Jira</th></tr></thead>
       <tbody>
         <tr v-for="p in shownPrs" :key="p.url">
