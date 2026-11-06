@@ -359,14 +359,37 @@ button {
 .masthead .btn:hover:not(:disabled) {
   background: var(--cg-surface-2);
 }
-.theme {
+/* The theme switch: the kit's icon button, a sun while the page is dark and a moon while it is
+   light (the one to switch to), drawn as inline SVG by the app (`.theme > svg.sun + svg.moon`);
+   the icon turns a little under the pointer. */
+.masthead .btn.theme {
+  width: 30px;
+  padding: 0;
   color: var(--cg-fg-2);
 }
-.theme::before {
-  content: 'Dark';
+.theme:hover:not(:disabled) {
+  color: var(--cg-fg);
 }
-:root[data-theme='dark'] .theme::before {
-  content: 'Light';
+.theme svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--cg-dur) var(--cg-ease);
+}
+.theme:hover svg {
+  transform: rotate(20deg);
+}
+.theme .sun,
+:root[data-theme='dark'] .theme .moon {
+  display: none;
+}
+:root[data-theme='dark'] .theme .sun {
+  display: block;
 }
 
 /* The sheet: the page under the masthead. */
