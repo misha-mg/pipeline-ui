@@ -57,7 +57,7 @@ const bars = computed(() =>
       const w = barW.value
       // The top part's upper corners are rounded; every other edge is square.
       const d = `M${x},${top + h} V${top + r} Q${x},${top} ${x + r},${top} H${x + w - r} Q${x + w},${top} ${x + w},${top + r} V${top + h} Z`
-      parts.push({ d, color: props.series[s]?.color ?? 'var(--faint)' })
+      parts.push({ d, color: props.series[s]?.color ?? 'var(--cg-fg-3)' })
       base = top
     })
     return { x, parts, total: c.values.reduce((s, v) => s + v, 0) }

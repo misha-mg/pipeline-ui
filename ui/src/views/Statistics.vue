@@ -308,12 +308,12 @@ const read = computed(() => {
   <div class="filters stats-filters">
     <div class="row">
       <span class="label">Period</span>
-      <div class="opts">
+      <div class="opts chips">
         <button v-for="(label, p) in PERIOD_LABEL" :key="p" class="chip" :class="{ on: period === p }" @click="period = p">
           {{ label }}
         </button>
       </div>
-      <div class="opts by">
+      <div class="opts chips by">
         <button class="chip" :class="{ on: bucket === 'day' }" @click="bucket = 'day'">By day</button>
         <button class="chip" :class="{ on: bucket === 'week' }" @click="bucket = 'week'">By week</button>
       </div>

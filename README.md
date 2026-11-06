@@ -79,8 +79,9 @@ and `PIPELINE_PASSWORD` for a login.
   declined, tickets Done in Jira or sent to Failed after the merge, why runs stopped, charts by day or week, and every pull request. A ticket key links
   to `JIRA_BASE_URL`. It polls the API
   every 2 s (the history every 10 s), so two browsers show the same within 5 s.
-  Its look is the drafting sheet, light or dark (`ui/public/theme.js`): the tokens and every
-  reusable part are `ui/src/sheet.css`, with the Barlow faces in `ui/public/fonts/`. The three
+  Its look is the sheet, the CGS Glass kit (ADR glass-kit), dark or light (`ui/public/theme.js`):
+  the tokens and every reusable part are `ui/src/sheet.css`, with the Inter and JetBrains Mono
+  faces in `ui/public/fonts/` for a machine without the system ones. The three
   are the source of truth of the design system bug-validator shares: it copies them with its
   `npm run sheet:sync`, and a test there checks the copy is current. `ui/src/style.css` only
   lays out the console's pages.

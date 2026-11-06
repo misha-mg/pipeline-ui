@@ -23,7 +23,7 @@ groups (`.group.ok`, `.group.bad`), bars, the column chart (whose SVG markup is 
 contract, so bug-validator renders the same chart on the server), lamps and the pulse, the live
 row, the state sources, the reason, the confirmation dialog (`dialog.confirm`), toasts, one
 `--radius` token, the chart colour tokens, the fonts as `@font-face` over `/fonts/` (the
-fontsource packages are gone). Frames lost their corner crosses: this console had them off
+fontsource packages are gone). (The sheet's look changed since: ADR glass-kit, 2026-11-06.) Frames lost their corner crosses: this console had them off
 already, and the two must look the same. `ui/src/style.css` lays out this console's pages and
 nothing else. Cancelling the run in flight asks first through that dialog, as bug-validator's
 "Post to Jira" does: both cannot be taken back. Removing a queued ticket does not ask.

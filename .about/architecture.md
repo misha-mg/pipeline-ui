@@ -46,8 +46,8 @@ server/
     guard.ts             security headers, the Host check, same origin for actions, optional login, the body cap (the same file as bug-validator's)
     view.ts              the state, the history, one run, the statistics, assembled from the sources
 ui/
-  index.html, public/    the page, theme.js (light or dark before the first paint), fonts/ (Barlow, OFL)
-  src/sheet.css          the drafting sheet: the design system both consoles share; this file is its source of truth
+  index.html, public/    the page, theme.js (light or dark before the first paint), fonts/ (Inter, JetBrains Mono; OFL)
+  src/sheet.css          the sheet: the CGS Glass kit's tokens and parts, the design system both consoles share; its source of truth
   src/style.css          the console's own layout: the cockpit grid, the queue, the run diagram, the statistics' grids
   src/api.ts             the API's types from the server, the calls, the outcome words and the formats re-exported
   src/console.ts         the polled state and history, the actions, the notifications of what changed
@@ -183,9 +183,9 @@ API proxied to a running service.
   (`#/runs/KEY/N`) is a diagram of its steps; choosing one shows its report.
 - **Statistics** (`#/stats`): for the runs of a period, the pull requests and what became of
   them, the tickets' Jira statuses, why runs stopped, charts by day or week, every pull request.
-- The look is the drafting sheet (`ui/src/sheet.css`, `ui/public/theme.js`, `ui/public/fonts/`),
-  the design system shared with bug-validator and kept here as its source of truth (ADR
-  unification).
+- The look is the sheet (`ui/src/sheet.css`, `ui/public/theme.js`, `ui/public/fonts/`): the CGS
+  Glass kit's tokens and parts (ADR glass-kit), the design system shared with bug-validator and
+  kept here as its source of truth (ADR unification).
 
 ### Deploy
 

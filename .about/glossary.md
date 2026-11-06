@@ -63,9 +63,10 @@ later (ADR statistics).
 90 days, or all time; their pull requests and tickets count with them, whenever they were merged
 or done.
 
-**Sheet**: the drafting sheet, the design system both consoles share (`ui/src/sheet.css`,
-`ui/public/theme.js`, `ui/public/fonts/`); this repository is its source of truth, bug-validator
-syncs a copy (ADR unification). "The sheet's part" is a class defined there; the console's own
+**Sheet**: the design system both consoles share (`ui/src/sheet.css`, `ui/public/theme.js`,
+`ui/public/fonts/`): the CGS Glass kit's tokens (`--cg-*`) and its parts under the sheet's own
+class names (ADR glass-kit); this repository is its source of truth, bug-validator syncs a copy
+(ADR unification). "The sheet's part" is a class defined there; the console's own
 layout is `ui/src/style.css`.
 
 **Console guard**: what the HTTP server checks before it serves anything (`server/http/guard.ts`):

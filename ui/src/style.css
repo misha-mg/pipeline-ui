@@ -1,4 +1,4 @@
-/* The console's own layout, on the drafting sheet (sheet.css): the cockpit's columns, the queue,
+/* The console's own layout, on the sheet (sheet.css, the CGS Glass kit): the cockpit's columns, the queue,
    a run's diagram and reports, the statistics' pairs and charts. Every reusable part (cards,
    the strip, filters, bars, the column chart, toasts, the dialog) is the sheet's. */
 
@@ -41,7 +41,7 @@
   padding: 8px 12px;
   resize: vertical;
   overflow-y: auto;
-  font-family: var(--mono);
+  font-family: var(--cg-font-mono);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -55,16 +55,16 @@ td .actions {
   justify-content: flex-end;
 }
 .verdict-done {
-  color: var(--moss);
+  color: var(--cg-ok);
 }
 .verdict-blocked {
-  color: var(--rust);
+  color: var(--cg-danger);
 }
 .verdict-failed {
-  color: var(--rust);
+  color: var(--cg-danger);
 }
 .verdict-none {
-  color: var(--faint);
+  color: var(--cg-fg-3);
 }
 
 /* One run: its state as pills, its steps as a diagram of blocks joined by links, the chosen
@@ -108,9 +108,9 @@ td .actions {
   align-items: flex-start;
   gap: 4px;
   padding: 12px 14px 15px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-md);
+  background: var(--cg-surface-2);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -123,11 +123,11 @@ td .actions {
     transform 0.25s ease;
 }
 .node:hover:not(:disabled) {
-  border-color: var(--muted);
+  border-color: var(--cg-fg-2);
   transform: translateY(-2px);
 }
 .node:focus-visible {
-  outline: 2px solid var(--slate);
+  outline: 2px solid var(--cg-blue);
   outline-offset: 2px;
 }
 .node .top {
@@ -138,44 +138,44 @@ td .actions {
   margin-bottom: 2px;
 }
 .node .no {
-  font: 500 11px/1 var(--mono);
-  color: var(--faint);
+  font: 500 11px/1 var(--cg-font-mono);
+  color: var(--cg-fg-3);
   letter-spacing: 0.04em;
 }
 .node .lamp-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  border: 1px solid var(--faint);
+  border: 1px solid var(--cg-fg-3);
   transition:
     background-color 0.4s,
     border-color 0.4s;
 }
 .node .name {
-  font: 600 17px/1.05 var(--cond);
-  letter-spacing: 0.1em;
+  font: 600 13px/1.2 var(--cg-font-sans);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text);
+  color: var(--cg-fg);
   transition: color 0.4s;
 }
 .node .agent {
   max-width: 100%;
-  font: 11px/1.3 var(--mono);
-  color: var(--muted);
+  font: 11px/1.3 var(--cg-font-mono);
+  color: var(--cg-fg-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .node .agent.ok {
-  color: var(--moss);
+  color: var(--cg-ok);
 }
 .node .agent.bad {
-  color: var(--rust);
+  color: var(--cg-danger);
 }
 .node .meta {
   font-size: 11.5px;
   line-height: 1.3;
-  color: var(--muted);
+  color: var(--cg-fg-2);
 }
 .node .bar {
   position: absolute;
@@ -188,37 +188,37 @@ td .actions {
 }
 
 .node.done .lamp-dot {
-  background: var(--moss);
-  border-color: var(--moss);
+  background: var(--cg-ok);
+  border-color: var(--cg-ok);
 }
 .node.done .bar {
-  background: color-mix(in srgb, var(--moss) 70%, transparent);
+  background: color-mix(in srgb, var(--cg-ok) 70%, transparent);
 }
 .node.working {
-  border-color: var(--slate);
-  background: color-mix(in srgb, var(--slate) 7%, var(--bg));
+  border-color: var(--cg-blue);
+  background: var(--cg-blue-soft);
 }
 .node.working .name {
-  color: var(--slate-ink);
+  color: var(--cg-blue);
 }
 .node.working .lamp-dot {
-  background: var(--slate);
-  border-color: var(--slate);
+  background: var(--cg-blue);
+  border-color: var(--cg-blue);
   animation: pulse 1.6s ease-in-out infinite;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--slate) 25%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-blue) 25%, transparent);
 }
 .node.working .bar {
-  background: linear-gradient(90deg, transparent, var(--slate), transparent) 0 0 / 40% 100% no-repeat;
+  background: linear-gradient(90deg, transparent, var(--cg-blue), transparent) 0 0 / 40% 100% no-repeat;
   animation: sweep 1.8s ease-in-out infinite;
 }
 .node.stopped {
-  border-color: color-mix(in srgb, var(--rust) 55%, var(--line));
+  border-color: color-mix(in srgb, var(--cg-danger) 55%, var(--cg-border-strong));
 }
 .node.stopped .lamp-dot {
-  border-color: var(--rust);
+  border-color: var(--cg-danger);
 }
 .node.stopped .bar {
-  background: var(--rust);
+  background: var(--cg-danger);
 }
 .node.next {
   border-style: dashed;
@@ -227,7 +227,7 @@ td .actions {
 }
 .node.next .name,
 .node.next .agent {
-  color: var(--faint);
+  color: var(--cg-fg-3);
 }
 
 /* The ticket's start and the verdict: terminals, rounder and narrower than the stages. */
@@ -239,13 +239,13 @@ td .actions {
   justify-content: center;
   align-items: center;
   text-align: center;
-  border-radius: 26px;
+  border-radius: var(--cg-radius-pill);
   padding: 12px 20px;
 }
 .node.start .name,
 .node.end .name,
 .node.file .name {
-  font-size: 15px;
+  font-size: 12px;
 }
 .node.end {
   min-width: 150px;
@@ -253,14 +253,14 @@ td .actions {
 
 /* The block shown in the panel: lifted, its edge in the accent, a pointer from the panel under it. */
 .node.on {
-  border-color: var(--slate-ink);
+  border-color: var(--cg-blue);
   box-shadow:
-    inset 0 3px 0 var(--slate-ink),
-    0 12px 22px -16px color-mix(in srgb, var(--text) 60%, transparent);
+    inset 0 3px 0 var(--cg-blue),
+    var(--cg-shadow-raised);
   transform: translateY(-3px);
 }
 .node.on:not(.working) {
-  background: var(--field);
+  background: var(--cg-surface-4);
 }
 
 /* A link: a track that fills once the next block starts, flowing while it works, and its arrow. */
@@ -275,13 +275,13 @@ td .actions {
   position: relative;
   flex: 1;
   height: 2px;
-  background: var(--line);
+  background: var(--cg-border-strong);
   overflow: hidden;
 }
 .link .fill {
   position: absolute;
   inset: 0;
-  background: var(--moss);
+  background: var(--cg-ok);
   transform: scaleX(0);
   transform-origin: left;
   transition:
@@ -291,7 +291,7 @@ td .actions {
 .link .head {
   width: 0;
   height: 0;
-  border-left: 7px solid var(--line);
+  border-left: 7px solid var(--cg-border-strong);
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
   transition: border-color 0.4s 0.3s;
@@ -300,22 +300,22 @@ td .actions {
   transform: scaleX(1);
 }
 .link.filled .head {
-  border-left-color: var(--moss);
+  border-left-color: var(--cg-ok);
 }
 .link.flowing .fill {
   transform: scaleX(1);
-  background: repeating-linear-gradient(90deg, var(--slate) 0 6px, transparent 6px 10px);
+  background: repeating-linear-gradient(90deg, var(--cg-blue) 0 6px, transparent 6px 10px);
   animation: flow 0.7s linear infinite;
 }
 .link.flowing .head {
-  border-left-color: var(--slate);
+  border-left-color: var(--cg-blue);
 }
 .link.cut .fill {
   transform: scaleX(1);
-  background: var(--rust);
+  background: var(--cg-danger);
 }
 .link.cut .head {
-  border-left-color: var(--rust);
+  border-left-color: var(--cg-danger);
 }
 
 .detail {
@@ -323,7 +323,7 @@ td .actions {
   margin-top: 22px;
 }
 .detail .detail-frame {
-  border-top-color: var(--slate-ink);
+  border-top-color: var(--cg-blue);
 }
 .detail.pointed::before {
   content: '';
@@ -333,9 +333,9 @@ td .actions {
   left: calc(var(--caret-x) - 7px);
   width: 13px;
   height: 13px;
-  background: var(--bg);
-  border-left: 1px solid var(--slate-ink);
-  border-top: 1px solid var(--slate-ink);
+  background: linear-gradient(var(--cg-surface), var(--cg-surface)), var(--cg-window);
+  border-left: 1px solid var(--cg-blue);
+  border-top: 1px solid var(--cg-blue);
   transform: rotate(45deg);
   transition: left 0.35s ease;
 }
@@ -389,7 +389,7 @@ pre.report {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
-  color: var(--text);
+  color: var(--cg-fg);
   max-height: 70vh;
   overflow: auto;
 }
@@ -399,26 +399,26 @@ pre.report {
 .run-summary {
   margin: -10px 0 22px;
   font-size: 15px;
-  color: var(--text);
+  color: var(--cg-fg);
 }
 
 /* A stage that ended badly (a failed review, a blocked test, a low confidence) is marked so, not
    green like a passed one: rust lamp and bar, its result in rust. */
 .node.done.bad .lamp-dot {
-  background: var(--rust);
-  border-color: var(--rust);
+  background: var(--cg-danger);
+  border-color: var(--cg-danger);
 }
 .node.done.bad .bar {
-  background: color-mix(in srgb, var(--rust) 75%, transparent);
+  background: color-mix(in srgb, var(--cg-danger) 75%, transparent);
 }
 .node.done.bad .meta {
-  color: var(--rust);
+  color: var(--cg-danger);
 }
 .node.end.bad {
-  border-color: color-mix(in srgb, var(--rust) 45%, var(--line));
+  border-color: color-mix(in srgb, var(--cg-danger) 45%, var(--cg-border-strong));
 }
 .node.end.ok {
-  border-color: color-mix(in srgb, var(--moss) 45%, var(--line));
+  border-color: color-mix(in srgb, var(--cg-ok) 45%, var(--cg-border-strong));
 }
 
 /* The queue: a list, not a table, so a row can leave without the rows under it jumping. Rows
@@ -433,25 +433,24 @@ pre.report {
 }
 .qhead {
   padding: 0 0 10px;
-  border-bottom: 1px solid var(--line);
-  font: 500 11px/1.45 var(--sans);
-  letter-spacing: 0.16em;
+  border-bottom: 1px solid var(--cg-border-strong);
+  font: 600 12px/1.3 var(--cg-font-sans);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--cg-fg-2);
 }
 .qlist {
   position: relative;
 }
 .qrow {
   padding: 9px 0;
-  border-bottom: 1px solid var(--line-soft);
-  background: var(--bg);
+  border-bottom: 1px solid var(--cg-border);
 }
 .qrow:last-child {
   border-bottom: 0;
 }
 .qrow .summary {
-  color: var(--text);
+  color: var(--cg-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -487,10 +486,10 @@ pre.report {
 }
 @keyframes glow {
   from {
-    background-color: color-mix(in srgb, var(--slate) 22%, var(--bg));
+    background-color: var(--cg-blue-soft);
   }
   to {
-    background-color: var(--bg);
+    background-color: transparent;
   }
 }
 
@@ -557,11 +556,8 @@ pre.report {
 .stats-filters .row {
   flex-wrap: wrap;
 }
-.stats-filters .opts:not(.by) {
-  flex: 1 1 18rem;
-}
 .stats-filters .opts.by {
-  flex: none;
+  margin-left: auto;
 }
 .stats-pair {
   display: grid;
@@ -603,15 +599,15 @@ pre.report {
 table.prs td.key .jira-arrow {
   margin-left: 6px;
   text-decoration: none;
-  color: var(--muted);
+  color: var(--cg-fg-2);
 }
 table.prs td.key .jira-arrow:hover {
-  color: var(--slate-ink);
+  color: var(--cg-blue);
 }
 table.prs td.lines {
   font-size: 12.5px;
 }
 table.prs td.lines .arrow {
-  color: var(--muted);
+  color: var(--cg-fg-2);
   margin: 0 6px;
 }
