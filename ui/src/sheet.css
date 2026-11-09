@@ -1029,38 +1029,13 @@ td.jira a {
 td.jira a:hover {
   color: var(--cg-blue);
 }
-/* The row of what is going on now: a blue band and a pulsing dot. The table stops at the
-   frame's padding; a strip on each end cell carries the band out to the frame's edges (a
-   cell's box-shadow is not drawn there), and the dot sits in the left one, out of the text's
-   way. */
+/* The row of what is going on now: a tinted band within the row's own lines, and a pulsing dot
+   after the ticket key, where the key column has room. */
 tr.live td {
   background: color-mix(in srgb, var(--cg-blue) 10%, transparent);
 }
-tr.live td:first-child,
-tr.live td:last-child {
-  position: relative;
-}
-tr.live td:first-child::before,
-tr.live td:last-child::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: var(--pad);
-  background: inherit;
-}
-tr.live td:first-child::before {
-  left: calc(-1 * var(--pad));
-}
-tr.live td:last-child::after {
-  right: calc(-1 * var(--pad));
-}
-tr.live td:first-child .pulse {
-  position: absolute;
-  z-index: 1;
-  left: -12px;
-  top: 50%;
-  margin: -3.5px 0 0;
+td.key .pulse {
+  margin: 0 0 0 8px;
 }
 
 /* Facts: a name and its value per line. */
