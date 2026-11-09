@@ -236,6 +236,8 @@ function linkClass(step: Step): string {
 }
 
 // The panel's pointer sits under the block it shows, followed as the diagram scrolls or resizes.
+// It does not travel from block to block: it goes and comes with the report, in the same swap,
+// so the frame's edge is never broken by a pointer in flight.
 const flowEl = ref<HTMLElement | null>(null)
 const detailEl = ref<HTMLElement | null>(null)
 const caretX = ref<number | null>(null)
@@ -359,17 +361,16 @@ onUnmounted(() => window.removeEventListener('resize', placeCaret))
       <p v-if="!steps.length" class="empty">No steps recorded yet.</p>
     </Frame>
 
-    <div
-      v-if="shown"
-      ref="detailEl"
-      class="detail"
-      :class="{ pointed: caretX !== null }"
-      :style="caretX !== null ? { '--caret-x': `${caretX}px` } : undefined"
-    >
+    <div v-if="shown" ref="detailEl" class="detail">
+      <Transition name="swap" mode="out-in">
+        <i v-if="caretX !== null" :key="shown.id" class="caret" :style="{ left: `${caretX - 7}px` }" aria-hidden="true" />
+      </Transition>
       <Transition name="swap" mode="out-in">
         <Frame
           :key="shown.id"
           class="detail-frame"
+          :class="{ pointed: caretX !== null }"
+          :style="caretX !== null ? { '--caret-x': `${caretX}px` } : undefined"
           :title="kindOf(shown) === 'start' ? 'assignment' : shown.label"
           :note="
             [shown.agent, shown.startedAt ? `started ${fmtTime(shown.startedAt)}` : null, shown.left?.source].filter(Boolean).join(' · ')

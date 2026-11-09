@@ -325,19 +325,38 @@ td .actions {
 .detail .detail-frame {
   border-top-color: var(--accent);
 }
-.detail.pointed::before {
-  content: '';
+/* The pointer: the frame's own glass and edge, continued up into a point. A rotated square
+   clipped to its upper half (the half that would lie over the frame is cut away, so the glass
+   is not doubled there), and a mask cuts the frame's top edge away under its base, so the two
+   read as one outline. The pointer does not slide: it is swapped with the report (the swap
+   transition sets its transform, so the rotation is on a pseudo-element of its own). */
+.detail .caret {
   position: absolute;
   z-index: 1;
   top: -7px;
-  left: calc(var(--caret-x) - 7px);
   width: 13px;
   height: 13px;
-  background: linear-gradient(var(--cg-surface), var(--cg-surface)), var(--cg-window);
+  pointer-events: none;
+}
+.detail .caret::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--cg-surface);
   border-left: 1px solid var(--accent);
   border-top: 1px solid var(--accent);
   transform: rotate(45deg);
-  transition: left 0.35s ease;
+  clip-path: polygon(-1px -1px, calc(100% + 2px) -1px, -1px calc(100% + 2px));
+}
+.detail .detail-frame.pointed {
+  -webkit-mask:
+    linear-gradient(#000, #000) 0 0 / 100% 100% no-repeat,
+    linear-gradient(#000, #000) calc(var(--caret-x) - 10px) 0 / 19px 1px no-repeat;
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000, #000) 0 0 / 100% 100% no-repeat,
+    linear-gradient(#000, #000) calc(var(--caret-x) - 10px) 0 / 19px 1px no-repeat;
+  mask-composite: exclude;
 }
 .swap-enter-active,
 .swap-leave-active {
@@ -384,14 +403,13 @@ td .actions {
     animation: none;
   }
 }
+/* A report is as tall as its text: the page scrolls, the panel does not, so there is one scroll. */
 pre.report {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
   color: var(--cg-fg);
-  max-height: 70vh;
-  overflow: auto;
 }
 .report-frame {
   margin-top: 26px;
