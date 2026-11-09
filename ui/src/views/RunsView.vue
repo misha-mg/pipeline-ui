@@ -197,54 +197,56 @@ function prState(run: ShownRun): string {
   </div>
 
   <Frame>
-    <table class="wide runs">
-      <thead>
-        <tr>
-          <th>Ticket</th>
-          <th>Jira</th>
-          <th>Run</th>
-          <th>Summary</th>
-          <th>Verdict</th>
-          <th>Ending</th>
-          <th>PR · state</th>
-          <th>Duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">
-          <td class="key">
-            <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
-            ><span v-else>{{ run.key }}</span
-            ><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
-          </td>
-          <td class="jira">
-            <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a>
-          </td>
-          <td class="num dim">{{ run.number || '—' }}</td>
-          <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
-          <td>
-            <span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span>
-          </td>
-          <td>
-            <span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''"
-              >{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span
-            >
-          </td>
-          <td class="num">
-            <template v-if="run.pr"
-              ><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a>
-              <span
-                class="pill"
-                :class="prStateClass(run.pr.state)"
-                :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : (run.pr.error ?? 'not read yet')"
-                >{{ prState(run) }}</span
-              ></template
-            >
-          </td>
-          <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="wide runs">
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Jira</th>
+            <th>Run</th>
+            <th>Summary</th>
+            <th>Verdict</th>
+            <th>Ending</th>
+            <th>PR · state</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">
+            <td class="key">
+              <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
+              ><span v-else>{{ run.key }}</span
+              ><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
+            </td>
+            <td class="jira">
+              <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a>
+            </td>
+            <td class="num dim">{{ run.number || '—' }}</td>
+            <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
+            <td>
+              <span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span>
+            </td>
+            <td>
+              <span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''"
+                >{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span
+              >
+            </td>
+            <td class="num">
+              <template v-if="run.pr"
+                ><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a>
+                <span
+                  class="pill"
+                  :class="prStateClass(run.pr.state)"
+                  :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : (run.pr.error ?? 'not read yet')"
+                  >{{ prState(run) }}</span
+                ></template
+              >
+            </td>
+            <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div v-if="history && !runs.length" class="empty">No runs match.</div>
   </Frame>
 </template>

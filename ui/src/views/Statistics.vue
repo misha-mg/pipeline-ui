@@ -398,68 +398,70 @@ const read = computed(() => {
         {{ PR_OUTCOME_LABEL[x.o] }} <b>{{ x.n }}</b>
       </button>
     </div>
-    <table class="wide prs">
-      <thead>
-        <tr>
-          <th>PR</th>
-          <th>Ticket</th>
-          <th>Summary</th>
-          <th>Opened</th>
-          <th>Open for</th>
-          <th>Became</th>
-          <th>Lines</th>
-          <th>Into</th>
-          <th>Jira</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="p in shownPrs" :key="p.url">
-          <td class="num">
-            <a :href="p.url" target="_blank" rel="noopener" class="small-link">#{{ p.number }}</a>
-          </td>
-          <td class="key">
-            <a :href="`#/runs/${p.key}/${p.run}`" title="The run that opened it">{{ p.key }}</a
-            ><a
-              v-if="ticketUrl(p.key)"
-              class="jira-arrow"
-              :href="ticketUrl(p.key)!"
-              target="_blank"
-              rel="noopener"
-              :title="`${p.key} in Jira`"
-              >↗</a
-            >
-          </td>
-          <td class="summary one-line" :title="p.summary ?? ''">{{ p.summary ?? '' }}</td>
-          <td class="num dim">{{ fmtDate(p.openedAt) }}</td>
-          <td class="num">{{ p.outcome === 'unknown' ? '—' : open(p.openedAt, p.pr.closedOn) }}</td>
-          <td>
-            <span
-              class="pill"
-              :class="OUTCOME_TONE[p.outcome]"
-              :title="p.pr.changes?.changed === null ? p.pr.changes.why : (p.pr.error ?? '')"
-              >{{ PR_OUTCOME_LABEL[p.outcome] }}</span
-            >
-          </td>
-          <td class="num lines">
-            <template v-if="p.pr.changes && p.pr.changes.changed !== null"
-              >{{ lines(p.pr.changes.opened)
-              }}<template v-if="p.pr.changes.changed"><span class="arrow">→</span>{{ lines(p.pr.changes.merged) }}</template></template
-            ><span v-else class="dim">—</span>
-          </td>
-          <td class="dim">{{ p.pr.destination ?? '—' }}</td>
-          <td class="jira">
-            <span v-if="p.ticket?.status" class="pill" :class="{ ok: p.ticket.statusCategory === 'done' }">{{ p.ticket.status }}</span
-            ><span v-else class="dim">—</span
-            ><span
-              v-if="p.failed.length"
-              class="pill bad"
-              :title="`Sent to Failed after the merge: ${p.failed.map((at) => fmtTime(at)).join(', ')}`"
-              >failed{{ p.failed.length > 1 ? ` ${p.failed.length}×` : '' }}</span
-            >
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="wide prs">
+        <thead>
+          <tr>
+            <th>PR</th>
+            <th>Ticket</th>
+            <th>Summary</th>
+            <th>Opened</th>
+            <th>Open for</th>
+            <th>Became</th>
+            <th>Lines</th>
+            <th>Into</th>
+            <th>Jira</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="p in shownPrs" :key="p.url">
+            <td class="num">
+              <a :href="p.url" target="_blank" rel="noopener" class="small-link">#{{ p.number }}</a>
+            </td>
+            <td class="key">
+              <a :href="`#/runs/${p.key}/${p.run}`" title="The run that opened it">{{ p.key }}</a
+              ><a
+                v-if="ticketUrl(p.key)"
+                class="jira-arrow"
+                :href="ticketUrl(p.key)!"
+                target="_blank"
+                rel="noopener"
+                :title="`${p.key} in Jira`"
+                >↗</a
+              >
+            </td>
+            <td class="summary one-line" :title="p.summary ?? ''">{{ p.summary ?? '' }}</td>
+            <td class="num dim">{{ fmtDate(p.openedAt) }}</td>
+            <td class="num">{{ p.outcome === 'unknown' ? '—' : open(p.openedAt, p.pr.closedOn) }}</td>
+            <td>
+              <span
+                class="pill"
+                :class="OUTCOME_TONE[p.outcome]"
+                :title="p.pr.changes?.changed === null ? p.pr.changes.why : (p.pr.error ?? '')"
+                >{{ PR_OUTCOME_LABEL[p.outcome] }}</span
+              >
+            </td>
+            <td class="num lines">
+              <template v-if="p.pr.changes && p.pr.changes.changed !== null"
+                >{{ lines(p.pr.changes.opened)
+                }}<template v-if="p.pr.changes.changed"><span class="arrow">→</span>{{ lines(p.pr.changes.merged) }}</template></template
+              ><span v-else class="dim">—</span>
+            </td>
+            <td class="dim">{{ p.pr.destination ?? '—' }}</td>
+            <td class="jira">
+              <span v-if="p.ticket?.status" class="pill" :class="{ ok: p.ticket.statusCategory === 'done' }">{{ p.ticket.status }}</span
+              ><span v-else class="dim">—</span
+              ><span
+                v-if="p.failed.length"
+                class="pill bad"
+                :title="`Sent to Failed after the merge: ${p.failed.map((at) => fmtTime(at)).join(', ')}`"
+                >failed{{ p.failed.length > 1 ? ` ${p.failed.length}×` : '' }}</span
+              >
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div v-if="view && !shownPrs.length" class="empty">No pull request in this period.</div>
   </Frame>
 </template>

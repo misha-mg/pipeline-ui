@@ -809,6 +809,7 @@ h3 {
   font-size: var(--cg-text-sm);
   color: var(--cg-fg-2);
   margin: var(--cg-space-2) 0 0;
+  overflow-wrap: anywhere;
 }
 .hint.err {
   color: var(--cg-danger);
@@ -1011,6 +1012,12 @@ h3 {
   gap: 2px;
   flex: none;
 }
+@media (max-width: 640px) {
+  .filters .opts.chips {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+}
 .filters .opts:not(.chips) > .chip {
   height: 32px;
   padding: 0 12px;
@@ -1089,6 +1096,20 @@ table.wide td {
 table.wide th:last-child,
 table.wide td:last-child {
   padding-right: 0;
+}
+/* A wide table on a narrow page keeps its columns and scrolls sideways inside its frame, out to
+   the frame's padding, so the page itself never scrolls sideways; the one-line cell keeps a
+   floor there, or the table would give it nothing. */
+.table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin: 0 calc(-1 * var(--pad));
+  padding: 0 var(--pad);
+}
+@media (max-width: 900px) {
+  .table-scroll td.one-line {
+    min-width: 14rem;
+  }
 }
 /* A cell cut to one line with an ellipsis: max-width 0 lets the table give it the room left. */
 td.one-line {
@@ -1385,8 +1406,12 @@ dialog.confirm[open]:not(:modal) {
 }
 @media (max-width: 640px) {
   .bar-row {
-    grid-template-columns: 7.5rem minmax(0, 1fr) 2.2rem 2.2rem;
-    gap: var(--cg-space-2);
+    grid-template-columns: minmax(0, 1fr) 2.6rem 2.6rem;
+    gap: 4px var(--cg-space-3);
+  }
+  .bar-row .name {
+    grid-column: 1 / -1;
+    white-space: normal;
   }
 }
 

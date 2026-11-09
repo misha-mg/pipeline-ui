@@ -466,49 +466,53 @@ function confirmCancel() {
 
       <Frame title="Recent runs" note="From .pipeline-runs and the service's own records.">
         <template #right><a class="small-link" href="#/runs">All runs</a></template>
-        <table v-if="recent.length" class="wide runs">
-          <thead>
-            <tr>
-              <th>Ticket</th>
-              <th>Jira</th>
-              <th>Summary</th>
-              <th>Verdict</th>
-              <th>Ending</th>
-              <th>PR</th>
-              <th>Duration</th>
-              <th>Started</th>
-            </tr>
-          </thead>
-          <TransitionGroup tag="tbody" name="rows">
-            <tr v-for="run in recent" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">
-              <td class="key">
-                <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
-                ><span v-else>{{ run.key }}</span
-                ><span v-if="run.number > 1" class="dim"> · {{ run.number }}</span
-                ><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
-              </td>
-              <td class="jira">
-                <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a>
-              </td>
-              <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
-              <td>
-                <span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span>
-              </td>
-              <td>
-                <span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''"
-                  >{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span
-                >
-              </td>
-              <td>
-                <a v-if="run.pr" :href="run.pr.url" target="_blank" rel="noopener" :title="run.pr.state.toLowerCase()"
-                  >#{{ prNumber(run.pr.url) }}</a
-                >
-              </td>
-              <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
-              <td class="num dim">{{ fmtTime(run.startedAt) }}</td>
-            </tr>
-          </TransitionGroup>
-        </table>
+        <div v-if="recent.length" class="table-scroll">
+          <table class="wide runs">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Jira</th>
+                <th>Summary</th>
+                <th>Verdict</th>
+                <th>Ending</th>
+                <th>PR</th>
+                <th>Duration</th>
+                <th>Started</th>
+              </tr>
+            </thead>
+            <TransitionGroup tag="tbody" name="rows">
+              <tr v-for="run in recent" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">
+                <td class="key">
+                  <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
+                  ><span v-else>{{ run.key }}</span
+                  ><span v-if="run.number > 1" class="dim"> · {{ run.number }}</span
+                  ><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
+                </td>
+                <td class="jira">
+                  <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`"
+                    >↗</a
+                  >
+                </td>
+                <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
+                <td>
+                  <span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span>
+                </td>
+                <td>
+                  <span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''"
+                    >{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span
+                  >
+                </td>
+                <td>
+                  <a v-if="run.pr" :href="run.pr.url" target="_blank" rel="noopener" :title="run.pr.state.toLowerCase()"
+                    >#{{ prNumber(run.pr.url) }}</a
+                  >
+                </td>
+                <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
+                <td class="num dim">{{ fmtTime(run.startedAt) }}</td>
+              </tr>
+            </TransitionGroup>
+          </table>
+        </div>
         <div v-else class="empty">No runs yet.</div>
       </Frame>
     </div>
