@@ -136,6 +136,26 @@
   --page: 1480px;
   --gutter: var(--cg-space-6);
   --gap: var(--cg-space-5);
+  /* The scene behind the window: a gradient from one edge of the screen to the other, a dark
+     in one corner, the scene's hue in between, another dark in the other corner; a light of
+     the same hue over it for depth; and the grain's strength over both. The hue is the one
+     colour to change to try another scene. */
+  --scene-hue: var(--accent-fill);
+  --scene-1: #0f1115;
+  --scene-2: color-mix(in srgb, var(--scene-hue) 16%, #13161c);
+  --scene-3: #1c1f25;
+  --scene-light: color-mix(in srgb, var(--scene-hue) 10%, transparent);
+  --grain: 0.18;
+  /* The accent: the one colour for the thing to press, the active choice, a link, the keyboard's
+     ring and what is live now. Yellow, in place of the kit's blue, which stays the colour of
+     data (the chart's count series, the bars, the slate pill). The fill is for a filled surface,
+     the accent itself for text and lines (the light theme darkens it to read on white), the ink
+     is the text on the fill. */
+  --accent: #e3c25a;
+  --accent-fill: #e3c25a;
+  --accent-soft: rgba(227, 194, 90, 0.18);
+  --accent-ink: #1c1d21;
+  --ring: 0 0 0 3px rgba(227, 194, 90, 0.4);
 }
 /* Light. theme.js sets data-theme before the first paint (the stored choice, the system's
    setting until then), so the attribute is the one switch. */
@@ -145,8 +165,20 @@
   --cg-stage-glow-1: rgba(255, 255, 255, 0.9);
   --cg-stage-glow-2: rgba(120, 160, 200, 0.6);
   --cg-window: rgba(244, 245, 247, 0.94);
+  --scene-1: #dfe4ea;
+  --scene-2: color-mix(in srgb, var(--scene-hue) 14%, #e6ebf1);
+  --scene-3: #eef1f5;
+  --scene-light: color-mix(in srgb, var(--scene-hue) 9%, transparent);
+  --grain: 0.12;
+  --accent: #8a6a12;
+  --accent-fill: #dcb43c;
+  --accent-soft: rgba(200, 160, 40, 0.22);
+  --ring: 0 0 0 3px rgba(200, 160, 40, 0.45);
   --cg-sidebar: rgba(0, 0, 0, 0.025);
-  --cg-surface: rgba(255, 255, 255, 0.72);
+  /* The kit's light card is white at 72%; over a scene it is glass here too, as in the dark,
+     so the scene shows through a card in both themes and the switch changes the page and the
+     text, not the blocks. */
+  --cg-surface: rgba(255, 255, 255, 0.3);
   --cg-surface-2: rgba(0, 0, 0, 0.045);
   --cg-surface-3: rgba(0, 0, 0, 0.06);
   --cg-surface-4: rgba(0, 0, 0, 0.1);
@@ -234,21 +266,62 @@ body {
   background: var(--cg-window);
   color: var(--cg-fg);
 }
-/* The page is the window: its colour with one glow in the top corner, as the kit's own page. */
+/* The page is the scene behind the kit's window: a gradient from corner to corner, dark, the
+   scene's hue, dark, a light of that hue over it for depth, and a grain over both, so the glass sits on something
+   and a large dark surface does not band. The
+   two layers are the body's pseudo-elements, fixed and under its content (the body is a
+   stacking context for that); the grain is one SVG noise tile (feTurbulence), no image file
+   and no script, laid over at a low opacity (a blend mode would lose it on the dark window) so
+   it reads as paper, not as dirt. The lights drift
+   a little over a minute, and not at all for who asked for less motion. */
 body {
+  position: relative;
+  z-index: 0;
   min-height: 100vh;
-  background: radial-gradient(60% 50% at 10% 0%, var(--cg-stage-glow-2), transparent 70%), var(--cg-window);
   font: var(--cg-text-md) / var(--cg-leading-normal) var(--cg-font-sans);
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
 }
-/* The keyboard's focus: the same ring on everything (the switch draws it on its track). */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+body::before {
+  inset: -12%;
+  background:
+    radial-gradient(55% 65% at 68% 30%, var(--scene-light), transparent 70%),
+    linear-gradient(128deg, var(--scene-1) 0%, var(--scene-2) 52%, var(--scene-3) 100%);
+  animation: scene-drift 64s ease-in-out infinite alternate;
+}
+body::after {
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23g)'/></svg>")
+    0 0 / 240px 240px;
+  opacity: var(--grain);
+}
+@keyframes scene-drift {
+  from {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+}
+/* The keyboard's focus: the same ring on everything, in the accent (the switch draws it on its track). */
 :focus-visible {
   outline: none;
-  box-shadow: var(--cg-ring);
+  box-shadow: var(--ring);
 }
 a {
-  color: var(--cg-blue);
+  color: var(--accent);
   text-decoration: none;
   border-radius: 4px;
 }
@@ -279,7 +352,8 @@ button {
 /* ==========================================================================
    The masthead (the kit's top bar): the name, where, the state; the pages and the theme
    switch. Its content lines up with the sheet's under it, however wide the window. Sticky,
-   and glass over what scrolls under it.
+   and glass over what scrolls under it: the kit's top-bar tint, nearly clear, over the blur,
+   so the scene shows through it.
    ========================================================================== */
 .masthead {
   display: flex;
@@ -288,7 +362,7 @@ button {
   height: 60px;
   padding: 0 max(var(--gutter), calc((100% - var(--page)) / 2 + var(--gutter)));
   border-bottom: 1px solid var(--cg-border);
-  background: var(--cg-window);
+  background: var(--cg-sidebar);
   -webkit-backdrop-filter: blur(var(--cg-blur)) saturate(140%);
   backdrop-filter: blur(var(--cg-blur)) saturate(140%);
   position: sticky;
@@ -561,7 +635,9 @@ h3 {
 /* ==========================================================================
    The strip (the kit's KPI strip): one frame of cells parted by hairlines, each a label, a
    number and a note, for what a list adds up to. Six across, eight with `.eight`; fewer as
-   the page narrows. The hairlines are the gap between the cells over the frame's border colour.
+   the page narrows. The strip is one frame, its surface the same glass as any block's; the
+   hairlines are drawn into the one-pixel gap by each cell's shadow, so no second layer of
+   surface sits on the cells and the strip is no lighter than the frames around it.
    ========================================================================== */
 .strip {
   display: grid;
@@ -569,13 +645,14 @@ h3 {
   gap: 1px;
   padding: 0;
   margin: 0 0 var(--gap);
-  background: var(--cg-border);
   overflow: hidden;
 }
 .strip .cell {
   padding: var(--cg-space-4) var(--cg-space-5);
   min-width: 0;
-  background: var(--cg-surface);
+  box-shadow:
+    -1px 0 0 var(--cg-border),
+    0 -1px 0 var(--cg-border);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -663,16 +740,16 @@ h3 {
   cursor: default;
 }
 .btn.primary {
-  background: var(--cg-blue);
-  color: var(--cg-fg-on-accent);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
 }
 .btn.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--cg-blue) 88%, #fff);
+  background: color-mix(in srgb, var(--accent-fill) 88%, #fff);
 }
 .btn.active,
 .btn.active:hover:not(:disabled) {
-  background: var(--cg-blue-soft);
-  color: var(--cg-blue);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .btn.big {
   height: 44px;
@@ -717,7 +794,7 @@ h3 {
 }
 .field:focus {
   outline: none;
-  box-shadow: var(--cg-ring);
+  box-shadow: var(--ring);
 }
 .ctl {
   display: flex;
@@ -791,7 +868,7 @@ h3 {
   box-shadow: none;
 }
 .switch:focus-visible .track {
-  box-shadow: var(--cg-ring);
+  box-shadow: var(--ring);
 }
 
 /* A block inside a frame: something under the frame's first thing, with its own label line
@@ -852,8 +929,9 @@ h3 {
 
 /* ==========================================================================
    Chips and filters (the kit's segmented control). A `.chips` row, or a `.group` in a filter
-   row, is one sunken control whose chips are its segments, the one that is on raised and
-   bright; a chip on its own (loose in a filter row) is a small button.
+   row, is one control whose chips are its segments, the one that is on raised and bright; a
+   chip on its own (loose in a filter row) is a small button. The control is the same glass as
+   a frame (the kit sinks it into a well; here every block on the scene is one surface).
    ========================================================================== */
 .chips,
 .filters .group {
@@ -862,7 +940,8 @@ h3 {
   align-items: center;
   gap: 2px;
   padding: 3px;
-  background: var(--cg-well);
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-md);
 }
 .chips {
@@ -942,8 +1021,8 @@ h3 {
   background: var(--cg-surface-4);
 }
 .filters .opts:not(.chips) > .chip.on {
-  background: var(--cg-blue-soft);
-  color: var(--cg-blue);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .filters .group .chip.fam {
   font-weight: 600;
@@ -1027,12 +1106,12 @@ td.jira a {
   color: var(--cg-fg-2);
 }
 td.jira a:hover {
-  color: var(--cg-blue);
+  color: var(--accent);
 }
 /* The row of what is going on now: a tinted band within the row's own lines, and a pulsing dot
    after the ticket key, where the key column has room. */
 tr.live td {
-  background: color-mix(in srgb, var(--cg-blue) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 td.key .pulse {
   margin: 0 0 0 8px;
@@ -1440,8 +1519,8 @@ dialog.confirm[open]:not(:modal) {
   backdrop-filter: blur(var(--cg-blur));
   box-shadow: var(--cg-shadow-popover);
   pointer-events: auto;
-  --tone: var(--cg-blue);
-  --tone-soft: var(--cg-blue-soft);
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
 }
 .toast.success {
   --tone: var(--cg-ok);

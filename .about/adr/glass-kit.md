@@ -50,6 +50,30 @@ the console's CSP allows no font host but its own). Barlow is gone.
 are a raised surface with the kit's corners, the one in flight tinted blue, the terminals
 capsules; the queue's new row glows blue.
 
+### The scene (2026-11-09)
+
+The page behind the window was one glow in a corner. It is now the kit's scene: a gradient from
+one corner of the screen to the other, a dark at the top left, the kit's blue in between, another
+dark at the bottom right, a blue light over it for depth, and over both a grain, so the glass sits
+on something and a large dark surface does not band. The grain is one SVG tile of `feTurbulence`
+noise in a data URI, laid over at a low opacity (`--grain`; a blend mode loses it on the dark
+window); no image file, no script, no library. The gradient drifts a few percent over a minute
+and stands still under `prefers-reduced-motion`. Both layers are the body's pseudo-elements,
+fixed and under its content; the sheet owns the `--scene-*` tokens and `--grain`, dark and light.
+
+With the scene the accent changes too: the one colour for the thing to press, the active choice,
+a link, the keyboard's ring and what is live now is the sheet's own yellow (`--accent`, its fill,
+its soft tint, the ink on the fill and `--ring`; the light theme darkens the text colour to read
+on white), not the kit's blue, and the scene's hue is the accent's fill. The kit's blue stays the
+colour of data: the chart's count series, the bars, the slate pill. The kit's tokens are not
+edited for this; the parts name the sheet's tokens, so the next scene is a change of five values.
+One kit value is: the light card, white at 72% in the kit, is white at 30% here, glass over the
+scene as the dark card is, so the theme switch changes the page and the text, not the blocks.
+Every block on the scene is that one surface: the strip is one frame whose hairlines are drawn
+into the gaps by the cells' shadows (the kit lays surface cells over a border-coloured frame,
+two layers of glass, lighter than the frames beside it), and a segmented control is the same
+surface with the frame's border, not the kit's sunken well.
+
 ## Consequences
 
 bug-validator's `npm run sheet:sync` copies the same three paths and needs no change; its copy
