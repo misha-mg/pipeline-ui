@@ -8,16 +8,19 @@
 //   pipeline start | stop             the loop
 //   pipeline cancel                   the run in flight
 //   pipeline status
+//   pipeline settings                 the run settings and where each comes from
+//   pipeline set NAME VALUE           base-branch | pull-requests (on, draft, off) | timeout-hours, from the next run
 //   pipeline runs [N]                 the last N runs (20)
 //   pipeline events RUN_ID            a run's events as the session reported them
 //   pipeline maintain                 a backup of the database, the log cut down (daily, deploy/)
 //
 // Every command but serve and maintain writes to the database and returns; the service acts
 // within a second.
-import { configFromEnv } from './config.ts'
+import { configFromEnv, runDefaults } from './config.ts'
 import { fmtDuration } from './format.ts'
 import { describeError, log } from './log.ts'
 import { maintain } from './maintain.ts'
+import { checkEntry } from './loop/entry.ts'
 import { serve } from './service.ts'
 import { openDb } from './store/db.ts'
 import { jiraLookup } from './store/jira.ts'
@@ -34,8 +37,9 @@ import {
   startLoop,
   stopLoop,
 } from './store/runs.ts'
+import { changedSettings, parseRunSettings, readRunSettings, writeRunSettings, type RunSettings } from './store/settings.ts'
 
-const USAGE = `usage: pipeline serve | enqueue KEY [--front] | remove KEY | reorder KEY... | list | start | stop | cancel | status | runs [N] | events RUN_ID | maintain`
+const USAGE = `usage: pipeline serve | enqueue KEY [--front] | remove KEY | reorder KEY... | list | start | stop | cancel | status | settings | set NAME VALUE | runs [N] | events RUN_ID | maintain`
 
 export async function main(argv: string[]): Promise<number> {
   const [command, ...args] = argv
@@ -123,7 +127,29 @@ export async function main(argv: string[]): Promise<number> {
       }
       case 'status':
         printStatus(db, out)
+        printSettings(readRunSettings(db, runDefaults(config)), runDefaults(config), out)
         return 0
+      case 'settings':
+        printSettings(readRunSettings(db, runDefaults(config)), runDefaults(config), out)
+        return 0
+      case 'set': {
+        const name = SETTING_NAMES[args[0] ?? '']
+        if (!name || args[1] === undefined) return fail(USAGE)
+        const defaults = runDefaults(config)
+        const before = readRunSettings(db, defaults)
+        const parsed = parseRunSettings({ [name]: args[1] }, before)
+        if (!parsed.ok) return fail(parsed.message)
+        const changed = changedSettings(before, parsed.settings)
+        // As the console does: a branch is taken only when a run could start from it.
+        if (changed.baseBranch !== undefined) {
+          const checked = await checkEntry({ webuiDir: config.webuiDir, baseBranch: changed.baseBranch, entryDir: config.entryDir })
+          if (typeof checked === 'string') return fail(checked)
+        }
+        writeRunSettings(db, parsed.settings, defaults)
+        printSettings(parsed.settings, defaults, out)
+        out(Object.keys(changed).length ? `from the next run${serviceNote()}` : 'nothing changed')
+        return 0
+      }
       case 'runs':
         for (const run of listRuns(db, Number(args[0] ?? 20)).reverse()) {
           out(
@@ -151,6 +177,20 @@ export async function main(argv: string[]): Promise<number> {
   } finally {
     db.close()
   }
+}
+
+/** The settings' names on the command line. */
+const SETTING_NAMES: Record<string, keyof RunSettings> = {
+  'base-branch': 'baseBranch',
+  'pull-requests': 'pullRequests',
+  'timeout-hours': 'timeoutHours',
+}
+
+function printSettings(settings: RunSettings, defaults: RunSettings, out: (l: string) => void): void {
+  for (const [word, name] of Object.entries(SETTING_NAMES))
+    out(
+      `${word}: ${settings[name]}${settings[name] === defaults[name] ? ' (the environment)' : ` (set here; the environment says ${defaults[name]})`}`,
+    )
 }
 
 function position(db: ReturnType<typeof openDb>, key: string): number {

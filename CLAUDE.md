@@ -40,9 +40,11 @@ import paths, no enums or parameter properties (`tsconfig.json` enforces it, wit
 - No machine-specific values in the repository: no home paths, user names, hosts or the Jira
   site. Every setting comes from the environment through the one zod schema in
   `server/config.ts` into `Config`; no other module reads `process.env` for a setting (the run's
-  own environment in `runner.ts` is the one exception). Everything of this project's own is a
-  `PIPELINE_*` variable; the Jira names (`JIRA_*`) are the same as bug-validator's; each machine
-  sets them in its `.env` (see `.env.example`).
+  own environment in `runner.ts` is the one exception). The run settings (the base branch, the
+  pull requests, a session's hours) take their defaults from there and may be set in the
+  console: read them through `server/store/settings.ts` when a run starts, never from `Config`.
+  Everything of this project's own is a `PIPELINE_*` variable; the Jira names (`JIRA_*`) are the
+  same as bug-validator's; each machine sets them in its `.env` (see `.env.example`).
 - Three files are the same in both repositories and are copied verbatim, never adapted:
   `server/format.ts` (every date, duration and "ago" the console shows goes through it),
   `server/log.ts` (the service's log: `log.info|warn|error(event, fields)`, snake_case events,

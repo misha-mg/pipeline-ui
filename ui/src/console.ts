@@ -3,7 +3,18 @@
 // same within 5 s. What changes between two polls, and what each action comes to, is told in a
 // notification (toasts.ts): a run starting, its next stage, its end, the loop stopping by itself.
 import { ref } from 'vue'
-import { api, ApiError, endingLabel, prNumber, stageOfAgent, verdictFamily, type History, type ShownRun, type StateView } from './api.ts'
+import {
+  api,
+  ApiError,
+  endingLabel,
+  prNumber,
+  stageOfAgent,
+  verdictFamily,
+  type History,
+  type RunSettings,
+  type ShownRun,
+  type StateView,
+} from './api.ts'
 import { notify } from './toasts.ts'
 
 export const state = ref<StateView | null>(null)
@@ -145,6 +156,30 @@ export function runSeconds(run: ShownRun): number | null {
 export function setFilter(next: { verdict: string; ending: string }): void {
   filter.value = next
   void refreshHistory()
+}
+
+/** Whether a run opens its pull request, in the console's words. */
+export const PULL_REQUESTS_WORDS: Record<RunSettings['pullRequests'], string> = { on: 'on', draft: 'drafts only', off: 'off' }
+
+/**
+ * Keeps the run settings for the next run. Resolves with null once they are kept, or with why
+ * they are not (origin has no such branch, the branch has no entry point), for the dialog to
+ * say where the person is looking; the service checks the branch, which takes a fetch.
+ */
+export async function saveSettings(settings: RunSettings): Promise<string | null> {
+  try {
+    const { changed } = await api.settings(settings)
+    if (changed.length)
+      notify(
+        'success',
+        'Run settings saved',
+        `From the next run: ${settings.baseBranch}, pull requests ${PULL_REQUESTS_WORDS[settings.pullRequests]}, a session at most ${settings.timeoutHours} h.`,
+      )
+    await refreshState()
+    return null
+  } catch (e) {
+    return e instanceof ApiError ? e.message : String(e)
+  }
 }
 
 export const actions = {

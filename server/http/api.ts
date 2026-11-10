@@ -1,6 +1,7 @@
 // The console's HTTP interface: a JSON API under /api, /healthz for a monitor, and the built UI
 // from ui/dist. Every action writes the database as the CLI does and then ticks the loop, so it
-// takes effect at once in this process; another browser sees it on its next poll. Before
+// takes effect at once in this process (a change of the run settings, PUT /api/settings, with
+// the next run); another browser sees it on its next poll. Before
 // anything is served, the guard (guard.ts) runs: the security headers go on every answer, a
 // Host the console does not know is refused (421), an action asked for by another site's page
 // is refused (403), a login is asked for when one is set (401; /healthz needs none), and a
@@ -15,6 +16,7 @@ import type { JiraSearch, SearchOptions } from '../store/jira.ts'
 import type { Lookup } from '../store/queue.ts'
 import { enqueue, remove, reorder } from '../store/queue.ts'
 import { inFlight, loopState, requestCancel, serviceAlive, startLoop, stopLoop } from '../store/runs.ts'
+import { changedSettings, parseRunSettings, readRunSettings, writeRunSettings, type RunSettings } from '../store/settings.ts'
 import { knownHost, loggedIn, loginChallenge, readBody, sameOrigin, SECURITY_HEADERS, TooLarge, type Guard } from './guard.ts'
 import { filterProblem, historyView, runView, stateView, statsView, type ViewSources } from './view.ts'
 
@@ -25,8 +27,21 @@ export type ApiDeps = ViewSources & {
   lookup?: ((key: string) => Promise<Lookup>) | undefined
   /** The ticket search; without it the search answers that Jira is not configured. */
   search?: ((query: string, options?: SearchOptions) => Promise<JiraSearch>) | undefined
+  /** The run settings the console may change; without it they are the environment's and fixed. */
+  settings?: SettingsDeps | undefined
   /** The directory with the built UI; nothing is served without it. */
   uiDir?: string | undefined
+}
+
+export type SettingsDeps = {
+  /** The environment's value of each setting. */
+  defaults: RunSettings
+  /** Null when a run may start from the branch (origin has it, with the entry point), or why it may not. */
+  checkBranch: (branch: string) => Promise<string | null>
+  /** origin's branches, for the console to offer. */
+  branches: () => Promise<string[]>
+  /** Told of a change once it is kept; the service logs it. */
+  onChange?: (changed: Partial<RunSettings>) => void
 }
 
 type Reply = { status: number; body: unknown }
@@ -133,6 +148,23 @@ async function handleApi(deps: ApiDeps, method: string, url: URL, body: unknown)
     const jql = url.searchParams.get('jql') ?? undefined
     if (jql !== undefined && jql.length > 2000) return bad('the JQL is longer than 2000 characters')
     return ok(await deps.search(q, { jql, next }))
+  }
+  if (method === 'GET' && p === '/api/branches') return ok({ branches: deps.settings ? await deps.settings.branches() : [] })
+  if (method === 'PUT' && p === '/api/settings') {
+    if (!deps.settings) return bad('the run settings cannot be changed here', 404)
+    const { defaults } = deps.settings
+    const before = readRunSettings(deps.db, defaults)
+    const parsed = parseRunSettings(body, before)
+    if (!parsed.ok) return bad(parsed.message)
+    const changed = changedSettings(before, parsed.settings)
+    // A branch is taken only when a run could start from it: the loop would refuse it otherwise.
+    if (changed.baseBranch !== undefined) {
+      const refused = await deps.settings.checkBranch(changed.baseBranch)
+      if (refused) return bad(refused)
+    }
+    writeRunSettings(deps.db, parsed.settings, defaults)
+    if (Object.keys(changed).length) deps.settings.onChange?.(changed)
+    return ok({ ok: true, settings: parsed.settings, changed: Object.keys(changed) })
   }
   if (method === 'POST' && p === '/api/queue') {
     const { key, front } = asObject(body)

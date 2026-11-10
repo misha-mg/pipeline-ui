@@ -10,6 +10,7 @@ import { createServer, type ApiDeps } from './api.ts'
 import type { SearchOptions } from '../store/jira.ts'
 import { agentStages, runView, shownRuns, stateView, type StatsView } from './view.ts'
 import { refreshTickets } from '../history/tickets.ts'
+import { readRunSettings, type RunSettings } from '../store/settings.ts'
 
 const temps: string[] = []
 afterEach(() => {
@@ -267,6 +268,89 @@ describe('api', () => {
       expect((await get('/assets/an-older-build.js')).status).toBe(404)
     } finally {
       await new Promise<void>((r) => server.close(() => r()))
+    }
+  })
+})
+
+describe('the run settings', () => {
+  const defaults: RunSettings = { baseBranch: 'master', pullRequests: 'on', timeoutHours: 4 }
+  function withSettings() {
+    const { deps, db, ticks } = sources()
+    const changes: Partial<RunSettings>[] = []
+    const checked: string[] = []
+    deps.settings = {
+      defaults,
+      checkBranch: async (branch) => {
+        checked.push(branch)
+        return branch === 'gone' ? 'origin has no branch gone' : null
+      },
+      branches: async () => ['dev', 'master'],
+      onChange: (c) => changes.push(c),
+    }
+    deps.setup = () => ({ ...readRunSettings(db, defaults), entry: 'entry', defaults })
+    return { deps, db, ticks, changes, checked }
+  }
+
+  it('are changed from the console for the next run: the state shows them at once, the branch is checked first', async () => {
+    const { deps, changes, checked } = withSettings()
+    const { call, close } = await serve(deps)
+    try {
+      expect((await call('GET', '/api/state')).body.setup).toMatchObject({
+        baseBranch: 'master',
+        pullRequests: 'on',
+        timeoutHours: 4,
+        defaults,
+      })
+      expect((await call('GET', '/api/branches')).body).toEqual({ branches: ['dev', 'master'] })
+
+      const saved = await call('PUT', '/api/settings', { baseBranch: 'dev', pullRequests: 'draft' })
+      expect(saved).toEqual({
+        status: 200,
+        body: {
+          ok: true,
+          settings: { baseBranch: 'dev', pullRequests: 'draft', timeoutHours: 4 },
+          changed: ['baseBranch', 'pullRequests'],
+        },
+      })
+      expect(checked).toEqual(['dev'])
+      expect(changes).toEqual([{ baseBranch: 'dev', pullRequests: 'draft' }])
+      expect((await call('GET', '/api/state')).body.setup).toMatchObject({ baseBranch: 'dev', pullRequests: 'draft', defaults })
+
+      // The branch is not asked about again when it is not the one that changes; nothing changed is not told.
+      expect((await call('PUT', '/api/settings', { timeoutHours: 6 })).body.changed).toEqual(['timeoutHours'])
+      expect((await call('PUT', '/api/settings', { timeoutHours: 6 })).body.changed).toEqual([])
+      expect(checked).toEqual(['dev'])
+      expect(changes).toHaveLength(2)
+    } finally {
+      await close()
+    }
+  })
+
+  it('keeps nothing when origin refuses the branch or a value is wrong', async () => {
+    const { deps, db, changes } = withSettings()
+    const { call, close } = await serve(deps)
+    try {
+      expect(await call('PUT', '/api/settings', { baseBranch: 'gone', pullRequests: 'off' })).toEqual({
+        status: 400,
+        body: { message: 'origin has no branch gone' },
+      })
+      expect((await call('PUT', '/api/settings', { pullRequests: 'sometimes' })).status).toBe(400)
+      expect((await call('PUT', '/api/settings', { baseBranch: '--upload-pack=x' })).status).toBe(400)
+      expect(readRunSettings(db, defaults)).toEqual(defaults)
+      expect(changes).toEqual([])
+    } finally {
+      await close()
+    }
+  })
+
+  it('cannot be changed on a console that was given none', async () => {
+    const { deps } = sources()
+    const { call, close } = await serve(deps)
+    try {
+      expect((await call('PUT', '/api/settings', { pullRequests: 'off' })).status).toBe(404)
+      expect((await call('GET', '/api/branches')).body).toEqual({ branches: [] })
+    } finally {
+      await close()
     }
   })
 })

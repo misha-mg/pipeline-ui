@@ -17,7 +17,7 @@ export type RunnerConfig = {
   sessionBin: string
   envFile: string
   sessionTimeoutMs: number
-  /** The branch the worktree starts from and the pull request goes to (PIPELINE_BASE_BRANCH). */
+  /** The branch the worktree starts from and the pull request goes to (passed on as PIPELINE_BASE_BRANCH). */
   baseBranch: string
   /** The prepare-worktree.sh to start; the checkout's own when absent. */
   entry?: Entry
@@ -49,11 +49,16 @@ const SCRIPT = [
   'exec bash "$PIPELINE_PREPARE_WORKTREE" "$1"',
 ].join('; ')
 
-export function createRunner(config: RunnerConfig): Runner {
-  const killAfterMs = config.killAfterMs ?? 30_000
-  const drainMs = config.drainMs ?? 5_000
+/**
+ * `config` may be a function: it is asked when a run starts, so a run takes the settings of
+ * that moment (the base branch, the pull requests, the time limit) and keeps them to its end.
+ */
+export function createRunner(configOf: RunnerConfig | (() => RunnerConfig)): Runner {
   return (key, handlers, signal) =>
     new Promise<RunExit>((resolve) => {
+      const config = typeof configOf === 'function' ? configOf() : configOf
+      const killAfterMs = config.killAfterMs ?? 30_000
+      const drainMs = config.drainMs ?? 5_000
       const env: Record<string, string> = {}
       for (const [k, v] of Object.entries(process.env)) {
         if (v !== undefined && k !== 'ANTHROPIC_API_KEY' && k !== 'ANTHROPIC_AUTH_TOKEN') env[k] = v

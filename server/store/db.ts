@@ -114,6 +114,11 @@ export const MIGRATIONS: ((db: Db) => void)[] = [
       addColumn(db, 'pull_requests', column, type)
     addColumn(db, 'tickets', 'moves', 'TEXT')
   },
+  // 2 (2026-11-10): the run settings set from the console or the command line, one row per
+  // setting that differs from the environment's default (store/settings.ts, ADR run-settings).
+  (db) => {
+    db.exec('CREATE TABLE settings (name TEXT PRIMARY KEY, value TEXT NOT NULL, set_at TEXT NOT NULL)')
+  },
 ]
 
 export type OpenOptions = {

@@ -24,6 +24,7 @@ server/
     db.ts                the SQLite file (node:sqlite): the versioned schema, MIGRATIONS, a copy before a migration
     queue.ts             the queue: add (with the summary from Jira), remove, reorder
     runs.ts              the runs the service started, their events, the loop's state, the heartbeat
+    settings.ts          the run settings (base branch, pull requests, a session's hours): the environment's defaults, what the console set over them
     jira.ts              Jira REST v3 through api.atlassian.com: a ticket's summary, the search (within a JQL), the statuses; read only
   loop/
     loop.ts              one tick: take the queue's head when nothing is in flight, record events, the ending, stop on the usage limit
@@ -89,7 +90,10 @@ sides.
    (`history/tickets.ts`) refreshed by the service's background round once a minute and kept in
    the database; the statistics (`history/stats.ts`) summed from them.
 7. **The console** polls `/api/state` every 2 s and `/api/runs` every 10 s; an action is a POST
-   that writes the database and ticks the loop at once. Two browsers show the same within 5 s.
+   that writes the database and ticks the loop at once. The run settings (`store/settings.ts`:
+   the base branch, the pull requests, a session's hours) are changed with `PUT /api/settings`,
+   which checks a new branch's entry point first; the preflight and the runner read them when
+   a run starts, so a change is for the next run. Two browsers show the same within 5 s.
 
 ## Log
 
@@ -99,7 +103,8 @@ once it is past 5 MB. The commands print text for a person.
 
 | event | level | fields |
 |---|---|---|
-| `service_start` | info | pid, db, webui, entry, baseBranch, pullRequests, loop (`stopped`: nothing resumes by itself) |
+| `service_start` | info | pid, db, webui, entry, baseBranch, pullRequests, timeoutHours (the run settings in force), loop (`stopped`: nothing resumes by itself) |
+| `settings_changed` | info | the run settings that changed, each with its new value: baseBranch, pullRequests, timeoutHours |
 | `migration` | info | db, from, to (schema versions), copy (the file copied before, null for a new database) |
 | `console_listening` | info | url, ui (false: the UI is not built, the API alone is served), note |
 | `run_started` | info | runId, key, summary |
@@ -126,16 +131,18 @@ Every setting is read once at start through one zod schema (`server/config.ts`) 
 `Config`; a bad value stops the process with every problem named. `bin/pipeline` sources the
 pipeline's secrets file (`PIPELINE_ENV`) and then the repository's `.env`, whose values win; the
 service loads `.env` itself too, a variable already set winning. Nothing in the repository names
-a machine, a user or a site.
+a machine, a user or a site. Three of them are only defaults: the run settings (the base branch,
+the pull requests, a session's hours) can be set from the console or with `pipeline set`, are
+kept in the database and win over the environment until they are put back (ADR run-settings).
 
 | variable | default | meaning |
 |---|---|---|
 | `PIPELINE_WEBUI` | `../webui` | the webui checkout a run starts in; read-only from here |
 | `PIPELINE_DATA` | `./data` | the database (`pipeline.db`), the run logs, the entry point's copy, the backups, `serve.log` |
 | `PIPELINE_ENV` | `~/.config/webui-pipeline.env` | the pipeline's secrets file, sourced inside each run; never printed |
-| `PIPELINE_TIMEOUT_HOURS` | `4` | one session at most |
-| `PIPELINE_BASE_BRANCH` | `master` | the webui branch a run's worktree starts from and its pull request goes to; must have the entry point |
-| `PIPELINE_PULL_REQUESTS` | `on` | `off`: a run ends before its push; `draft`: every pull request opens as a draft |
+| `PIPELINE_TIMEOUT_HOURS` | `4` | one session at most; a run setting's default (below) |
+| `PIPELINE_BASE_BRANCH` | `master` | the webui branch a run's worktree starts from and its pull request goes to; must have the entry point; a run setting's default |
+| `PIPELINE_PULL_REQUESTS` | `on` | `off`: a run ends before its push; `draft`: every pull request opens as a draft; a run setting's default |
 | `PIPELINE_HOST`, `PIPELINE_PORT` | `0.0.0.0`, `8787` | the console's address |
 | `PIPELINE_HOSTNAMES` | — | names the console may be opened by, comma-separated, besides IP addresses, localhost and the machine's name |
 | `PIPELINE_USER`, `PIPELINE_PASSWORD` | — | both set: every page asks for this login (`/healthz` does not) |

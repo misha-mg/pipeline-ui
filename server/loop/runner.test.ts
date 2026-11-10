@@ -36,6 +36,19 @@ function collect() {
 }
 
 describe('createRunner', () => {
+  it('asks for its settings when a run starts, so the next run takes a changed base branch', async () => {
+    const webui = fakeWebui('echo "base=$PIPELINE_BASE_BRANCH prs=$PIPELINE_SESSION_PULL_REQUESTS ms=$PIPELINE_SESSION_TIMEOUT_MS"')
+    const settings = { baseBranch: 'master', pullRequests: 'on' as 'on' | 'draft', sessionTimeoutMs: 1000 }
+    const runner = createRunner(() => ({ webuiDir: webui, sessionBin: '/bin/true', envFile: '/nonexistent', drainMs: 50, ...settings }))
+    const first = collect()
+    await runner('KAZ-1', first.handlers, new AbortController().signal)
+    expect(first.output()).toContain('base=master prs=on ms=1000')
+    Object.assign(settings, { baseBranch: 'dev', pullRequests: 'draft', sessionTimeoutMs: 2000 })
+    const second = collect()
+    await runner('KAZ-2', second.handlers, new AbortController().signal)
+    expect(second.output()).toContain('base=dev prs=draft ms=2000')
+  })
+
   it('runs prepare-worktree.sh with the key, the session env and the events pipe on fd 3, and reports the exit', async () => {
     const webui = fakeWebui(
       [

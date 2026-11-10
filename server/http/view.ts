@@ -7,12 +7,12 @@ import path from 'node:path'
 import { loadRuns, readReport, type HistoryRun } from '../history/runs.ts'
 import { pullRequestStates, unknownPullRequest, type PullRequestState } from '../history/bitbucket.ts'
 import { ticketStatuses, type KnownTicket } from '../history/tickets.ts'
-import type { PullRequests } from '../config.ts'
 import type { Health } from '../health.ts'
 import { SHOWN_ENDINGS, stageOfAgent, verdictFamily, type ShownEnding } from '../history/outcome.ts'
 import { structuredOutput } from '../session/transcript.ts'
 import type { Db } from '../store/db.ts'
 import { listQueue, type QueueItem } from '../store/queue.ts'
+import type { RunSettings } from '../store/settings.ts'
 import {
   inFlight,
   listEvents,
@@ -54,20 +54,25 @@ export type StateView = {
   queue: QueueItem[]
   counts: { lastBatch: Counts; last7Days: Counts; allTime: Counts; lastBatchLabel: string }
   health: Health | null
-  /** How the service starts a run: which launch script, and whether it may open a pull request. */
+  /** How the service starts the next run: which launch script, from which branch, and whether it may open a pull request. */
   setup: RunSetup | null
   /** The Jira site a ticket key links to (JIRA_BASE_URL); null when it is not set. */
   jiraSite: string | null
 }
 
-/** How each run is set up: the entry point as the console shows it, the webui branch it starts from and its pull request goes to, and whether it may open one, or only a draft. */
-export type RunSetup = { entry: string; baseBranch: string; pullRequests: PullRequests }
+/**
+ * How the next run is set up: the entry point as the console shows it and the run settings (the
+ * webui branch it starts from and its pull request goes to, whether it may open one, or only a
+ * draft, a session's time limit), with the environment's default of each.
+ */
+export type RunSetup = RunSettings & { entry: string; defaults: RunSettings }
 
 export type ViewSources = {
   db: Db
   runsDir: string
   health: () => Health | null
-  setup?: RunSetup
+  /** Asked on every view: the settings may change between two. */
+  setup?: () => RunSetup
   jiraSite?: string | null
   /** Whether Bitbucket (BITBUCKET_TOKEN) and Jira (the JIRA_* settings) are set up, for the statistics to say why a number is missing. */
   readers?: { bitbucket: boolean; jira: boolean }
@@ -87,7 +92,7 @@ export function stateView(src: ViewSources): StateView {
     queue: listQueue(src.db),
     counts: counts(src, runs, now),
     health: src.health(),
-    setup: src.setup ?? null,
+    setup: src.setup?.() ?? null,
     jiraSite: src.jiraSite ?? null,
   }
 }

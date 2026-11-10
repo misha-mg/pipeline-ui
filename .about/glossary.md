@@ -37,11 +37,14 @@ from before the console) and `died` (never closed, and nothing runs it). An endi
 verdict: a `completed` session can leave `blocked:tooling`.
 
 **Entry point**: the `launch-session.sh` a run goes through, and the `prepare-worktree.sh`
-that hands over to it, both from `origin/<base>`, the base branch `PIPELINE_BASE_BRANCH` names
-(`master` by default). Checked before every run.
+that hands over to it, both from `origin/<base>`, the base branch (`master` by default). Checked before every run.
 
 **Base branch**: the webui branch a run's worktree starts from and its pull request goes to
-(`PIPELINE_BASE_BRANCH`).
+(`PIPELINE_BASE_BRANCH` by default; a run setting). The console calls it the target branch.
+
+**Run settings**: the base branch, whether a run may open its pull request (on, drafts only,
+off) and a session's time limit. The environment gives each its default; the cockpit's Settings
+or `pipeline set` changes one for the next run, never for the run in flight.
 
 **The JQL**: the Jira query the operator applies to the ticket search; whatever is typed is
 searched only among the tickets it finds. Kept in the browser, not in the service. Not a

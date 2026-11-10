@@ -5,7 +5,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { PullRequests } from '../config.ts'
 import type { SessionEvent } from '../session/driver.ts'
-import { entryLabel, entryOf, prepareEntry } from './entry.ts'
+import { checkEntry, entryLabel, entryOf, gitIn, originBranches, prepareEntry } from './entry.ts'
 import { createRunner } from './runner.ts'
 
 const temps: string[] = []
@@ -89,6 +89,21 @@ function fakeWebui() {
 
 const config = (w: ReturnType<typeof fakeWebui>, baseBranch = 'master') => ({ webuiDir: w.webui, baseBranch, entryDir: w.entryDir })
 
+describe('checkEntry', () => {
+  it('says whether a run could start from a branch and writes nothing: a run in flight may be reading the copy', async () => {
+    const w = fakeWebui()
+    expect(await checkEntry(config(w, 'dev'))).toEqual({ prepare: PREPARE })
+    expect(await checkEntry(config(w, 'nope'))).toBe('origin has no branch nope')
+    expect(fs.existsSync(w.entryDir)).toBe(false)
+  })
+
+  it("lists origin's branches for the console to offer", async () => {
+    const w = fakeWebui()
+    expect(await originBranches(gitIn(w.webui))).toEqual(['dev', 'master'])
+    expect(await originBranches(gitIn(path.join(w.dir, 'nowhere')))).toEqual([])
+  })
+})
+
 describe('prepareEntry', () => {
   it('reads a base branch other than master from that branch, and copies its prepare-worktree.sh', async () => {
     const w = fakeWebui()
@@ -131,7 +146,7 @@ describe('prepareEntry', () => {
     expect(await prepareEntry(config(w, 'changed'))).toMatch(
       /^origin\/changed's tools\/ticket-pipeline\/prepare-worktree.sh no longer ends with/,
     )
-    expect(await prepareEntry(config(w, 'nope'))).toBe('origin has no branch nope (PIPELINE_BASE_BRANCH)')
+    expect(await prepareEntry(config(w, 'nope'))).toBe('origin has no branch nope')
     expect(fs.existsSync(w.entryDir)).toBe(false)
   })
 

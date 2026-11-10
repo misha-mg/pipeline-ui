@@ -70,8 +70,11 @@ Agent SDK, and from its own records.
   Then every pull request of the period with what became of it, the lines the pipeline pushed and
   those merged when they differ, and its ticket's Jira status, filterable by outcome.
 - The webui branch a run starts from and its pull request goes to, and whether pull requests are
-  on, off or drafts only (`PIPELINE_PULL_REQUESTS=draft`: every pull request opens as a draft,
-  ADR draft-pull-requests).
+  on, off or drafts only (`draft`: every pull request opens as a draft, ADR draft-pull-requests).
+- The run settings, changed from the cockpit without a restart (2026-11-10, ADR run-settings):
+  the target branch, the pull requests (on, drafts only, off) and a session's time limit. The
+  environment gives each its default; a change is for the next run, and a branch is taken only
+  when origin has it with the entry point.
 - Actions: start and stop the service's loop; add a ticket at the end or at the front of the
   queue; remove or reorder queued tickets; cancel the run in flight; run a finished ticket again.
 - A queued ticket's summary, read from Jira when it is added; a key Jira does not know is refused.

@@ -129,7 +129,11 @@ Where things are, each with a default for the server: `PIPELINE_WEBUI` (the webu
 starts from and its pull request goes to, `master`), `PIPELINE_PULL_REQUESTS` (`on`, `draft` or
 `off`, `on`; `draft` opens every pull request as a draft, ADR draft-pull-requests); the console's
 `PIPELINE_HOST`, `PIPELINE_PORT`, `PIPELINE_HOSTNAMES`, `PIPELINE_USER`, `PIPELINE_PASSWORD`;
-`maintain`'s `PIPELINE_BACKUP_DIR` and `PIPELINE_LOG_FILE`. Every variable is in
+`maintain`'s `PIPELINE_BACKUP_DIR` and `PIPELINE_LOG_FILE`. The base branch, the pull requests
+and the hours are the run settings: the environment gives their defaults, and the cockpit's
+Settings (or `bin/pipeline set base-branch dev`, `set pull-requests draft`, `set timeout-hours 6`;
+`bin/pipeline settings` shows them) changes them for the next run without a restart (ADR
+run-settings). Every variable is in
 [.about/architecture.md](.about/architecture.md), Configuration. `PIPELINE_LAUNCH_SESSION_REF`
 and `PIPELINE_START_SH_REF`, the freeze's old workaround, stop the service from starting. The
 secrets file is sourced inside the run, never printed.

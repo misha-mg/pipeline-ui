@@ -2,10 +2,12 @@
 // a change there is a type error here.
 import type { HistoryFilter, RunDetail, ShownRun, StateView, StatsView } from '../../server/http/view.ts'
 import type { JiraSearch, SearchOptions } from '../../server/store/jira.ts'
+import type { RunSettings } from '../../server/store/settings.ts'
 import { verdictTone, type Tone } from '../../server/history/outcome.ts'
 
 export type { AgentStage, Counts, ShownRun, StateView, StatsView } from '../../server/http/view.ts'
 export type { JiraIssue, JiraSearch, SearchScope } from '../../server/store/jira.ts'
+export type { RunSettings } from '../../server/store/settings.ts'
 export type RunFiles = RunDetail
 export type History = { runs: ShownRun[]; total: number; verdicts: Record<string, number>; endings: Record<string, number> }
 
@@ -51,6 +53,8 @@ export const api = {
   start: () => call<{ ok: true }>('POST', '/api/loop/start'),
   stop: () => call<{ ok: true }>('POST', '/api/loop/stop'),
   cancel: () => call<{ ok: true }>('POST', '/api/cancel'),
+  branches: () => call<{ branches: string[] }>('GET', '/api/branches'),
+  settings: (settings: Partial<RunSettings>) => call<{ ok: true; changed: string[] }>('PUT', '/api/settings', settings),
 }
 
 // Dates, clocks, durations and "ago" come from the module both consoles share, so the two read

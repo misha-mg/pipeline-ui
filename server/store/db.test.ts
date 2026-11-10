@@ -35,7 +35,7 @@ describe('openDb', () => {
     expect(fs.readdirSync(dir).filter((f) => f.includes('.before-v'))).toEqual([])
   })
 
-  it('brings a database from before the versions to version 1 with only what it lacks, after a copy of it', () => {
+  it('brings a database from before the versions to the latest one with only what it lacks, after a copy of it', () => {
     const dir = tempDir()
     const file = path.join(dir, 'pipeline.db')
     const old = new DatabaseSync(file)
@@ -49,7 +49,7 @@ describe('openDb', () => {
     old.close()
     const migrations: { from: number; to: number; copy: string | null }[] = []
     const db = openDb(file, { now: () => '2026-11-04T04:30:00.000Z', onMigrate: (m) => migrations.push(m) })
-    expect(schemaVersion(db)).toBe(1)
+    expect(schemaVersion(db)).toBe(MIGRATIONS.length)
     expect(migrations).toEqual([{ from: 0, to: MIGRATIONS.length, copy: `${file}.before-v${MIGRATIONS.length}-2026-11-04T043000000Z` }])
     expect(fs.existsSync(migrations[0]!.copy!)).toBe(true)
     // The rows and the old state stay; the columns and tables added since are there.

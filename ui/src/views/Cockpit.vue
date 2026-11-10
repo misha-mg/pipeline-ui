@@ -19,7 +19,8 @@ import {
   toneClass,
   verdictClass,
 } from '../api.ts'
-import { actions, history, liveStage, runSeconds, state, ticketUrl } from '../console.ts'
+import { api, type RunSettings } from '../api.ts'
+import { actions, history, liveStage, PULL_REQUESTS_WORDS, runSeconds, saveSettings, state, ticketUrl } from '../console.ts'
 import {
   applyJql,
   clearSearch,
@@ -206,6 +207,52 @@ function confirmCancel() {
   cancelDialog.value?.close()
   void actions.cancel()
 }
+
+// The run settings: the target branch, the pull requests and a session's time limit, changed
+// in a dialog of the sheet. The service checks a new branch on origin before it keeps it, so
+// Save may take a few seconds and may refuse; what it says stays in the dialog. A change is for
+// the next run: the one in flight keeps what it started with.
+const settingsDialog = ref<HTMLDialogElement | null>(null)
+const draft = ref<RunSettings>({ baseBranch: '', pullRequests: 'on', timeoutHours: 4 })
+const branches = ref<string[]>([])
+const saving = ref(false)
+const settingsError = ref<string | null>(null)
+const PULL_REQUESTS_CHOICES: { value: RunSettings['pullRequests']; label: string; says: string }[] = [
+  { value: 'on', label: 'On', says: 'A run opens the pull request it decides on, ready or draft.' },
+  { value: 'draft', label: 'Drafts only', says: 'Every pull request opens as a draft; a ready one is refused.' },
+  { value: 'off', label: 'Off', says: 'A run ends before its push: no branch on origin, no pull request.' },
+]
+const pullRequestsSays = computed(() => PULL_REQUESTS_CHOICES.find((c) => c.value === draft.value.pullRequests)?.says ?? '')
+function openSettings() {
+  const s = setup.value
+  if (!s) return
+  draft.value = { baseBranch: s.baseBranch, pullRequests: s.pullRequests, timeoutHours: s.timeoutHours }
+  settingsError.value = null
+  settingsDialog.value?.showModal()
+  // The branches origin has, offered under the field; the field takes any name without them.
+  api.branches().then(
+    (b) => (branches.value = b.branches),
+    () => (branches.value = []),
+  )
+}
+function useDefaults() {
+  if (setup.value) draft.value = { ...setup.value.defaults }
+}
+const atDefaults = computed(() => {
+  const d = setup.value?.defaults
+  return (
+    !!d &&
+    draft.value.baseBranch === d.baseBranch &&
+    draft.value.pullRequests === d.pullRequests &&
+    draft.value.timeoutHours === d.timeoutHours
+  )
+})
+async function confirmSettings() {
+  saving.value = true
+  settingsError.value = await saveSettings({ ...draft.value, baseBranch: draft.value.baseBranch.trim() })
+  saving.value = false
+  if (settingsError.value === null) settingsDialog.value?.close()
+}
 </script>
 
 <template>
@@ -265,11 +312,91 @@ function confirmCancel() {
       <div v-if="setup" class="note one" :title="`Each run: ${setup.entry}.`">
         pull requests
         <span :class="setup.pullRequests === 'off' ? 'warn' : 'ok'">{{
-          setup.pullRequests === 'off' ? 'off' : `${setup.pullRequests === 'draft' ? 'drafts only' : 'on'}, into ${setup.baseBranch}`
+          setup.pullRequests === 'off' ? 'off' : `${PULL_REQUESTS_WORDS[setup.pullRequests]}, into ${setup.baseBranch}`
         }}</span>
+      </div>
+      <!-- A service started before the run settings could be changed sends no defaults: it has nothing to save them with. -->
+      <div v-if="setup?.defaults" class="acts">
+        <button
+          class="btn tiny"
+          title="The target branch, the pull requests and a session's time limit, from the next run."
+          @click="openSettings()"
+        >
+          Settings
+        </button>
       </div>
     </Frame>
   </div>
+
+  <dialog ref="settingsDialog" class="frame confirm settings" aria-labelledby="settings-title">
+    <div class="frame-head">
+      <h2 id="settings-title">Run settings</h2>
+      <span class="note">from the next run</span>
+    </div>
+    <div class="setting">
+      <label class="label" for="setting-branch">Target branch</label>
+      <input
+        id="setting-branch"
+        v-model="draft.baseBranch"
+        class="field"
+        form="settings-form"
+        list="setting-branches"
+        required
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <datalist id="setting-branches"><option v-for="b in branches" :key="b" :value="b" /></datalist>
+      <p class="hint">A run's worktree starts from it and its pull request goes to it. It must have the pipeline's entry point.</p>
+    </div>
+    <div class="setting">
+      <div id="setting-prs" class="label">Pull requests</div>
+      <div class="chips" role="group" aria-labelledby="setting-prs">
+        <button
+          v-for="c in PULL_REQUESTS_CHOICES"
+          :key="c.value"
+          type="button"
+          class="chip"
+          :class="{ on: draft.pullRequests === c.value }"
+          :aria-pressed="draft.pullRequests === c.value"
+          @click="draft.pullRequests = c.value"
+        >
+          {{ c.label }}
+        </button>
+      </div>
+      <p class="hint">{{ pullRequestsSays }}</p>
+    </div>
+    <div class="setting">
+      <label class="label" for="setting-hours">Session time limit, hours</label>
+      <input
+        id="setting-hours"
+        v-model.number="draft.timeoutHours"
+        class="field hours"
+        form="settings-form"
+        type="number"
+        min="0.5"
+        max="24"
+        step="0.5"
+        required
+      />
+      <p class="hint">A session that takes longer is ended and its run recorded as timed out.</p>
+    </div>
+    <p v-if="inFlight" class="hint">{{ inFlight.key }} is in flight and keeps the settings it started with.</p>
+    <p v-if="settingsError" class="hint err" role="alert">{{ settingsError }}</p>
+    <form id="settings-form" @submit.prevent="confirmSettings()">
+      <button class="btn primary" :disabled="saving">{{ saving ? 'Checking the branch…' : 'Save' }}</button
+      ><button type="button" class="btn" :disabled="saving" @click="settingsDialog?.close()">Close</button
+      ><button
+        v-if="setup && !atDefaults"
+        type="button"
+        class="btn"
+        :disabled="saving"
+        :title="`The service's own: ${setup.defaults.baseBranch}, pull requests ${PULL_REQUESTS_WORDS[setup.defaults.pullRequests]}, ${setup.defaults.timeoutHours} h.`"
+        @click="useDefaults()"
+      >
+        Defaults
+      </button>
+    </form>
+  </dialog>
 
   <dialog ref="cancelDialog" class="frame confirm" aria-labelledby="cancel-title">
     <div class="frame-head">

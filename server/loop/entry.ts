@@ -3,7 +3,8 @@
 // session. The service starts a run only when that launch script knows PIPELINE_SESSION, since
 // an older one runs the plain CLI unwatched, to a pull request.
 //
-// Both come from the base branch (PIPELINE_BASE_BRANCH, master by default): the prepare script is
+// Both come from the base branch (PIPELINE_BASE_BRANCH, master by default, or the one set in the
+// console: store/settings.ts): the prepare script is
 // origin/<base>'s, copied into the data directory, so a run does not depend on the branch webui's
 // checkout is on; its last line names the launch script, which is the worktree's own, made from
 // origin/<base>. A base other than master needs a prepare script that reads PIPELINE_BASE_BRANCH:
@@ -47,6 +48,20 @@ export function entryLabel(config: EntryConfig): string {
  * runner starts. Resolves with null when a run may start, or with why it may not.
  */
 export async function prepareEntry(config: EntryConfig, git: Git = gitIn(config.webuiDir)): Promise<string | null> {
+  const checked = await checkEntry(config, git)
+  if (typeof checked === 'string') return checked
+  const { prepareWorktree } = entryOf(config)
+  fs.mkdirSync(config.entryDir, { recursive: true })
+  fs.writeFileSync(prepareWorktree, checked.prepare, { mode: 0o755 })
+  return null
+}
+
+/**
+ * The check alone, for a base branch someone is about to set: fetches origin and reads the
+ * branch's scripts, and writes nothing, since a run in flight may be reading the copy. Resolves
+ * with the prepare script when a run may start from the branch, or with why it may not.
+ */
+export async function checkEntry(config: EntryConfig, git: Git = gitIn(config.webuiDir)): Promise<{ prepare: string } | string> {
   try {
     await git(['fetch', '--quiet', 'origin'])
   } catch (error) {
@@ -64,7 +79,7 @@ export async function prepareEntry(config: EntryConfig, git: Git = gitIn(config.
   try {
     await git(['rev-parse', '--quiet', '--verify', `refs/remotes/${ref}^{commit}`])
   } catch {
-    return `origin has no branch ${base} (PIPELINE_BASE_BRANCH)`
+    return `origin has no branch ${base}`
   }
 
   const prepare = await show(PREPARE)
@@ -81,11 +96,21 @@ export async function prepareEntry(config: EntryConfig, git: Git = gitIn(config.
   if (base !== 'master' && !prepare.includes('PIPELINE_BASE_BRANCH')) {
     return `${ref}'s ${PREPARE} has no PIPELINE_BASE_BRANCH: it would build the worktree from master and open the pull request there`
   }
+  return { prepare }
+}
 
-  const { prepareWorktree } = entryOf(config)
-  fs.mkdirSync(config.entryDir, { recursive: true })
-  fs.writeFileSync(prepareWorktree, prepare, { mode: 0o755 })
-  return null
+/** origin's branches as the checkout last fetched them, for the console to offer; none when git fails. */
+export async function originBranches(git: Git): Promise<string[]> {
+  try {
+    const refs = await git(['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin'])
+    return refs
+      .split('\n')
+      .map((r) => r.trim().replace(/^origin\//, ''))
+      .filter((r) => r && r !== 'origin' && r !== 'HEAD')
+      .sort()
+  } catch {
+    return []
+  }
 }
 
 export function gitIn(dir: string): Git {

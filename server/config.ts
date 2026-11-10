@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { bitbucketConfig, type BitbucketConfig } from './history/bitbucket.ts'
 import { guardFromEnv, type Guard } from './http/guard.ts'
 import { jiraConfig, jiraSiteUrl, type JiraConfig } from './store/jira.ts'
+import type { RunSettings } from './store/settings.ts'
 
 /**
  * PIPELINE_PULL_REQUESTS: `on` lets the run open the pull request it decides on, ready or draft;
@@ -31,18 +32,18 @@ export type Config = {
   /** The secrets file the run's environment is read from (never printed). */
   envFile: string
   sessionBin: string
-  /** How long one session may take before the driver ends it. */
+  /** How long one session may take before the driver ends it: the default, until the console sets another. */
   sessionTimeoutMs: number
   /** The console's address. */
   host: string
   port: number
   /** The built UI, served when it is there. */
   uiDir: string
-  /** The webui branch a run's worktree starts from and its pull request goes to (entry.ts). */
+  /** The webui branch a run's worktree starts from and its pull request goes to (entry.ts): the default, until the console sets another (store/settings.ts). */
   baseBranch: string
   /** Where the copy of the entry point's prepare script goes. */
   entryDir: string
-  /** Whether a run may push and open its pull request, and whether that pull request is always a draft. */
+  /** Whether a run may push and open its pull request, and whether that pull request is always a draft: the default, as the base branch is. */
   pullRequests: PullRequests
   /** Jira, for a queued ticket's summary, the search and the tickets' statuses; null without the site or the credentials. */
   jira: JiraConfig | null
@@ -139,6 +140,11 @@ export function parseEnv<T extends z.ZodType>(
 }
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+/** The environment's value of each run setting: what a run starts with until the console sets another. */
+export function runDefaults(config: Pick<Config, 'baseBranch' | 'pullRequests' | 'sessionTimeoutMs'>): RunSettings {
+  return { baseBranch: config.baseBranch, pullRequests: config.pullRequests, timeoutHours: config.sessionTimeoutMs / 3600 / 1000 }
+}
 
 export function configFromEnv(env: Record<string, string | undefined> = process.env): Config {
   const e = parseEnv(Env, env)

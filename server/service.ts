@@ -5,19 +5,20 @@
 // flight as `restart`. Its log is one JSON line per event on stdout (log.ts); the events are
 // listed in .about/architecture.md.
 import fs from 'node:fs'
-import type { Config } from './config.ts'
+import { runDefaults, type Config } from './config.ts'
 import { describeError, log } from './log.ts'
 import { checkHealth, type Health } from './health.ts'
 import { compareMerged, refreshPullRequests } from './history/bitbucket.ts'
 import { loadRuns } from './history/runs.ts'
 import { refreshTickets } from './history/tickets.ts'
 import { createServer } from './http/api.ts'
-import { entryLabel, entryOf, gitIn, prepareEntry } from './loop/entry.ts'
+import { checkEntry, entryLabel, entryOf, gitIn, originBranches, prepareEntry } from './loop/entry.ts'
 import { createLoop } from './loop/loop.ts'
 import { createRunner } from './loop/runner.ts'
 import { nowIso, openDb } from './store/db.ts'
 import { jiraLookup, jiraSearch, jiraStatuses } from './store/jira.ts'
 import { markRestart, serviceHeartbeat, stopLoop } from './store/runs.ts'
+import { readRunSettings } from './store/settings.ts'
 
 const TICK_MS = 1000
 const ROUND_MS = 60_000
@@ -28,19 +29,32 @@ export async function serve(config: Config): Promise<void> {
     log.warn('run_ended', { runId: run.id, key: run.key, ending: 'restart', note: 'in flight when the service last stopped' })
   const startedAt = nowIso()
   serviceHeartbeat(db, process.pid, startedAt)
-  const entryConfig = { webuiDir: config.webuiDir, baseBranch: config.baseBranch, entryDir: config.entryDir }
-  const setup = { entry: entryLabel(entryConfig), baseBranch: config.baseBranch, pullRequests: config.pullRequests }
+  // The run settings are read when they are needed, not once: the console may change them, and
+  // a run takes the ones of the moment it starts (store/settings.ts).
+  const defaults = runDefaults(config)
+  const settings = () => readRunSettings(db, defaults)
+  const entryConfig = (baseBranch = settings().baseBranch) => ({ webuiDir: config.webuiDir, baseBranch, entryDir: config.entryDir })
+  const setup = () => ({ ...settings(), entry: entryLabel(entryConfig()), defaults })
+  const git = gitIn(config.webuiDir)
   log.info('service_start', {
     pid: process.pid,
     db: config.dbPath,
     webui: config.webuiDir,
-    entry: setup.entry,
-    baseBranch: config.baseBranch,
-    pullRequests: setup.pullRequests,
+    entry: setup().entry,
+    ...settings(),
     loop: 'stopped',
   })
 
-  const runner = createRunner({ ...config, entry: entryOf(entryConfig), pullRequests: config.pullRequests })
+  const runner = createRunner(() => {
+    const s = settings()
+    return {
+      ...config,
+      entry: entryOf(entryConfig(s.baseBranch)),
+      baseBranch: s.baseBranch,
+      pullRequests: s.pullRequests,
+      sessionTimeoutMs: s.timeoutHours * 3600 * 1000,
+    }
+  })
   const loop = createLoop({
     db,
     runner,
@@ -50,7 +64,7 @@ export async function serve(config: Config): Promise<void> {
       what === 'started'
         ? log.info('run_started', { runId: run.id, key: run.key, summary: run.summary })
         : log.info('run_ended', { runId: run.id, key: run.key, ending: run.ending, verdict: run.verdict, runDir: run.runDir }),
-    preflight: () => prepareEntry(entryConfig),
+    preflight: () => prepareEntry(entryConfig()),
     onRefused: (why) => log.error('loop_refused', { why }),
   })
   const timer = setInterval(() => {
@@ -62,7 +76,6 @@ export async function serve(config: Config): Promise<void> {
   let healthSaid = ''
   let rounding = false
   let ticketsSay = ''
-  const git = gitIn(config.webuiDir)
   const statuses = jiraStatuses(config.jira)
   const round = async () => {
     if (rounding) return
@@ -112,6 +125,15 @@ export async function serve(config: Config): Promise<void> {
     runsDir: config.runsDir,
     health: () => health,
     setup,
+    settings: {
+      defaults,
+      checkBranch: async (branch) => {
+        const checked = await checkEntry(entryConfig(branch), git)
+        return typeof checked === 'string' ? checked : null
+      },
+      branches: () => originBranches(git),
+      onChange: (changed) => log.info('settings_changed', changed),
+    },
     jiraSite: config.jiraSite,
     readers: { bitbucket: config.bitbucket !== null, jira: config.jira !== null },
     loop,
