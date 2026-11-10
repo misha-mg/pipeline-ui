@@ -43,6 +43,9 @@ const MIME: Record<string, string> = {
   '.map': 'application/json',
 }
 
+/** The build's hashed files and the font files, by their path under the built UI. */
+const IMMUTABLE = /^(assets|fonts)\//
+
 const NO_GUARD: Guard = { hostnames: [], login: null, realm: 'Pipeline console' }
 
 export function createServer(deps: ApiDeps): http.Server {
@@ -174,7 +177,9 @@ function serveStatic(uiDir: string | undefined, pathname: string, res: http.Serv
   res.writeHead(200, {
     ...SECURITY_HEADERS,
     'content-type': MIME[path.extname(file)] ?? 'application/octet-stream',
-    'cache-control': file.endsWith('index.html') ? 'no-cache' : 'max-age=31536000, immutable',
+    // Only what never changes under its name is kept: the build's hashed files and the faces.
+    // The page, theme.js and the mark are asked for again, so an edit shows on reload.
+    'cache-control': IMMUTABLE.test(path.relative(root, file)) ? 'max-age=31536000, immutable' : 'no-cache',
   })
   fs.createReadStream(file).pipe(res)
 }

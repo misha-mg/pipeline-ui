@@ -245,6 +245,9 @@ describe('api', () => {
     fs.writeFileSync(path.join(ui, 'index.html'), '<html>ui</html>')
     fs.mkdirSync(path.join(ui, 'assets'))
     fs.writeFileSync(path.join(ui, 'assets', 'a.js'), 'js')
+    fs.writeFileSync(path.join(ui, 'theme.js'), 'js')
+    fs.mkdirSync(path.join(ui, 'fonts'))
+    fs.writeFileSync(path.join(ui, 'fonts', 'a.woff2'), 'font')
     deps.uiDir = ui
     const server = createServer(deps)
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
@@ -255,6 +258,11 @@ describe('api', () => {
       expect(await (await get('/runs/KAZ-1/1')).text()).toBe('<html>ui</html>')
       const js = await get('/assets/a.js')
       expect(js.headers.get('content-type')).toContain('javascript')
+      // A hashed file and a face are kept by the browser; the page and theme.js, which keep their names, are not.
+      expect(js.headers.get('cache-control')).toContain('immutable')
+      expect((await get('/fonts/a.woff2')).headers.get('cache-control')).toContain('immutable')
+      expect((await get('/theme.js')).headers.get('cache-control')).toBe('no-cache')
+      expect((await get('/')).headers.get('cache-control')).toBe('no-cache')
       expect(await (await get('/../../etc/passwd')).text()).toBe('<html>ui</html>')
       expect((await get('/assets/an-older-build.js')).status).toBe(404)
     } finally {
