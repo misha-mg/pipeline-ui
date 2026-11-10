@@ -74,6 +74,13 @@ into the gaps by the cells' shadows (the kit lays surface cells over a border-co
 two layers of glass, lighter than the frames beside it), and a segmented control is the same
 surface with the frame's border, not the kit's sunken well.
 
+### The mark (2026-11-10)
+
+The masthead carries the company's mark before the brand's name, the app's icon in the window.
+It is drawn by the sheet itself, an SVG in a data URI on the brand's `::before`, in the mark's
+own four blues, so every console that copies the sheet carries it with no markup and no file of
+its own; the console's favicon is the same SVG as `ui/public/logo.svg`.
+
 ## Consequences
 
 bug-validator's `npm run sheet:sync` copies the same three paths and needs no change; its copy
