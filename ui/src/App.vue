@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The console: a masthead with the three pages (cockpit, runs, statistics), the run settings'
-// gear and the light/dark switch (public/theme.js handles it), and the sheet under it. The page comes from the hash, so a
+// gear and the light/dark switch (public/theme.js handles it), the sheet under it, and a foot that
+// names the code the service runs. The mark leads to the tools' start page where one is set. The page comes from the hash, so a
 // run's address can be shared.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Cockpit from './views/Cockpit.vue'
@@ -24,6 +25,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('hashchange', onHash)
 })
 
+// The commit the service runs, with a + when its working tree has moved on from it.
+const commit = computed(() => {
+  const b = state.value?.build
+  return b?.commit ? `${b.commit}${b.dirty ? '+' : ''}` : 'dev'
+})
+
 const route = computed(() => {
   if (hash.value === '#/stats') return { page: 'stats' as const }
   const m = /^#\/runs(?:\/([A-Z]+-\d+)\/(\d+))?$/.exec(hash.value)
@@ -35,6 +42,8 @@ const route = computed(() => {
 
 <template>
   <header class="masthead">
+    <!-- The mark leads to the tools' start page where the service names one; the name, to the cockpit. -->
+    <a v-if="state?.portal" class="home" :href="state.portal" title="All tools" aria-label="All tools" />
     <a class="brand" href="#/">Pipeline</a>
     <span v-if="state && !state.service.alive" class="offline">service not running</span>
     <span v-if="offline" class="offline">console cannot reach the service</span>
@@ -61,5 +70,14 @@ const route = computed(() => {
     <Statistics v-else-if="route.page === 'stats'" />
     <RunView v-else :ticket="route.key" :number="route.number" />
   </main>
+  <footer v-if="state?.build" class="foot">
+    <code
+      >Build v{{ state.build.version }} (<a v-if="state.build.commitUrl" :href="state.build.commitUrl" target="_blank" rel="noopener">{{
+        commit
+      }}</a
+      ><template v-else>{{ commit }}</template
+      >)</code
+    >
+  </footer>
   <Toasts />
 </template>

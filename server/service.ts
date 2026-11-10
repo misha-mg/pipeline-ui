@@ -19,6 +19,7 @@ import { nowIso, openDb } from './store/db.ts'
 import { jiraLookup, jiraSearch, jiraStatuses } from './store/jira.ts'
 import { markRestart, serviceHeartbeat, stopLoop } from './store/runs.ts'
 import { readRunSettings } from './store/settings.ts'
+import { readBuild } from './version.ts'
 
 const TICK_MS = 1000
 const ROUND_MS = 60_000
@@ -36,8 +37,11 @@ export async function serve(config: Config): Promise<void> {
   const entryConfig = (baseBranch = settings().baseBranch) => ({ webuiDir: config.webuiDir, baseBranch, entryDir: config.entryDir })
   const setup = () => ({ ...settings(), entry: entryLabel(entryConfig()), defaults })
   const git = gitIn(config.webuiDir)
+  const build = readBuild(config.repo)
   log.info('service_start', {
     pid: process.pid,
+    version: build.version,
+    commit: build.commit ? `${build.commit}${build.dirty ? '+' : ''}` : null,
     db: config.dbPath,
     webui: config.webuiDir,
     entry: setup().entry,
@@ -135,6 +139,8 @@ export async function serve(config: Config): Promise<void> {
       onChange: (changed) => log.info('settings_changed', changed),
     },
     jiraSite: config.jiraSite,
+    portal: config.portalUrl,
+    build,
     readers: { bitbucket: config.bitbucket !== null, jira: config.jira !== null },
     loop,
     lookup: jiraLookup(config.jira),

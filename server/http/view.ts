@@ -13,6 +13,7 @@ import { structuredOutput } from '../session/transcript.ts'
 import type { Db } from '../store/db.ts'
 import { listQueue, type QueueItem } from '../store/queue.ts'
 import type { RunSettings } from '../store/settings.ts'
+import type { Build } from '../version.ts'
 import {
   inFlight,
   listEvents,
@@ -58,6 +59,10 @@ export type StateView = {
   setup: RunSetup | null
   /** The Jira site a ticket key links to (JIRA_BASE_URL); null when it is not set. */
   jiraSite: string | null
+  /** The start page the masthead's mark leads to (PIPELINE_PORTAL_URL); null when it is not set. */
+  portal: string | null
+  /** The code the service runs, for the footer; null when it was not told. */
+  build: Build | null
 }
 
 /**
@@ -74,6 +79,8 @@ export type ViewSources = {
   /** Asked on every view: the settings may change between two. */
   setup?: () => RunSetup
   jiraSite?: string | null
+  portal?: string | null
+  build?: Build | null
   /** Whether Bitbucket (BITBUCKET_TOKEN) and Jira (the JIRA_* settings) are set up, for the statistics to say why a number is missing. */
   readers?: { bitbucket: boolean; jira: boolean }
   now?: () => Date
@@ -94,6 +101,8 @@ export function stateView(src: ViewSources): StateView {
     health: src.health(),
     setup: src.setup?.() ?? null,
     jiraSite: src.jiraSite ?? null,
+    portal: src.portal ?? null,
+    build: src.build ?? null,
   }
 }
 

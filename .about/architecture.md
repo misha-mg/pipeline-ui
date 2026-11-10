@@ -103,7 +103,7 @@ once it is past 5 MB. The commands print text for a person.
 
 | event | level | fields |
 |---|---|---|
-| `service_start` | info | pid, db, webui, entry, baseBranch, pullRequests, timeoutHours (the run settings in force), loop (`stopped`: nothing resumes by itself) |
+| `service_start` | info | pid, version, commit (the code it runs, `+` after a commit the tree moved on from), db, webui, entry, baseBranch, pullRequests, timeoutHours (the run settings in force), loop (`stopped`: nothing resumes by itself) |
 | `settings_changed` | info | the run settings that changed, each with its new value: baseBranch, pullRequests, timeoutHours |
 | `migration` | info | db, from, to (schema versions), copy (the file copied before, null for a new database) |
 | `console_listening` | info | url, ui (false: the UI is not built, the API alone is served), note |
@@ -144,6 +144,7 @@ kept in the database and win over the environment until they are put back (ADR r
 | `PIPELINE_BASE_BRANCH` | `master` | the webui branch a run's worktree starts from and its pull request goes to; must have the entry point; a run setting's default |
 | `PIPELINE_PULL_REQUESTS` | `on` | `off`: a run ends before its push; `draft`: every pull request opens as a draft; a run setting's default |
 | `PIPELINE_HOST`, `PIPELINE_PORT` | `0.0.0.0`, `8787` | the console's address |
+| `PIPELINE_PORTAL_URL` | — | the start page the mark in the masthead leads to (the tools' portal, "All tools"); unset, the mark is part of the name and leads to the cockpit |
 | `PIPELINE_HOSTNAMES` | — | names the console may be opened by, comma-separated, besides IP addresses, localhost and the machine's name |
 | `PIPELINE_USER`, `PIPELINE_PASSWORD` | — | both set: every page asks for this login (`/healthz` does not) |
 | `PIPELINE_BACKUP_DIR` | `<data>/backups` | `maintain`'s copies of the database, the latest 14 kept |

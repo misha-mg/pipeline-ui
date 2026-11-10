@@ -272,6 +272,15 @@ describe('api', () => {
   })
 })
 
+describe('the frame the tools share', () => {
+  it('tells the console the start page its mark leads to and the code the service runs, or neither', async () => {
+    const { deps } = sources()
+    expect(stateView(deps)).toMatchObject({ portal: null, build: null })
+    const build = { version: '0.38.1', commit: 'abc1234', dirty: false, commitUrl: null }
+    expect(stateView({ ...deps, portal: 'http://tools.example.net/', build })).toMatchObject({ portal: 'http://tools.example.net/', build })
+  })
+})
+
 describe('the run settings', () => {
   const defaults: RunSettings = { baseBranch: 'master', pullRequests: 'on', timeoutHours: 4 }
   function withSettings() {

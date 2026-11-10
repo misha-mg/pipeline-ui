@@ -49,6 +49,8 @@ export type Config = {
   jira: JiraConfig | null
   /** The Jira site a ticket key links to; null when it is not set. */
   jiraSite: string | null
+  /** The start page the mark in the masthead leads to; null when it is not set. */
+  portalUrl: string | null
   /** Bitbucket, for the pull requests' states; null without the token. */
   bitbucket: BitbucketConfig | null
   /** The console's guard: the host names it answers to and its login (guard.ts). */
@@ -106,6 +108,12 @@ export const Env = z
       .trim()
       .optional()
       .refine((v) => !v || httpUrl(v), 'is the Jira site with its scheme, such as https://your-site.atlassian.net'),
+    // The start page the consoles' mark leads to (the tools' portal); unset, the mark leads to the cockpit.
+    PIPELINE_PORTAL_URL: z
+      .string()
+      .trim()
+      .optional()
+      .refine((v) => !v || httpUrl(v), 'is the start page with its scheme, such as http://tools.example.net/'),
     JIRA_EMAIL: z.string().optional(),
     JIRA_API_TOKEN: z.string().optional(),
     JIRA_CLOUD_ID: z.string().optional(),
@@ -169,6 +177,7 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     pullRequests: e.PIPELINE_PULL_REQUESTS,
     jira: jiraConfig(e),
     jiraSite: jiraSiteUrl(e),
+    portalUrl: e.PIPELINE_PORTAL_URL || null,
     bitbucket: bitbucketConfig(e),
     guard: guardFromEnv(e.PIPELINE_HOSTNAMES, e.PIPELINE_USER, e.PIPELINE_PASSWORD, 'Pipeline console'),
     backupDir: e.PIPELINE_BACKUP_DIR ?? path.join(dataDir, 'backups'),

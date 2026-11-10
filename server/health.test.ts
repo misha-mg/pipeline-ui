@@ -26,6 +26,7 @@ function config(jira: Config['jira'] = null): Config {
     pullRequests: 'on',
     jira,
     jiraSite: jira?.siteUrl ?? null,
+    portalUrl: null,
     bitbucket: null,
     guard: { hostnames: [], login: null, realm: 'test' },
     backupDir: '',

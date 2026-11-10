@@ -51,6 +51,7 @@ describe('configFromEnv', () => {
     })
     expect(c.jira).toEqual({ siteUrl: 'https://site.example', email: 'e@x', token: 't', cloudId: undefined })
     expect(c.jiraSite).toBe('https://site.example')
+    expect(c.portalUrl).toBeNull()
     expect(c.bitbucket).toEqual({ token: 'b' })
     expect(c.guard).toEqual({ hostnames: ['pipeline.local', 'console'], login: { user: 'op', password: 'pw' }, realm: 'Pipeline console' })
     expect(c.backupDir).toBe('/var/backups/pipeline')

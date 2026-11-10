@@ -45,7 +45,9 @@ import paths, no enums or parameter properties (`tsconfig.json` enforces it, wit
   console: read them through `server/store/settings.ts` when a run starts, never from `Config`.
   Everything of this project's own is a `PIPELINE_*` variable; the Jira names (`JIRA_*`) are the
   same as bug-validator's; each machine sets them in its `.env` (see `.env.example`).
-- Three files are the same in both repositories and are copied verbatim, never adapted:
+- Four files are the same in both repositories and are copied verbatim, never adapted
+  (`server/version.ts`, with its test and `scripts/version.sh`: the build the footer names, read
+  once at start), and:
   `server/format.ts` (every date, duration and "ago" the console shows goes through it),
   `server/log.ts` (the service's log: `log.info|warn|error(event, fields)`, snake_case events,
   documented in `.about/architecture.md`) and `server/http/guard.ts`.
