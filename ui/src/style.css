@@ -72,8 +72,7 @@ td .actions {
 /* The mark of a screen migration after a ticket key: small, muted, with its meaning on hover. */
 .mark {
   margin-left: 6px;
-  color: var(--cg-text-muted, inherit);
-  opacity: 0.7;
+  color: var(--cg-fg-2);
   font-size: 0.9em;
   cursor: help;
 }

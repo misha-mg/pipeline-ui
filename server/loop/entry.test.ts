@@ -100,6 +100,9 @@ describe('checkEntry', () => {
   it("lists origin's branches for the console to offer", async () => {
     const w = fakeWebui()
     expect(await originBranches(gitIn(w.webui))).toEqual(['dev', 'master'])
+    // A branch pushed since the checkout last fetched is offered too.
+    w.commit('release/5.9', { base: 'release\n' }, 'dev')
+    expect(await originBranches(gitIn(w.webui))).toEqual(['dev', 'master', 'release/5.9'])
     expect(await originBranches(gitIn(path.join(w.dir, 'nowhere')))).toEqual([])
   })
 })

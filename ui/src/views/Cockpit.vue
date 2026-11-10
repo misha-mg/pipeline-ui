@@ -217,6 +217,7 @@ function confirmCancel() {
 const settingsDialog = ref<HTMLDialogElement | null>(null)
 const draft = ref<RunSettings>({ baseBranch: '', pullRequests: 'on', timeoutHours: 4 })
 const branches = ref<string[]>([])
+const branchesState = ref<'loading' | 'read' | 'none'>('loading')
 const saving = ref(false)
 const settingsError = ref<string | null>(null)
 const PULL_REQUESTS_CHOICES: { value: RunSettings['pullRequests']; label: string; says: string }[] = [
@@ -231,12 +232,23 @@ function openSettings() {
   draft.value = { baseBranch: s.baseBranch, pullRequests: s.pullRequests, timeoutHours: s.timeoutHours }
   settingsError.value = null
   settingsDialog.value?.showModal()
-  // The branches origin has, offered under the field; the field takes any name without them.
+  // The branches origin has, read when the dialog opens (the service fetches first, a few
+  // seconds): until they come the select holds the branches in use.
+  branchesState.value = 'loading'
   api.branches().then(
-    (b) => (branches.value = b.branches),
-    () => (branches.value = []),
+    (b) => {
+      branches.value = b.branches
+      branchesState.value = b.branches.length ? 'read' : 'none'
+    },
+    () => (branchesState.value = 'none'),
   )
 }
+// The select's first group: the branch runs go to now, the service's default and the one being
+// chosen, so they are at hand whatever origin's list says; then every other branch by name.
+const branchesInUse = computed(() => [
+  ...new Set([setup.value?.baseBranch, setup.value?.defaults?.baseBranch, draft.value.baseBranch].filter((b): b is string => !!b)),
+])
+const otherBranches = computed(() => branches.value.filter((b) => !branchesInUse.value.includes(b)))
 function useDefaults() {
   if (setup.value) draft.value = { ...setup.value.defaults }
 }
@@ -337,18 +349,21 @@ async function confirmSettings() {
     </div>
     <div class="setting">
       <label class="label" for="setting-branch">Target branch</label>
-      <input
-        id="setting-branch"
-        v-model="draft.baseBranch"
-        class="field"
-        form="settings-form"
-        list="setting-branches"
-        required
-        autocomplete="off"
-        spellcheck="false"
-      />
-      <datalist id="setting-branches"><option v-for="b in branches" :key="b" :value="b" /></datalist>
-      <p class="hint">A run's worktree starts from it and its pull request goes to it. It must have the pipeline's entry point.</p>
+      <select id="setting-branch" v-model="draft.baseBranch" class="field" form="settings-form" required :disabled="saving">
+        <optgroup label="In use">
+          <option v-for="b in branchesInUse" :key="b" :value="b">
+            {{ b }}{{ b === setup?.defaults.baseBranch ? ' (the default)' : '' }}
+          </option>
+        </optgroup>
+        <optgroup v-if="otherBranches.length" :label="`On origin, ${otherBranches.length}`">
+          <option v-for="b in otherBranches" :key="b" :value="b">{{ b }}</option>
+        </optgroup>
+      </select>
+      <p class="hint">
+        A run's worktree starts from it and its pull request goes to it. It must have the pipeline's entry point.
+        <template v-if="branchesState === 'loading'"> Reading origin's branches…</template>
+        <span v-else-if="branchesState === 'none'" class="err"> Origin's branches could not be read.</span>
+      </p>
     </div>
     <div class="setting">
       <div id="setting-prs" class="label">Pull requests</div>

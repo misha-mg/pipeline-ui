@@ -99,8 +99,17 @@ export async function checkEntry(config: EntryConfig, git: Git = gitIn(config.we
   return { prepare }
 }
 
-/** origin's branches as the checkout last fetched them, for the console to offer; none when git fails. */
+/**
+ * origin's branches, for the console to offer: fetched first, so a branch pushed a minute ago
+ * is there, and as the checkout last fetched them when origin cannot be reached; none when git
+ * fails.
+ */
 export async function originBranches(git: Git): Promise<string[]> {
+  try {
+    await git(['fetch', '--quiet', 'origin'])
+  } catch {
+    // The branches as they were last fetched are still worth offering.
+  }
   try {
     const refs = await git(['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin'])
     return refs

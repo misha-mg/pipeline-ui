@@ -33,8 +33,10 @@ own words when it fails, so the dialog says "origin has no branch x" where the p
 looking instead of the loop refusing its next run. That check writes nothing: the copy of the
 prepare script is written by the preflight alone, when nothing is in flight, since a run in
 flight may be reading it. A branch name is also refused unless it is one git takes and nothing
-a command line could read as an option. The console offers origin's branches as the checkout
-last fetched them (`GET /api/branches`); the field takes any name without them.
+a command line could read as an option. The console's field is a select of origin's branches
+(`GET /api/branches`, which fetches first, so a branch pushed a minute ago is there, and falls
+back to the last fetch when origin cannot be reached): the branches in use first (the current
+one, the default), then every other by name. `pipeline set` takes any name.
 
 Every change is a `settings_changed` event in the service's log with what changed.
 
