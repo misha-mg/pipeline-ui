@@ -1,12 +1,13 @@
 <script setup lang="ts">
-// The console: a masthead with the three pages (cockpit, runs, statistics) and the light/dark switch
-// (public/theme.js handles it), and the sheet under it. The page comes from the hash, so a
+// The console: a masthead with the three pages (cockpit, runs, statistics), the run settings'
+// gear and the light/dark switch (public/theme.js handles it), and the sheet under it. The page comes from the hash, so a
 // run's address can be shared.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Cockpit from './views/Cockpit.vue'
 import RunsView from './views/RunsView.vue'
 import RunView from './views/RunView.vue'
 import Statistics from './views/Statistics.vue'
+import RunSettings from './components/RunSettings.vue'
 import Toasts from './components/Toasts.vue'
 import { offline, startPolling, state, stopPolling } from './console.ts'
 
@@ -46,6 +47,7 @@ const where = computed(() => `console · ${location.host}`)
       <a class="btn" :class="{ active: route.page === 'runs' || route.page === 'run' }" href="#/runs">Runs</a>
       <a class="btn" :class="{ active: route.page === 'stats' }" href="#/stats">Statistics</a>
     </nav>
+    <RunSettings />
     <button class="btn theme" type="button" aria-label="Switch between light and dark">
       <svg class="sun" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="4" />

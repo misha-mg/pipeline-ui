@@ -15,7 +15,7 @@ drafts only, a long ticket wants more hours.
 ## Decision
 
 The three are the **run settings** (`server/store/settings.ts`). The environment gives each its
-default; the console's cockpit (the Target branch card, Settings) and the command line
+default; the console (the gear in the masthead, beside the theme switch, on every page) and the command line
 (`pipeline set base-branch|pull-requests|timeout-hours VALUE`, `pipeline settings`) set another,
 kept in the database's `settings` table (migration 2), one row per setting that differs from its
 default. A setting put back to its default is forgotten rather than kept, so a later change of

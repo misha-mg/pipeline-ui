@@ -130,7 +130,7 @@ starts from and its pull request goes to, `master`), `PIPELINE_PULL_REQUESTS` (`
 `off`, `on`; `draft` opens every pull request as a draft, ADR draft-pull-requests); the console's
 `PIPELINE_HOST`, `PIPELINE_PORT`, `PIPELINE_HOSTNAMES`, `PIPELINE_USER`, `PIPELINE_PASSWORD`;
 `maintain`'s `PIPELINE_BACKUP_DIR` and `PIPELINE_LOG_FILE`. The base branch, the pull requests
-and the hours are the run settings: the environment gives their defaults, and the cockpit's
+and the hours are the run settings: the environment gives their defaults, and the masthead's
 Settings (or `bin/pipeline set base-branch dev`, `set pull-requests draft`, `set timeout-hours 6`;
 `bin/pipeline settings` shows them) changes them for the next run without a restart (ADR
 run-settings). Every variable is in

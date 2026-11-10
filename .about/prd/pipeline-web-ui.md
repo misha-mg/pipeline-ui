@@ -74,7 +74,7 @@ Agent SDK, and from its own records.
   those merged when they differ, and its ticket's Jira status, filterable by outcome.
 - The webui branch a run starts from and its pull request goes to, and whether pull requests are
   on, off or drafts only (`draft`: every pull request opens as a draft, ADR draft-pull-requests).
-- The run settings, changed from the cockpit without a restart (2026-11-10, ADR run-settings):
+- The run settings, changed from the masthead's gear, on every page, without a restart (2026-11-10, ADR run-settings):
   the target branch, the pull requests (on, drafts only, off) and a session's time limit. The
   environment gives each its default; a change is for the next run, and a branch is taken only
   when origin has it with the entry point.

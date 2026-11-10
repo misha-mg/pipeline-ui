@@ -43,7 +43,7 @@ that hands over to it, both from `origin/<base>`, the base branch (`master` by d
 (`PIPELINE_BASE_BRANCH` by default; a run setting). The console calls it the target branch.
 
 **Run settings**: the base branch, whether a run may open its pull request (on, drafts only,
-off) and a session's time limit. The environment gives each its default; the cockpit's Settings
+off) and a session's time limit. The environment gives each its default; the masthead's gear
 or `pipeline set` changes one for the next run, never for the run in flight.
 
 **The JQL**: the Jira query the operator applies to the ticket search; whatever is typed is
