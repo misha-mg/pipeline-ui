@@ -388,7 +388,7 @@ async function confirmSettings() {
       <button class="btn primary" :disabled="saving">{{ saving ? 'Checking the branch…' : 'Save' }}</button
       ><button type="button" class="btn" :disabled="saving" @click="settingsDialog?.close()">Close</button
       ><button
-        v-if="setup && !atDefaults"
+        v-if="setup?.defaults && !atDefaults"
         type="button"
         class="btn"
         :disabled="saving"
