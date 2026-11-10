@@ -6,6 +6,7 @@
 // it cannot be taken back, and the session it ends cost a slot of the subscription.
 import { computed, onMounted, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
+import { closeOnBackdrop } from '../dialog.ts'
 import MigrationMark from '../components/MigrationMark.vue'
 import { MIGRATION_LABEL } from '../../../server/history/outcome.ts'
 import {
@@ -273,7 +274,7 @@ function confirmCancel() {
     </Frame>
   </div>
 
-  <dialog ref="cancelDialog" class="frame confirm" aria-labelledby="cancel-title">
+  <dialog ref="cancelDialog" class="frame confirm" aria-labelledby="cancel-title" @pointerdown="closeOnBackdrop">
     <div class="frame-head">
       <h2 id="cancel-title">Cancel {{ inFlight?.key ?? 'the run' }}?</h2>
       <span v-if="inFlight" class="note">{{ stageOfAgent(inFlight.stage) }} · {{ fmtDuration(inFlight.seconds) }} so far</span>

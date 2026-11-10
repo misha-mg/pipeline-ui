@@ -2,12 +2,14 @@
 // The run settings, in the masthead beside the theme switch: a gear that opens a dialog of the
 // sheet with the target branch (a combo over origin's branches, with a search), the pull requests and a
 // session's time limit. The service checks a new branch on origin before it keeps it, so Save
-// may take a few seconds and may refuse; what it says stays in the dialog. A change is for the
+// may take a few seconds and may refuse; what it says stays in the dialog. Close, Escape or a
+// press outside the dialog leaves the settings as they were. A change is for the
 // next run: the one in flight keeps what it started with. A service started before the settings
 // could be changed sends no defaults and has nothing to save them with: no gear then.
 import { computed, ref } from 'vue'
 import { api, type RunSettings } from '../api.ts'
 import Combo, { type ComboGroup } from './Combo.vue'
+import { closeOnBackdrop } from '../dialog.ts'
 import { PULL_REQUESTS_WORDS, saveSettings, state } from '../console.ts'
 
 const setup = computed(() => state.value?.setup ?? null)
@@ -93,7 +95,12 @@ async function confirmSettings() {
   </button>
   <!-- In the body, not the masthead: the masthead restyles the buttons it holds. -->
   <Teleport to="body">
-    <dialog ref="settingsDialog" class="frame confirm settings" aria-labelledby="settings-title">
+    <dialog
+      ref="settingsDialog"
+      class="frame confirm settings"
+      aria-labelledby="settings-title"
+      @pointerdown="saving || closeOnBackdrop($event)"
+    >
       <div class="frame-head">
         <h2 id="settings-title">Run settings</h2>
         <span class="note">from the next run</span>
