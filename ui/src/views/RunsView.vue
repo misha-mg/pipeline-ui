@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The run history: a strip of what the runs shown add up to, the filters by verdict and ending,
-// then every run with the pull request's state as Bitbucket last reported it. The ticket key opens
+// then every run, latest first under the day it started (a day row, as bug-validator's bugs
+// have), with the pull request's state as Bitbucket last reported it. The ticket key opens
 // the run's page, the arrow its Jira ticket; the run in flight stands out with its stage. The
 // summary is cut to one line: the run's page has it whole, with the start, the end and running the
 // ticket again.
@@ -11,6 +12,7 @@ import {
   endingLabel,
   endingTone,
   fmtClock,
+  fmtDay,
   fmtDate,
   fmtDuration,
   fmtTime,
@@ -205,6 +207,7 @@ function prState(run: ShownRun): string {
             <th>Ticket</th>
             <th>Jira</th>
             <th>Run</th>
+            <th>Started</th>
             <th>Summary</th>
             <th>Verdict</th>
             <th>Ending</th>
@@ -213,38 +216,44 @@ function prState(run: ShownRun): string {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="run in runs" :key="run.path || run.serviceRunId || run.key" :class="{ live: run.ending === 'in-flight' }">
-            <td class="key">
-              <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
-              ><span v-else>{{ run.key }}</span
-              ><MigrationMark v-if="run.migration" /><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
-            </td>
-            <td class="jira">
-              <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a>
-            </td>
-            <td class="num dim">{{ run.number || '—' }}</td>
-            <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
-            <td>
-              <span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span>
-            </td>
-            <td>
-              <span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''"
-                >{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span
-              >
-            </td>
-            <td class="num">
-              <template v-if="run.pr"
-                ><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a>
-                <span
-                  class="pill"
-                  :class="toneClass(prStateTone(run.pr.state))"
-                  :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : (run.pr.error ?? 'not read yet')"
-                  >{{ prState(run) }}</span
-                ></template
-              >
-            </td>
-            <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
-          </tr>
+          <template v-for="(run, i) in runs" :key="run.path || run.serviceRunId || run.key">
+            <tr v-if="i === 0 || fmtDay(run.startedAt) !== fmtDay(runs[i - 1]!.startedAt)" class="day">
+              <th class="label" colspan="9">{{ fmtDay(run.startedAt) }}</th>
+            </tr>
+            <tr :class="{ live: run.ending === 'in-flight' }">
+              <td class="key">
+                <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
+                ><span v-else>{{ run.key }}</span
+                ><MigrationMark v-if="run.migration" /><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
+              </td>
+              <td class="jira">
+                <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a>
+              </td>
+              <td class="num dim">{{ run.number || '—' }}</td>
+              <td class="num dim">{{ fmtClock(run.startedAt) }}</td>
+              <td class="summary one-line" :title="run.summary ?? ''">{{ run.summary ?? '' }}</td>
+              <td>
+                <span class="pill" :class="verdictClass(run.verdict)" :title="run.reason ?? ''">{{ run.verdict ?? '—' }}</span>
+              </td>
+              <td>
+                <span class="pill" :class="toneClass(endingTone(run.ending))" :title="run.endingDetail ?? ''"
+                  >{{ endingLabel(run.ending) }}<template v-if="liveStage(run)"> · {{ liveStage(run) }}</template></span
+                >
+              </td>
+              <td class="num">
+                <template v-if="run.pr"
+                  ><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a>
+                  <span
+                    class="pill"
+                    :class="toneClass(prStateTone(run.pr.state))"
+                    :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : (run.pr.error ?? 'not read yet')"
+                    >{{ prState(run) }}</span
+                  ></template
+                >
+              </td>
+              <td class="num">{{ fmtDuration(runSeconds(run)) }}</td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>

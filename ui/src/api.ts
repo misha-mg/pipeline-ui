@@ -59,7 +59,7 @@ export const api = {
 
 // Dates, clocks, durations and "ago" come from the module both consoles share, so the two read
 // the same: `2026-11-04 23:10`, `5m 03s`, `2d 04h`, `5m 03s ago`.
-export { fmtAgo, fmtClock, fmtDate, fmtDuration, fmtTime } from '../../server/format.ts'
+export { fmtAgo, fmtClock, fmtDate, fmtDay, fmtDuration, fmtTime } from '../../server/format.ts'
 
 // The outcome's words and tones come from the server's own module, so the console and the API
 // cannot name a verdict, an ending or a stage two ways.
