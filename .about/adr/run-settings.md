@@ -33,7 +33,8 @@ own words when it fails, so the dialog says "origin has no branch x" where the p
 looking instead of the loop refusing its next run. That check writes nothing: the copy of the
 prepare script is written by the preflight alone, when nothing is in flight, since a run in
 flight may be reading it. A branch name is also refused unless it is one git takes and nothing
-a command line could read as an option. The console's field is a select of origin's branches
+a command line could read as an option. The console's field is a combo over origin's branches, the sheet's select with a search (over
+three hundred of them are too many to scroll, and the system's select has no search)
 (`GET /api/branches`, which fetches first, so a branch pushed a minute ago is there, and falls
 back to the last fetch when origin cannot be reached): the branches in use first (the current
 one, the default), then every other by name. `pipeline set` takes any name.

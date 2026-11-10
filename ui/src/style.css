@@ -18,6 +18,10 @@
 }
 /* The run settings' dialog: each setting a label, its control and a line that says what it
    does; the hours are a short field. */
+/* The branches' list opens over the settings under it, and past the dialog's edge if it must. */
+dialog.settings {
+  overflow: visible;
+}
 dialog.settings .setting {
   margin-top: var(--cg-space-4);
 }

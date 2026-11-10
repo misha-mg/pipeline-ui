@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // The run settings, in the masthead beside the theme switch: a gear that opens a dialog of the
-// sheet with the target branch (a select of origin's branches), the pull requests and a
+// sheet with the target branch (a combo over origin's branches, with a search), the pull requests and a
 // session's time limit. The service checks a new branch on origin before it keeps it, so Save
 // may take a few seconds and may refuse; what it says stays in the dialog. A change is for the
 // next run: the one in flight keeps what it started with. A service started before the settings
 // could be changed sends no defaults and has nothing to save them with: no gear then.
 import { computed, ref } from 'vue'
 import { api, type RunSettings } from '../api.ts'
+import Combo, { type ComboGroup } from './Combo.vue'
 import { PULL_REQUESTS_WORDS, saveSettings, state } from '../console.ts'
 
 const setup = computed(() => state.value?.setup ?? null)
@@ -40,12 +41,20 @@ function openSettings() {
     () => (branchesState.value = 'none'),
   )
 }
-// The select's first group: the branch runs go to now, the service's default and the one being
-// chosen, so they are at hand whatever origin's list says; then every other branch by name.
+// The combo's first group: the branch runs go to now and the service's default, at hand
+// whatever origin's list says; then every other branch by name. The one being chosen stays in
+// its place, ticked.
 const branchesInUse = computed(() => [
-  ...new Set([setup.value?.baseBranch, setup.value?.defaults?.baseBranch, draft.value.baseBranch].filter((b): b is string => !!b)),
+  ...new Set([setup.value?.baseBranch, setup.value?.defaults?.baseBranch].filter((b): b is string => !!b)),
 ])
 const otherBranches = computed(() => branches.value.filter((b) => !branchesInUse.value.includes(b)))
+const branchGroups = computed<ComboGroup[]>(() => [
+  {
+    label: 'In use',
+    options: branchesInUse.value.map((b) => ({ value: b, ...(b === setup.value?.defaults?.baseBranch ? { note: 'the default' } : {}) })),
+  },
+  { label: 'On origin', options: otherBranches.value.map((b) => ({ value: b })) },
+])
 function useDefaults() {
   if (setup.value) draft.value = { ...setup.value.defaults }
 }
@@ -91,16 +100,7 @@ async function confirmSettings() {
       </div>
       <div class="setting">
         <label class="label" for="setting-branch">Target branch</label>
-        <select id="setting-branch" v-model="draft.baseBranch" class="field" form="settings-form" required :disabled="saving">
-          <optgroup label="In use">
-            <option v-for="b in branchesInUse" :key="b" :value="b">
-              {{ b }}{{ b === setup?.defaults.baseBranch ? ' (the default)' : '' }}
-            </option>
-          </optgroup>
-          <optgroup v-if="otherBranches.length" :label="`On origin, ${otherBranches.length}`">
-            <option v-for="b in otherBranches" :key="b" :value="b">{{ b }}</option>
-          </optgroup>
-        </select>
+        <Combo id="setting-branch" v-model="draft.baseBranch" :groups="branchGroups" search="Search origin's branches" :disabled="saving" />
         <p class="hint">
           A run's worktree starts from it and its pull request goes to it. It must have the pipeline's entry point.
           <template v-if="branchesState === 'loading'"> Reading origin's branches…</template>
