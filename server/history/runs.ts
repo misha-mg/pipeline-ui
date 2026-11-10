@@ -7,7 +7,7 @@
 // implement) has a line each time: lines are matched to timings.tsv's rows in order, never by name.
 import fs from 'node:fs'
 import path from 'node:path'
-import { parseVerdict, stageKey, verdictFamily, type Verdict } from './outcome.ts'
+import { MIGRATION_AGENTS, parseVerdict, stageKey, verdictFamily, type Verdict } from './outcome.ts'
 
 export type HistoryStage = { label: string; agent: string | null; startedAt: string | null; seconds: number | null; result: string | null }
 
@@ -22,6 +22,8 @@ export type HistoryRun = {
   /** Seconds from the start to state.md, or to the last stage's end when that is later. */
   seconds: number | null
   summary: string | null
+  /** A screen migration (webui's screen-migration.js): the assignment says so, or a parity agent worked. */
+  migration: boolean
   verdict: Verdict | null
   /** Why the run stopped: state.md's `reason:` line, or, for a stop without one, its last free line. */
   reason: string | null
@@ -39,14 +41,15 @@ const SUMMARY = /(?:\*\*)?Summary:(?:\*\*)?[ \t]*(.+)/
 // A quoted summary runs to the line's last quote: quotes inside it may or may not be escaped.
 const QUOTED = /^"(.*)"/
 const START_LINE = /^- (?:Time|Started|Start): (.+)$/m
+const MIGRATION_LINE = /^- Workflow: screen-migration\b/m
 // A stage line: an optional number, the stage, then the agent and the result in one of the shapes
 // below (canonical first): `review — change-reviewer (-) — pass`, `03 review (change-reviewer):
 // pass`, `review: change-reviewer (-) — pass`, `review · change-reviewer · pass`.
-const STAGE_LINE = /^(?:\d\d[ -])?(investigate|implement|review|app-test|pull-request|pull request)\b(.*)$/i
+const STAGE_LINE = /^(?:\d\d[ -])?(investigate|spec|implement|review|app-test|compare|pull-request|pull request)\b(.*)$/i
 // app-test's summary line (`app-test: unverified:app-test — …`, `app-test: passed`) is not a stage.
 const APP_TEST_SUMMARY = /^app-test\s*[:·]\s*(?:unverified|passed|not[ -]applicable)/i
-// The lines that say something else than a stage: `reason:`, `pr:`, `note:`, `app-test:`, `known-defects:`.
-const FIELD_LINE = /^(reason|pr|note|app-test|known-defects)\s*:/i
+// The lines that say something else than a stage: `reason:`, `pr:`, `note:`, `app-test:`, `known-defects:`, `not-compared:`.
+const FIELD_LINE = /^(reason|pr|note|app-test|known-defects|not-compared)\s*:/i
 const AGENT = /^([a-z]+(?:-[a-z]+)+)(?:\s*\(([^)]*)\))?$/
 
 /** Every run under `runsDir`, the most recently started first. */
@@ -70,6 +73,8 @@ function loadRun(runDir: string, key: string, number: number): HistoryRun {
   const startedAt = startOf(assignment) ?? mtime(path.join(runDir, '00-assignment.md')) ?? mtime(runDir) ?? new Date(0).toISOString()
   const finishedAt = state === null ? null : mtime(path.join(runDir, 'state.md'))
   const stages = stagesOf(readText(path.join(runDir, 'timings.tsv')), state)
+  const migration =
+    MIGRATION_LINE.test(assignment ?? '') || stages.some((s) => (MIGRATION_AGENTS as readonly string[]).includes(s.agent ?? ''))
   const lastStageEnd = stages.reduce<number>(
     (end, s) => (s.startedAt && s.seconds !== null ? Math.max(end, Date.parse(s.startedAt) + s.seconds * 1000) : end),
     0,
@@ -83,6 +88,7 @@ function loadRun(runDir: string, key: string, number: number): HistoryRun {
     finishedAt,
     seconds: endMs ? Math.max(0, Math.round((endMs - Date.parse(startedAt)) / 1000)) : null,
     summary: summaryOf(assignment) ?? summaryOf(readText(path.join(runDir, '01-investigate.md'))),
+    migration,
     verdict,
     reason: reasonOf(state, verdict),
     prUrl: state?.match(PR_URL)?.[0] ?? (verdict?.startsWith('done:') ? prUrlOfReports(runDir, files) : null),
@@ -160,6 +166,8 @@ export function stateStages(state: string | null): StateStage[] {
       }
       rest = parts.join(' · ')
     }
+    // `app-test: 34 rows same on …` (a migration's parity line) names no agent: a summary, not a stage.
+    if (key === 'app-test' && !agent) continue
     out.push({ key, agent, mode: mode === '-' ? null : mode, result: rest.trim() || null })
   }
   return out
@@ -167,7 +175,10 @@ export function stateStages(state: string | null): StateStage[] {
 
 /**
  * The stages: timings.tsv's rows when the run wrote one, each given the result of the next unused
- * state.md line of its stage; else state.md's lines, a rework's implement named `rework N`.
+ * state.md line of its stage; else state.md's lines, a rework's implement named `rework N` and a
+ * rework's compare `re-compare N`. A timings.tsv with fewer rows than state.md has stage lines
+ * (a run resumed from a cache records only what ran again) would match the wrong reports, so
+ * state.md's lines win then.
  */
 export function stagesOf(timings: string | null, state: string | null): HistoryStage[] {
   const lines = stateStages(state)
@@ -177,7 +188,7 @@ export function stagesOf(timings: string | null, state: string | null): HistoryS
       .slice(1)
       .map((l) => l.split('\t'))
       .filter((r) => r.length >= 4 && r[0])
-    if (rows.length > 0) {
+    if (rows.length > 0 && rows.length >= lines.length) {
       const queues = new Map<string, StateStage[]>()
       for (const line of lines) queues.set(line.key, [...(queues.get(line.key) ?? []), line])
       return rows.map(([label, agent, started, seconds]) => {
@@ -194,7 +205,14 @@ export function stagesOf(timings: string | null, state: string | null): HistoryS
   }
   let reworks = 0
   return lines.map((l) => ({
-    label: l.key === 'implement' && l.mode === 'rework' ? `rework ${++reworks}` : l.key === 'pull-request' ? 'pull request' : l.key,
+    label:
+      l.key === 'implement' && l.mode === 'rework'
+        ? `rework ${++reworks}`
+        : l.key === 'compare' && l.mode === 'rework'
+          ? `re-compare ${reworks}`
+          : l.key === 'pull-request'
+            ? 'pull request'
+            : l.key,
     agent: l.agent,
     startedAt: null,
     seconds: null,

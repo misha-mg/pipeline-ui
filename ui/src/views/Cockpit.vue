@@ -6,6 +6,8 @@
 // it cannot be taken back, and the session it ends cost a slot of the subscription.
 import { computed, onMounted, ref, watch } from 'vue'
 import Frame from '../components/Frame.vue'
+import MigrationMark from '../components/MigrationMark.vue'
+import { MIGRATION_LABEL } from '../../../server/history/outcome.ts'
 import {
   endingLabel,
   endingTone,
@@ -272,7 +274,7 @@ async function confirmSettings() {
       <div class="value">
         <Transition name="tick" mode="out-in"
           ><span :key="inFlight?.key ?? '-'">{{ inFlight?.key ?? '—' }}</span></Transition
-        >
+        ><MigrationMark v-if="inFlight?.migration" />
         <Transition name="tick" mode="out-in"
           ><small v-if="inFlight" :key="inFlight.stage ?? '-'">{{ stageOfAgent(inFlight.stage) }}</small></Transition
         >
@@ -301,7 +303,7 @@ async function confirmSettings() {
       <div class="value">
         <Transition name="tick" mode="out-in"
           ><span :key="queue[0]?.key ?? '-'">{{ queue[0]?.key ?? '—' }}</span></Transition
-        >
+        ><MigrationMark v-if="queue[0]?.migration" />
         <small v-if="queue.length > 1">+{{ queue.length - 1 }} queued</small>
       </div>
       <div class="note one" :title="queue[0]?.summary ?? ''">{{ queue[0] ? (queue[0].summary ?? 'no summary') : 'queue empty' }}</div>
@@ -523,7 +525,8 @@ async function confirmSettings() {
             <tr v-for="row in found" :key="row.issue.key">
               <td class="key">
                 <a v-if="ticketUrl(row.issue.key)" :href="ticketUrl(row.issue.key)!" target="_blank" rel="noopener">{{ row.issue.key }}</a
-                ><span v-else>{{ row.issue.key }}</span>
+                ><span v-else>{{ row.issue.key }}</span
+                ><MigrationMark v-if="row.issue.labels.includes(MIGRATION_LABEL)" />
               </td>
               <td class="summary">{{ row.issue.summary }}</td>
               <td>
@@ -577,8 +580,9 @@ async function confirmSettings() {
             <span class="num dim">{{ i + 1 }}</span>
             <span class="key"
               ><a v-if="ticketUrl(item.key)" :href="ticketUrl(item.key)!" target="_blank" rel="noopener">{{ item.key }}</a
-              ><span v-else>{{ item.key }}</span></span
-            >
+              ><span v-else>{{ item.key }}</span
+              ><MigrationMark v-if="item.migration"
+            /></span>
             <span class="summary one-line" :title="item.summary ?? ''">{{ item.summary ?? '' }}</span>
             <span class="actions">
               <button class="btn tiny" :disabled="i === 0" title="Move up" @click="move(i, -1)">↑</button>
@@ -613,7 +617,7 @@ async function confirmSettings() {
                   <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
                   ><span v-else>{{ run.key }}</span
                   ><span v-if="run.number > 1" class="dim"> · {{ run.number }}</span
-                  ><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
+                  ><MigrationMark v-if="run.migration" /><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
                 </td>
                 <td class="jira">
                   <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`"

@@ -38,7 +38,9 @@ Agent SDK, and from its own records.
   with why it stopped when it stopped itself (the subscription's usage limit).
 - The run in flight: ticket, summary, the stage it is in and since when, the rework round, how
   long the run has taken so far.
-- The queue: ticket, summary, position.
+- The queue: ticket, summary, position. A screen migration (the ticket's `vue-migration` label,
+  read with the summary) carries a mark after its key, here, in flight, in the history and on
+  the run's page; hovering it names it.
 - Run history: every run under `.pipeline-runs/`, runs from before the console included, with
   ticket, summary (one line), verdict, ending, duration, pull request and its state as Bitbucket
   last reported it; filterable by verdict (by family, done or blocked, or one verdict, or none)
@@ -50,7 +52,8 @@ Agent SDK, and from its own records.
   again, and a diagram of its steps as blocks joined by links (the assignment, each agent in
   order, the stages still to come while it is in flight, the verdict). Choosing a block shows what
   it left: its report, or, while the run is in flight, what the agent handed back as it stopped
-  (the pipeline writes the reports only when the run ends). A stage that ended badly (a failed
+  (the pipeline writes the reports only when the run ends); a stage whose agent leaves no report
+  (the diff, the cause judge) says so. A stage that ended badly (a failed
   review, a blocked test) is marked so; the reason a run stopped is shown whole under its header.
 - Notifications that come and go by themselves: an action done or refused (a ticket Jira does
   not know), a run starting, moving to its next stage, opening its pull request or stopping, the

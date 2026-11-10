@@ -4,7 +4,9 @@ import { enqueue, listQueue, queueHead, remove, reorder, takeHead, type Lookup }
 import { jiraLookup } from './jira.ts'
 
 const keys = (db: ReturnType<typeof openDb>) => listQueue(db).map((i) => i.key)
-const found = (summary: string) => async (): Promise<Lookup> => ({ kind: 'found', summary })
+const found =
+  (summary: string, labels: string[] = []) =>
+  async (): Promise<Lookup> => ({ kind: 'found', summary, labels })
 
 describe('queue', () => {
   it('adds at the end and at the front, keeps the order and the summary', async () => {
@@ -77,7 +79,7 @@ describe('queue', () => {
 
 describe('jiraLookup', () => {
   const config = { siteUrl: 'https://jira.test', email: 'me@test', token: 'tok' }
-  const ISSUE = 'https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/issue/KAZ-1?fields=summary'
+  const ISSUE = 'https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/issue/KAZ-1?fields=summary,labels'
   /** A Jira whose tenant info names cloud-1 and whose issue endpoint answers `status`/`body`. */
   function fakeJira(status: number, body: unknown = {}) {
     const seen: { url: string; auth: string | undefined }[] = []
@@ -90,10 +92,10 @@ describe('jiraLookup', () => {
   }
 
   it('finds the cloud id once, then asks api.atlassian.com for the summary with basic auth', async () => {
-    const jira = fakeJira(200, { fields: { summary: 'Range search' } })
+    const jira = fakeJira(200, { fields: { summary: 'Range search', labels: ['vue-migration'] } })
     const lookup = jiraLookup(config, jira.fetchFn)
-    expect(await lookup('KAZ-1')).toEqual({ kind: 'found', summary: 'Range search' })
-    expect(await lookup('KAZ-1')).toEqual({ kind: 'found', summary: 'Range search' })
+    expect(await lookup('KAZ-1')).toEqual({ kind: 'found', summary: 'Range search', labels: ['vue-migration'] })
+    expect(await lookup('KAZ-1')).toEqual({ kind: 'found', summary: 'Range search', labels: ['vue-migration'] })
     expect(jira.seen).toEqual([
       { url: 'https://jira.test/_edge/tenant_info', auth: undefined },
       { url: ISSUE, auth: `Basic ${Buffer.from('me@test:tok').toString('base64')}` },
@@ -104,7 +106,7 @@ describe('jiraLookup', () => {
   it('uses JIRA_CLOUD_ID when set', async () => {
     const jira = fakeJira(200, { fields: { summary: 's' } })
     await jiraLookup({ ...config, cloudId: 'given' }, jira.fetchFn)('KAZ-1')
-    expect(jira.seen.map((s) => s.url)).toEqual(['https://api.atlassian.com/ex/jira/given/rest/api/3/issue/KAZ-1?fields=summary'])
+    expect(jira.seen.map((s) => s.url)).toEqual(['https://api.atlassian.com/ex/jira/given/rest/api/3/issue/KAZ-1?fields=summary,labels'])
   })
 
   it('maps 404 to not-found, other statuses, a thrown fetch and no config to unavailable', async () => {

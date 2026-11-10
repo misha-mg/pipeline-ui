@@ -51,8 +51,13 @@ searched only among the tickets it finds. Kept in the browser, not in the servic
 "filter" or a "saved query".
 
 **Stage**: one agent's turn in a run (investigate, implement, diff, review, app-test, `rework N`,
-`same cause?`, `pull request`), as the session's hooks report it and `timings.tsv` names it. A
-stage that ran several times is matched to its `state.md` lines in order.
+`same cause?`, `pull request`; in a screen migration spec and compare in place of investigate and
+app-test, and `re-compare N` after a rework), as the session's hooks report it and `timings.tsv`
+names it. A stage that ran several times is matched to its `state.md` lines in order.
+
+**Screen migration**: a run of webui's screen-migration workflow, for a ticket labelled
+`vue-migration`: a legacy screen rebuilt in Vue, compared with the legacy page row by row. Marked
+after the ticket's key wherever the key shows.
 
 **Merged as opened**: a pull request merged with the same lines added and removed as the
 pipeline pushed, whatever was rebased. **Merged with changes**: merged with lines the pipeline

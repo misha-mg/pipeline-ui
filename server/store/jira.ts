@@ -20,6 +20,7 @@ export type JiraEnv = {
 export type JiraIssue = {
   key: string
   summary: string
+  labels: string[]
   status: string | null
   /** new, indeterminate or done: Jira's status category, for the pill's colour. */
   statusCategory: string | null
@@ -51,7 +52,7 @@ export type JiraSearch =
 
 const TIMEOUT_MS = 10_000
 const SEARCH_LIMIT = 20
-const SEARCH_FIELDS = ['summary', 'status', 'issuetype', 'priority', 'assignee', 'updated']
+const SEARCH_FIELDS = ['summary', 'labels', 'status', 'issuetype', 'priority', 'assignee', 'updated']
 /** How long the list of project keys is kept before it is read again. */
 const PROJECTS_MAX_AGE_MS = 60 * 60 * 1000
 const KEY = /^[A-Za-z][A-Za-z0-9]*-\d+$/
@@ -120,14 +121,16 @@ function jiraClient(config: JiraConfig | null, fetchFn: typeof fetch): Call {
 export function jiraLookup(config: JiraConfig | null, fetchFn: typeof fetch = fetch): (key: string) => Promise<Lookup> {
   const call = jiraClient(config, fetchFn)
   return async (key) => {
-    const res = await call(`/issue/${encodeURIComponent(key)}?fields=summary`)
+    const res = await call(`/issue/${encodeURIComponent(key)}?fields=summary,labels`)
     if (typeof res === 'string') return { kind: 'unavailable', error: res }
     if (res.status === 404) return { kind: 'not-found' }
     if (!res.ok) return { kind: 'unavailable', error: `Jira answered ${res.status}` }
     try {
-      const body = (await res.json()) as { fields?: { summary?: unknown } }
+      const body = (await res.json()) as { fields?: { summary?: unknown; labels?: unknown } }
       const summary = body.fields?.summary
-      return typeof summary === 'string' ? { kind: 'found', summary } : { kind: 'unavailable', error: 'no summary in the answer' }
+      return typeof summary === 'string'
+        ? { kind: 'found', summary, labels: labelsOf(body.fields?.labels) }
+        : { kind: 'unavailable', error: 'no summary in the answer' }
     } catch (error) {
       return { kind: 'unavailable', error: error instanceof Error ? error.message : String(error) }
     }
@@ -280,6 +283,11 @@ async function errorsOf(res: Response): Promise<string[]> {
   }
 }
 
+/** The labels as Jira lists them; none when the field is missing or not a list. */
+function labelsOf(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((l): l is string => typeof l === 'string') : []
+}
+
 function issueOf(raw: unknown): JiraIssue | null {
   const r = raw as { key?: unknown; fields?: Record<string, unknown> }
   if (typeof r?.key !== 'string') return null
@@ -292,6 +300,7 @@ function issueOf(raw: unknown): JiraIssue | null {
   return {
     key: r.key,
     summary: typeof f.summary === 'string' ? f.summary : '',
+    labels: labelsOf(f.labels),
     status: name(status),
     statusCategory: name(status?.statusCategory, 'key'),
     type: name(f.issuetype),

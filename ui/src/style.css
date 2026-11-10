@@ -69,6 +69,15 @@ td .actions {
   color: var(--cg-fg-3);
 }
 
+/* The mark of a screen migration after a ticket key: small, muted, with its meaning on hover. */
+.mark {
+  margin-left: 6px;
+  color: var(--cg-text-muted, inherit);
+  opacity: 0.7;
+  font-size: 0.9em;
+  cursor: help;
+}
+
 /* One run: its state as pills, its steps as a diagram of blocks joined by links, the chosen
    block's report in a panel under it with a pointer up to the block. */
 .stages {

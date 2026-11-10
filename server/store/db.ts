@@ -119,6 +119,12 @@ export const MIGRATIONS: ((db: Db) => void)[] = [
   (db) => {
     db.exec('CREATE TABLE settings (name TEXT PRIMARY KEY, value TEXT NOT NULL, set_at TEXT NOT NULL)')
   },
+  // 3 (2026-11-10): whether a queued ticket, and the run made from it, is a screen migration
+  // (its Jira labels say so), for the mark beside its key in the console.
+  (db) => {
+    addColumn(db, 'queue', 'migration', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn(db, 'runs', 'migration', 'INTEGER NOT NULL DEFAULT 0')
+  },
 ]
 
 export type OpenOptions = {

@@ -22,7 +22,7 @@ server/
   maintain.ts            a backup of the database (the latest 14 kept), the log cut down once past 5 MB
   store/
     db.ts                the SQLite file (node:sqlite): the versioned schema, MIGRATIONS, a copy before a migration
-    queue.ts             the queue: add (with the summary from Jira), remove, reorder
+    queue.ts             the queue: add (with the summary and the labels from Jira), remove, reorder
     runs.ts              the runs the service started, their events, the loop's state, the heartbeat
     settings.ts          the run settings (base branch, pull requests, a session's hours): the environment's defaults, what the console set over them
     jira.ts              Jira REST v3 through api.atlassian.com: a ticket's summary, the search (within a JQL), the statuses; read only

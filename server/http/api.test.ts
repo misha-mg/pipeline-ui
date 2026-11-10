@@ -210,7 +210,7 @@ describe('api', () => {
 
   it('queues, refuses, reorders, removes, starts and stops the loop, cancels, and ticks the loop after each action', async () => {
     const { deps, ticks, db } = sources()
-    deps.lookup = async (key) => (key === 'KAZ-404' ? { kind: 'not-found' } : { kind: 'found', summary: `sum ${key}` })
+    deps.lookup = async (key) => (key === 'KAZ-404' ? { kind: 'not-found' } : { kind: 'found', summary: `sum ${key}`, labels: [] })
     const { call, close } = await serve(deps)
     try {
       expect((await call('POST', '/api/queue', { key: 'KAZ-10' })).body).toMatchObject({
@@ -499,6 +499,7 @@ describe('the ticket search', () => {
           {
             key: 'KAZ-1',
             summary: 'one',
+            labels: [],
             status: 'Open',
             statusCategory: 'new',
             type: 'Bug',

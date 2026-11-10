@@ -6,6 +6,7 @@
 // ticket again.
 import { computed } from 'vue'
 import Frame from '../components/Frame.vue'
+import MigrationMark from '../components/MigrationMark.vue'
 import {
   endingLabel,
   endingTone,
@@ -216,7 +217,7 @@ function prState(run: ShownRun): string {
             <td class="key">
               <a v-if="run.path" :href="`#/runs/${run.key}/${run.number}`" title="The run's agents and reports">{{ run.key }}</a
               ><span v-else>{{ run.key }}</span
-              ><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
+              ><MigrationMark v-if="run.migration" /><span v-if="run.ending === 'in-flight'" class="pulse" title="in flight" />
             </td>
             <td class="jira">
               <a v-if="ticketUrl(run.key)" :href="ticketUrl(run.key)!" target="_blank" rel="noopener" :title="`${run.key} in Jira`">↗</a>

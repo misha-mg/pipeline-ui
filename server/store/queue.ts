@@ -1,9 +1,12 @@
 // The queue of tickets: in order, one row per ticket, a ticket at most once. Adding looks the
 // ticket up in Jira for its summary; a key Jira does not know is refused, a Jira that cannot be
-// reached leaves the summary empty. See .about/prd/pipeline-web-ui.md, Queue and loop.
+// reached leaves the summary empty. The lookup also brings the labels: a ticket labelled for the
+// screen-migration workflow is marked so, and the mark follows it into its run. See
+// .about/prd/pipeline-web-ui.md, Queue and loop.
+import { MIGRATION_LABEL } from '../history/outcome.ts'
 import { nowIso, transaction, type Db } from './db.ts'
 
-export type QueueItem = { key: string; summary: string | null; position: number; addedAt: string }
+export type QueueItem = { key: string; summary: string | null; migration: boolean; position: number; addedAt: string }
 
 export type QueueRefusal =
   | { ok: false; reason: 'invalid-key'; message: string }
@@ -11,7 +14,7 @@ export type QueueRefusal =
   | { ok: false; reason: 'not-queued'; message: string }
   | { ok: false; reason: 'unknown-ticket'; message: string }
 
-export type Lookup = { kind: 'found'; summary: string } | { kind: 'not-found' } | { kind: 'unavailable'; error: string }
+export type Lookup = { kind: 'found'; summary: string; labels: string[] } | { kind: 'not-found' } | { kind: 'unavailable'; error: string }
 
 const TICKET_KEY = /^[A-Z]+-\d+$/
 
@@ -20,11 +23,11 @@ function isTicketKey(key: string): boolean {
 }
 
 export function listQueue(db: Db): QueueItem[] {
-  return db.prepare('SELECT key, summary, position, added_at FROM queue ORDER BY position').all().map(itemOf)
+  return db.prepare('SELECT key, summary, migration, position, added_at FROM queue ORDER BY position').all().map(itemOf)
 }
 
 export function queueHead(db: Db): QueueItem | null {
-  const row = db.prepare('SELECT key, summary, position, added_at FROM queue ORDER BY position LIMIT 1').get()
+  const row = db.prepare('SELECT key, summary, migration, position, added_at FROM queue ORDER BY position LIMIT 1').get()
   return row ? itemOf(row) : null
 }
 
@@ -44,11 +47,12 @@ export async function enqueue(
   if (!isTicketKey(key)) return { ok: false, reason: 'invalid-key', message: `not a ticket key: ${key}` }
   if (isQueued(db, key)) return { ok: false, reason: 'duplicate', message: `${key} is already queued` }
   let summary: string | null = null
+  let migration = false
   let warning: string | undefined
   if (opts.lookup) {
     const found = await opts.lookup(key)
     if (found.kind === 'not-found') return { ok: false, reason: 'unknown-ticket', message: `Jira does not know ${key}` }
-    if (found.kind === 'found') summary = found.summary
+    if (found.kind === 'found') [summary, migration] = [found.summary, found.labels.includes(MIGRATION_LABEL)]
     else warning = `Jira could not be reached (${found.error}); ${key} is queued without a summary`
   }
   const item = transaction(db, () => {
@@ -57,8 +61,14 @@ export async function enqueue(
     const edge = db.prepare('SELECT MIN(position) AS lo, MAX(position) AS hi FROM queue').get() as { lo: number | null; hi: number | null }
     const position = opts.front ? (edge.lo ?? 1) - 1 : (edge.hi ?? 0) + 1
     const addedAt = (opts.now ?? nowIso)()
-    db.prepare('INSERT INTO queue (key, summary, position, added_at) VALUES (?, ?, ?, ?)').run(key, summary, position, addedAt)
-    return { key, summary, position, addedAt }
+    db.prepare('INSERT INTO queue (key, summary, migration, position, added_at) VALUES (?, ?, ?, ?, ?)').run(
+      key,
+      summary,
+      migration ? 1 : 0,
+      position,
+      addedAt,
+    )
+    return { key, summary, migration, position, addedAt }
   })
   if (!item) return { ok: false, reason: 'duplicate', message: `${key} is already queued` }
   return warning ? { ok: true, item, warning } : { ok: true, item }
@@ -99,6 +109,7 @@ function itemOf(row: Record<string, unknown>): QueueItem {
   return {
     key: row.key as string,
     summary: (row.summary as string | null) ?? null,
+    migration: row.migration === 1,
     position: row.position as number,
     addedAt: row.added_at as string,
   }

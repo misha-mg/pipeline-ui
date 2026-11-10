@@ -124,6 +124,7 @@ describe('jiraSearch', () => {
         {
           key: 'KAZ-1',
           summary: 'summary of KAZ-1',
+          labels: [],
           status: 'In Progress',
           statusCategory: 'indeterminate',
           type: 'Bug',
@@ -134,6 +135,7 @@ describe('jiraSearch', () => {
         {
           key: 'KAZ-2',
           summary: 'summary of KAZ-2',
+          labels: [],
           status: null,
           statusCategory: null,
           type: 'Bug',
@@ -287,7 +289,7 @@ describe('jiraLookup', () => {
       p.startsWith('/issue/KAZ-1?') ? Response.json({ fields: { summary: 'one' } }) : new Response('', { status: 404 }),
     )
     const lookup = jiraLookup(CONFIG, jira.fetchFn)
-    expect(await lookup('KAZ-1')).toEqual({ kind: 'found', summary: 'one' })
+    expect(await lookup('KAZ-1')).toEqual({ kind: 'found', summary: 'one', labels: [] })
     expect(await lookup('KAZ-2')).toEqual({ kind: 'not-found' })
     expect(await jiraLookup(CONFIG, fakeJira(() => new Response('', { status: 503 })).fetchFn)('KAZ-1')).toEqual({
       kind: 'unavailable',

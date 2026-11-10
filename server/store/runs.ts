@@ -10,6 +10,8 @@ export type RunRecord = {
   id: number
   key: string
   summary: string | null
+  /** A screen migration, as the ticket's Jira labels said when it was queued or its assignment says. */
+  migration: boolean
   startedAt: string
   endedAt: string | null
   ending: Ending | null
@@ -38,12 +40,15 @@ export type LoopState = {
 export type ServiceInfo = { pid: number; startedAt: string; seenAt: string }
 
 const RUN_COLUMNS =
-  'id, key, summary, started_at, ended_at, ending, ending_detail, verdict, run_dir, stage, stage_since, cancel_requested_at, log_path'
+  'id, key, summary, migration, started_at, ended_at, ending, ending_detail, verdict, run_dir, stage, stage_since, cancel_requested_at, log_path'
 
-export function insertRun(db: Db, run: { key: string; summary: string | null; startedAt: string; logPath: string | null }): number {
+export function insertRun(
+  db: Db,
+  run: { key: string; summary: string | null; migration?: boolean; startedAt: string; logPath: string | null },
+): number {
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO runs (key, summary, started_at, log_path) VALUES (?, ?, ?, ?)')
-    .run(run.key, run.summary, run.startedAt, run.logPath)
+    .prepare('INSERT INTO runs (key, summary, migration, started_at, log_path) VALUES (?, ?, ?, ?, ?)')
+    .run(run.key, run.summary, run.migration ? 1 : 0, run.startedAt, run.logPath)
   return Number(lastInsertRowid)
 }
 
@@ -66,11 +71,15 @@ export function updateRun(
   db: Db,
   id: number,
   patch: Partial<
-    Pick<RunRecord, 'summary' | 'endedAt' | 'ending' | 'endingDetail' | 'verdict' | 'runDir' | 'stage' | 'stageSince' | 'cancelRequestedAt'>
+    Pick<
+      RunRecord,
+      'summary' | 'migration' | 'endedAt' | 'ending' | 'endingDetail' | 'verdict' | 'runDir' | 'stage' | 'stageSince' | 'cancelRequestedAt'
+    >
   >,
 ): void {
   const columns: Record<string, string> = {
     summary: 'summary',
+    migration: 'migration',
     endedAt: 'ended_at',
     ending: 'ending',
     endingDetail: 'ending_detail',
@@ -83,7 +92,11 @@ export function updateRun(
   const entries = Object.entries(patch).filter(([k]) => k in columns)
   if (entries.length === 0) return
   const sets = entries.map(([k]) => `${columns[k]} = ?`).join(', ')
-  db.prepare(`UPDATE runs SET ${sets} WHERE id = ?`).run(...entries.map(([, v]) => v ?? null), id)
+  // SQLite has no boolean: a flag is bound as 0 or 1.
+  db.prepare(`UPDATE runs SET ${sets} WHERE id = ?`).run(
+    ...entries.map(([, v]) => (typeof v === 'boolean' ? (v ? 1 : 0) : (v ?? null))),
+    id,
+  )
 }
 
 export function addEvent(db: Db, runId: number, event: SessionEvent): void {
@@ -186,6 +199,7 @@ function runOf(row: Record<string, unknown>): RunRecord {
     id: row.id as number,
     key: row.key as string,
     summary: s(row.summary),
+    migration: row.migration === 1,
     startedAt: row.started_at as string,
     endedAt: s(row.ended_at),
     ending: s(row.ending) as Ending | null,

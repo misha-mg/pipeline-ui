@@ -39,6 +39,11 @@ export function readSummary(runDir: string): string | null {
   return match?.[1]?.trim() ?? null
 }
 
+/** Whether the assignment names the screen-migration workflow (webui's ticket-pipeline skill writes the line). */
+export function readMigration(runDir: string): boolean {
+  return /^- Workflow: screen-migration\b/m.test(readText(path.join(runDir, '00-assignment.md')) ?? '')
+}
+
 function readText(file: string): string | null {
   try {
     return fs.readFileSync(file, 'utf8')

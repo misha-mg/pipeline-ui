@@ -24,7 +24,8 @@ import {
   type RunFiles,
   type Tone,
 } from '../api.ts'
-import { STAGE_ORDER } from '../../../server/history/outcome.ts'
+import { MIGRATION_STAGE_ORDER, noReportReason, STAGE_ORDER } from '../../../server/history/outcome.ts'
+import MigrationMark from '../components/MigrationMark.vue'
 import { actions, runSeconds, state, ticketUrl } from '../console.ts'
 
 const props = defineProps<{ ticket: string; number: number }>()
@@ -165,7 +166,8 @@ const steps = computed<Step[]>(() => {
   if (live.value) {
     // The stages a clean run has after the last one; none after one the order does not know.
     const last = out.at(-1)
-    const after = last?.id === 'assignment' ? [...STAGE_ORDER] : stagesAfter(last?.label ?? '')
+    const after =
+      last?.id === 'assignment' ? [...(r.migration ? MIGRATION_STAGE_ORDER : STAGE_ORDER)] : stagesAfter(last?.label ?? '', r.migration)
     for (const label of after)
       out.push({
         id: `next-${label}`,
@@ -271,7 +273,7 @@ onUnmounted(() => window.removeEventListener('resize', placeCaret))
 
 <template>
   <div class="page-head">
-    <h1>{{ ticket }} · run {{ number }}</h1>
+    <h1>{{ ticket }} · run {{ number }}<MigrationMark v-if="run?.migration" /></h1>
     <span v-if="run" class="stats"
       >started {{ fmtTime(run.startedAt) }}<template v-if="run.finishedAt"> · finished {{ fmtTime(run.finishedAt) }}</template> ·
       {{ fmtDuration(runSeconds(run)) }}<template v-if="live"> so far</template></span
@@ -381,6 +383,7 @@ onUnmounted(() => window.removeEventListener('resize', placeCaret))
             Working. What it hands back shows here when it stops; the pipeline writes the reports when the run ends.
           </p>
           <p v-else-if="shown.status === 'stopped'" class="empty">The session ended while this agent worked; it left nothing.</p>
+          <p v-else-if="noReportReason(shown.agent)" class="empty">{{ noReportReason(shown.agent) }}</p>
           <p v-else class="empty">Nothing recorded for this step yet: the pipeline writes its reports when the run ends.</p>
         </Frame>
       </Transition>

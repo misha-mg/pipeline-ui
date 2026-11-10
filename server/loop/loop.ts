@@ -9,7 +9,7 @@ import type { SessionEnding, SessionEvent } from '../session/driver.ts'
 import { nowIso, type Db } from '../store/db.ts'
 import { queueHead, takeHead } from '../store/queue.ts'
 import { addEvent, getRun, insertRun, loopState, stopLoop, updateRun, type Ending, type RunRecord } from '../store/runs.ts'
-import { newRunDir, readSummary, readVerdict, runDirsOf } from './runfiles.ts'
+import { newRunDir, readMigration, readSummary, readVerdict, runDirsOf } from './runfiles.ts'
 
 export type RunExit = { code: number | null; signal: string | null }
 
@@ -90,7 +90,7 @@ export function createLoop(deps: LoopDeps): Loop {
     const controller = new AbortController()
     const startedAt = now()
     fs.mkdirSync(logDir, { recursive: true })
-    const id = insertRun(db, { key: head.key, summary: head.summary, startedAt, logPath: null })
+    const id = insertRun(db, { key: head.key, summary: head.summary, migration: head.migration, startedAt, logPath: null })
     const logPath = path.join(logDir, `run-${id}-${head.key}.log`)
     const tracePath = path.join(logDir, `run-${id}-${head.key}.trace.jsonl`)
     db.prepare('UPDATE runs SET log_path = ? WHERE id = ?').run(logPath, id)
@@ -146,6 +146,8 @@ export function createLoop(deps: LoopDeps): Loop {
     if (runDir) {
       patch.verdict = readVerdict(runDir)
       if (!summary) patch.summary = readSummary(runDir)
+      // A ticket queued while Jira was away has no labels: the assignment names the workflow.
+      if (readMigration(runDir)) patch.migration = true
     }
     updateRun(db, id, patch)
     if (ending === 'usage-limit') {

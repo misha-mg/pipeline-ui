@@ -135,6 +135,7 @@ export function shownRuns(src: ViewSources): ShownRun[] {
       finishedAt: rec.endedAt,
       seconds: rec.endedAt ? Math.round((Date.parse(rec.endedAt) - Date.parse(rec.startedAt)) / 1000) : null,
       summary: rec.summary,
+      migration: rec.migration,
       verdict: null,
       reason: null,
       prUrl: null,

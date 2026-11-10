@@ -81,33 +81,61 @@ export function endingTone(ending: string | null): Tone {
   return 'bad'
 }
 
-/** The stage each agent works in, named as timings.tsv names it. */
+/** The stage each agent works in, named as timings.tsv names it; a screen migration's two agents included. */
 const AGENT_STAGE: Record<string, string> = {
   'ticket-investigator': 'investigate',
+  'parity-investigator': 'spec',
   'ticket-implementer': 'implement',
   'diff-preparer': 'diff',
   'change-reviewer': 'review',
   'app-tester': 'app-test',
+  'parity-tester': 'compare',
   'cause-judge': 'same cause?',
 }
+
+/** The agents of a screen-migration run only: a run that had one is a migration. */
+export const MIGRATION_AGENTS = ['parity-investigator', 'parity-tester'] as const
+/** The Jira label that sends a ticket through the screen-migration workflow (webui's CLAUDE.md). */
+export const MIGRATION_LABEL = 'vue-migration'
 
 /** The stage an agent works in; an agent the console does not know is named as it is. */
 export function stageOfAgent(agent: string | null): string {
   return agent ? (AGENT_STAGE[agent] ?? agent) : 'between stages'
 }
 
-/** The stages a clean run goes through, in order. */
+/** The stages a clean run goes through, in order: a bug's, and a screen migration's (webui's screen-migration.js). */
 export const STAGE_ORDER = ['investigate', 'implement', 'diff', 'review', 'app-test', 'pull request'] as const
+export const MIGRATION_STAGE_ORDER = ['spec', 'implement', 'diff', 'review', 'compare', 'pull request'] as const
 
 /** The stages still to come after `label`, for a run in flight; none after a stage the order does not have. */
-export function stagesAfter(label: string): string[] {
-  const at = /^rework/.test(label) ? STAGE_ORDER.indexOf('implement') : (STAGE_ORDER as readonly string[]).indexOf(label)
-  return at === -1 ? [] : STAGE_ORDER.slice(at + 1)
+export function stagesAfter(rawLabel: string, migration = false): string[] {
+  const label = rawLabel.replace(/\s*\(.*\)\s*$/, '')
+  const order: readonly string[] = migration ? MIGRATION_STAGE_ORDER : STAGE_ORDER
+  const at = /^rework/.test(label)
+    ? order.indexOf('implement')
+    : /^re-compare/.test(label)
+      ? order.indexOf('compare')
+      : order.indexOf(label)
+  return at === -1 ? [] : order.slice(at + 1)
 }
 
-/** The name a stage's report and state.md line go by: reworks are `implement`, `pull request` is `pull-request`. */
-export function stageKey(label: string): string | null {
+/**
+ * The name a stage's report and state.md line go by: reworks are `implement`, re-comparisons
+ * `compare`, `pull request` is `pull-request`; null for a stage that writes no report (diff,
+ * same cause?).
+ */
+export function stageKey(rawLabel: string): string | null {
+  // The harness suffixes a label it ran again: `implement (after usage limit)`, `diff (retry)`.
+  const label = rawLabel.replace(/\s*\(.*\)\s*$/, '')
   if (/^rework\b/.test(label)) return 'implement'
+  if (/^re-compare\b/.test(label)) return 'compare'
   if (label === 'pull request') return 'pull-request'
-  return ['investigate', 'implement', 'review', 'app-test', 'pull-request'].includes(label) ? label : null
+  return ['investigate', 'spec', 'implement', 'review', 'app-test', 'compare', 'pull-request'].includes(label) ? label : null
+}
+
+/** Why a stage that ran has nothing to show: the agents that leave no report by design. */
+export function noReportReason(agent: string | null): string | null {
+  if (agent === 'diff-preparer') return 'The diff preparer writes the patch the review reads, not a report.'
+  if (agent === 'cause-judge') return 'The cause judge leaves no report: its one-word answer decided whether the rework went on.'
+  return null
 }
