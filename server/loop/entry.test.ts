@@ -103,6 +103,11 @@ describe('checkEntry', () => {
     // A branch pushed since the checkout last fetched is offered too.
     w.commit('release/5.9', { base: 'release\n' }, 'dev')
     expect(await originBranches(gitIn(w.webui))).toEqual(['dev', 'master', 'release/5.9'])
+    // A branch deleted on origin is neither offered nor taken, though the checkout still has its ref.
+    await gitIn(w.webui)(['fetch', '--quiet', 'origin'])
+    execFileSync('git', ['-C', w.origin, 'branch', '-q', '-D', 'release/5.9'])
+    expect(await originBranches(gitIn(w.webui))).toEqual(['dev', 'master'])
+    expect(await checkEntry(config(w, 'release/5.9'))).toBe('origin has no branch release/5.9')
     expect(await originBranches(gitIn(path.join(w.dir, 'nowhere')))).toEqual([])
   })
 })

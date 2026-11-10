@@ -35,8 +35,10 @@ prepare script is written by the preflight alone, when nothing is in flight, sin
 flight may be reading it. A branch name is also refused unless it is one git takes and nothing
 a command line could read as an option. The console's field is a combo over origin's branches, the sheet's select with a search (over
 three hundred of them are too many to scroll, and the system's select has no search)
-(`GET /api/branches`, which fetches first, so a branch pushed a minute ago is there, and falls
-back to the last fetch when origin cannot be reached): the branches in use first (the current
+(`GET /api/branches`, which asks origin itself with `git ls-remote`, so a branch pushed a minute
+ago is there and one deleted there is not, and falls back to the last fetch when origin cannot
+be reached; the entry point's check asks origin the same way, since a fetch keeps the ref of a
+deleted branch): the branches in use first (the current
 one, the default), then every other by name. `pipeline set` takes any name.
 
 Every change is a `settings_changed` event in the service's log with what changed.

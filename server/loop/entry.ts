@@ -76,7 +76,10 @@ export async function checkEntry(config: EntryConfig, git: Git = gitIn(config.we
       return null
     }
   }
+  // Asked of origin itself: a fetch does not drop the checkout's ref of a branch that was
+  // deleted there, so the ref alone would pass a branch no run can start from.
   try {
+    await git(['ls-remote', '--exit-code', '--heads', 'origin', `refs/heads/${base}`])
     await git(['rev-parse', '--quiet', '--verify', `refs/remotes/${ref}^{commit}`])
   } catch {
     return `origin has no branch ${base}`
@@ -100,26 +103,28 @@ export async function checkEntry(config: EntryConfig, git: Git = gitIn(config.we
 }
 
 /**
- * origin's branches, for the console to offer: fetched first, so a branch pushed a minute ago
- * is there, and as the checkout last fetched them when origin cannot be reached; none when git
- * fails.
+ * origin's branches, for the console to offer, asked of origin itself (`git ls-remote`): a
+ * branch pushed a minute ago is there and one deleted there is not, whatever the checkout last
+ * fetched, and nothing in the checkout changes. As the checkout last fetched them when origin
+ * cannot be reached; none when git fails.
  */
 export async function originBranches(git: Git): Promise<string[]> {
+  let names: string[]
   try {
-    await git(['fetch', '--quiet', 'origin'])
-  } catch {
-    // The branches as they were last fetched are still worth offering.
-  }
-  try {
-    const refs = await git(['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin'])
-    return refs
+    names = (await git(['ls-remote', '--heads', 'origin']))
       .split('\n')
-      .map((r) => r.trim().replace(/^origin\//, ''))
-      .filter((r) => r && r !== 'origin' && r !== 'HEAD')
-      .sort()
+      .map((line) => line.split('\t')[1]?.replace(/^refs\/heads\//, '') ?? '')
   } catch {
-    return []
+    try {
+      names = (await git(['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin']))
+        .split('\n')
+        .map((r) => r.trim().replace(/^origin\//, ''))
+        .filter((r) => r !== 'origin' && r !== 'HEAD')
+    } catch {
+      return []
+    }
   }
+  return names.filter(Boolean).sort()
 }
 
 export function gitIn(dir: string): Git {

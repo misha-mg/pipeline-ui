@@ -1,7 +1,8 @@
 /* The console's own layout, on the sheet (sheet.css, the CGS Glass kit): the queue, a run's
    diagram and reports, the statistics' charts. Every reusable part (cards, the strip, filters,
    bars, the column chart, toasts, the dialog, the cockpit's columns, the statistics' pair) is
-   the sheet's, and so is every distance on its scale (`--cg-space-*`, `--cg-text-*`). */
+   the sheet's, and so is every distance (`--cg-space-*`) and text size on its scale
+   (`--cg-text-*`); what is left in pixels is a part's own measure or a 2px nudge. */
 
 /* Cockpit: the controls left of the queue and the runs; the target branch keeps its case. */
 .cards .card .value.branch {
@@ -45,7 +46,7 @@ td.summary:not(.one-line) {
 }
 td .actions {
   display: flex;
-  gap: 6px;
+  gap: var(--cg-space-2);
   justify-content: flex-end;
 }
 .verdict-done {
@@ -63,7 +64,7 @@ td .actions {
 
 /* The mark of a screen migration after a ticket key: small, muted, with its meaning on hover. */
 .mark {
-  margin-left: 6px;
+  margin-left: var(--cg-space-2);
   color: var(--cg-fg-2);
   font-size: 0.9em;
   cursor: help;
@@ -75,10 +76,10 @@ td .actions {
   display: flex;
   gap: var(--cg-space-2);
   flex-wrap: wrap;
-  margin: -8px 0 26px;
+  margin: calc(-1 * var(--cg-space-2)) 0 var(--cg-space-6);
 }
 .stages .pulse {
-  margin-right: 6px;
+  margin-right: var(--cg-space-2);
 }
 .stages .pill {
   max-width: 100%;
@@ -86,14 +87,14 @@ td .actions {
   text-overflow: ellipsis;
 }
 .flow-frame {
-  padding-block: 10px 12px;
+  padding-block: var(--cg-space-3);
 }
 /* Scrolled by swipe or wheel when the page is narrower than the diagram, with no bar over the blocks. */
 .flow {
   display: flex;
   align-items: stretch;
   overflow-x: auto;
-  padding: 12px 2px 14px;
+  padding: var(--cg-space-3) 2px var(--cg-space-4);
   scrollbar-width: none;
 }
 .flow::-webkit-scrollbar {
@@ -109,7 +110,7 @@ td .actions {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--cg-space-1);
-  padding: 12px 14px 15px;
+  padding: var(--cg-space-3) var(--cg-space-4) var(--cg-space-4);
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-md);
   background: var(--cg-surface-2);
@@ -322,7 +323,7 @@ td .actions {
 
 .detail {
   position: relative;
-  margin-top: 22px;
+  margin-top: var(--cg-space-6);
 }
 .detail .detail-frame {
   border-top-color: var(--accent);
@@ -414,10 +415,10 @@ pre.report {
   color: var(--cg-fg);
 }
 .report-frame {
-  margin-top: 26px;
+  margin-top: var(--cg-space-6);
 }
 .run-summary {
-  margin: -10px 0 22px;
+  margin: calc(-1 * var(--cg-space-2)) 0 var(--cg-space-6);
   font-size: var(--cg-text-lg);
   color: var(--cg-fg);
 }
@@ -452,7 +453,7 @@ pre.report {
   align-items: center;
 }
 .qhead {
-  padding: 0 0 10px;
+  padding: 0 0 var(--cg-space-3);
   border-bottom: 1px solid var(--cg-border-strong);
   font: 600 12px/1.3 var(--cg-font-sans);
   letter-spacing: 0.1em;
@@ -463,7 +464,7 @@ pre.report {
   position: relative;
 }
 .qrow {
-  padding: 9px 0;
+  padding: var(--cg-space-2) 0;
   border-bottom: 1px solid var(--cg-border);
 }
 .qrow:last-child {
@@ -477,7 +478,7 @@ pre.report {
 }
 .qrow .actions {
   display: flex;
-  gap: 6px;
+  gap: var(--cg-space-2);
 }
 .q-move {
   transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -587,7 +588,7 @@ pre.report {
   white-space: nowrap;
 }
 .prs td.jira .pill + .pill {
-  margin-left: 6px;
+  margin-left: var(--cg-space-2);
 }
 .charts {
   display: grid;
@@ -606,7 +607,7 @@ pre.report {
   margin-bottom: var(--cg-space-4);
 }
 table.prs td.key .jira-arrow {
-  margin-left: 6px;
+  margin-left: var(--cg-space-2);
   text-decoration: none;
   color: var(--cg-fg-2);
 }
@@ -618,5 +619,5 @@ table.prs td.lines {
 }
 table.prs td.lines .arrow {
   color: var(--cg-fg-2);
-  margin: 0 6px;
+  margin: 0 var(--cg-space-2);
 }
