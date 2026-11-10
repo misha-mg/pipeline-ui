@@ -129,7 +129,7 @@ async function confirmSettings() {
         <input
           id="setting-hours"
           v-model.number="draft.timeoutHours"
-          class="field hours"
+          class="field short"
           form="settings-form"
           type="number"
           min="0.5"

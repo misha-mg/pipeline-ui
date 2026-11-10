@@ -31,14 +31,11 @@ const route = computed(() => {
   if (m[1] && m[2]) return { page: 'run' as const, key: m[1], number: Number(m[2]) }
   return { page: 'runs' as const }
 })
-const where = computed(() => `console · ${location.host}`)
 </script>
 
 <template>
   <header class="masthead">
     <a class="brand" href="#/">Pipeline</a>
-    <span class="divider" />
-    <span class="where">{{ where }}</span>
     <span v-if="state && !state.service.alive" class="offline">service not running</span>
     <span v-if="offline" class="offline">console cannot reach the service</span>
     <span class="spacer" />

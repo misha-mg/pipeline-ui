@@ -16,21 +16,9 @@
 .ctl.gap .btn {
   flex: 1;
 }
-/* The run settings' dialog: each setting a label, its control and a line that says what it
-   does; the hours are a short field. */
 /* The branches' list opens over the settings under it, and past the dialog's edge if it must. */
 dialog.settings {
   overflow: visible;
-}
-dialog.settings .setting {
-  margin-top: var(--cg-space-4);
-}
-dialog.settings .setting .label {
-  display: block;
-  margin-bottom: var(--cg-space-2);
-}
-dialog.settings .field.hours {
-  width: 96px;
 }
 /* The JQL the search is made within: a few lines of code above the field, never wider than the
    column and at most about eight lines tall; longer JQL scrolls inside. */
