@@ -81,6 +81,22 @@ It is drawn by the sheet itself, an SVG in a data URI on the brand's `::before`,
 own four blues, so every console that copies the sheet carries it with no markup and no file of
 its own; the console's favicon is the same SVG as `ui/public/logo.svg`.
 
+### The page grids, the scale and the tones (2026-11-10)
+
+Both consoles laid their cockpit and their statistics' bar frames out with the same two grids,
+each in its own stylesheet, with breakpoints that had begun to differ. The grids are the sheet's
+now: `.cockpit` (360px and the rest; one column under 1100px) and `.stats-pair` (two frames, or
+three with `.three`, which folds to two and one across under 1300px; one column under 900px), so
+a change to either is made once. `ui/src/style.css` names the sheet's scale wherever a distance
+or a text size is on it (`--cg-space-*`, `--cg-text-*`), as bug-validator's `app.css` does; the
+values off the scale (the run diagram's own measures) stay as they are. `Tone` is the same type
+in both consoles, `ok | bad | live | strong | ''`: a merged pull request is `strong` through
+`toneClass`, not a class name written by hand.
+
+The service keeps in the browser only what never changes under its name, the build's hashed
+files and the faces; `theme.js` and the mark are asked for again (`no-cache`), as bug-validator
+serves them, so an edit to the sheet's script reaches a browser on reload.
+
 ## Consequences
 
 bug-validator's `npm run sheet:sync` copies the same three paths and needs no change; its copy

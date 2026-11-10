@@ -22,8 +22,11 @@ export function verdictFamily(verdict: string | null): VerdictFamily | null {
   return (VERDICT_FAMILIES as readonly string[]).includes(family ?? '') ? (family as VerdictFamily) : null
 }
 
-/** `ok` for a good outcome, `bad` for a stop or a failure, `live` while it goes on, '' for neither. */
-export type Tone = 'ok' | 'bad' | 'live' | ''
+/**
+ * How a state is shown, as both consoles name it: `ok` for a good outcome, `bad` for a stop or a
+ * failure, `live` while it goes on, `strong` for one that stands out, '' for neither.
+ */
+export type Tone = 'ok' | 'bad' | 'live' | 'strong' | ''
 
 export function verdictTone(verdict: string | null): Tone {
   const family = verdictFamily(verdict)

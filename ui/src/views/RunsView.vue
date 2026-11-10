@@ -14,7 +14,7 @@ import {
   fmtDuration,
   fmtTime,
   prNumber,
-  prStateClass,
+  prStateTone,
   toneClass,
   verdictClass,
   verdictFamily,
@@ -236,7 +236,7 @@ function prState(run: ShownRun): string {
                 ><a :href="run.pr.url" target="_blank" rel="noopener" class="small-link">PR #{{ prNumber(run.pr.url) }}</a>
                 <span
                   class="pill"
-                  :class="prStateClass(run.pr.state)"
+                  :class="toneClass(prStateTone(run.pr.state))"
                   :title="run.pr.fetchedAt ? `read ${fmtTime(run.pr.fetchedAt)}` : (run.pr.error ?? 'not read yet')"
                   >{{ prState(run) }}</span
                 ></template

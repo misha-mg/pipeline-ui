@@ -14,7 +14,7 @@ import {
   fmtDuration,
   fmtTime,
   prNumber,
-  prStateClass,
+  prStateTone,
   stageKey,
   stageOfAgent,
   stageResultTone,
@@ -298,7 +298,7 @@ onUnmounted(() => window.removeEventListener('resize', placeCaret))
       <a
         v-if="run.pr"
         class="pill"
-        :class="prStateClass(run.pr.state) || 'slate'"
+        :class="toneClass(prStateTone(run.pr.state)) || 'slate'"
         :href="run.pr.url"
         target="_blank"
         rel="noopener"

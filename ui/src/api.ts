@@ -71,7 +71,7 @@ export {
   type Tone,
 } from '../../server/history/outcome.ts'
 
-/** A tone as a pill's class: `ok`, `bad`, `slate` while it goes on, none for neither. */
+/** A tone as a pill's class: `ok`, `bad`, `strong`, `slate` while it goes on, none for neither. */
 export function toneClass(tone: Tone): string {
   return tone === 'live' ? 'slate' : tone
 }
@@ -82,8 +82,8 @@ export function verdictClass(v: string | null): string {
   return tone === 'ok' ? 'verdict-done' : tone === 'bad' ? 'verdict-blocked' : 'verdict-none'
 }
 
-/** A pull request's state as a pill's class: merged stands out, declined is a stop. */
-export function prStateClass(state: string): string {
+/** A pull request's state as a tone: merged stands out, declined is a stop. */
+export function prStateTone(state: string): Tone {
   return state === 'MERGED' ? 'strong' : state === 'DECLINED' ? 'bad' : ''
 }
 

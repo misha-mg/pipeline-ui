@@ -328,7 +328,7 @@ const read = computed(() => {
     </div>
   </Frame>
 
-  <div class="stats-pair">
+  <div class="stats-pair three">
     <Frame title="From a run to Done" note="Tickets, each counted once, however many runs it took.">
       <div class="bars">
         <div v-for="row in funnel" :key="row.label" class="bar-row">

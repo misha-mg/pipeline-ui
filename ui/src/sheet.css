@@ -491,6 +491,46 @@ button {
   gap: var(--gap);
   min-width: 0;
 }
+/* The cockpit: a narrow column of controls and state left of the wide lists; one column on a
+   narrow window. */
+.cockpit {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .cockpit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The statistics' bar frames side by side: two, or three with `.three` (two and the third
+   across under them on a middling window); one column on a narrow one. */
+.stats-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+.stats-pair.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 1300px) {
+  .stats-pair.three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stats-pair.three > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 900px) {
+  .stats-pair,
+  .stats-pair.three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stats-pair.three > :last-child {
+    grid-column: auto;
+  }
+}
 
 /* ==========================================================================
    Frames (the kit's card): a translucent surface, a hairline, soft corners, the gleam.

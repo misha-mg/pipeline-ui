@@ -1,6 +1,7 @@
-/* The console's own layout, on the sheet (sheet.css, the CGS Glass kit): the cockpit's columns, the queue,
-   a run's diagram and reports, the statistics' pairs and charts. Every reusable part (cards,
-   the strip, filters, bars, the column chart, toasts, the dialog) is the sheet's. */
+/* The console's own layout, on the sheet (sheet.css, the CGS Glass kit): the queue, a run's
+   diagram and reports, the statistics' charts. Every reusable part (cards, the strip, filters,
+   bars, the column chart, toasts, the dialog, the cockpit's columns, the statistics' pair) is
+   the sheet's, and so is every distance on its scale (`--cg-space-*`, `--cg-text-*`). */
 
 /* Cockpit: the controls left of the queue and the runs; the target branch keeps its case. */
 .cards .card .value.branch {
@@ -10,26 +11,15 @@
   width: 100%;
 }
 .ctl.gap {
-  margin-top: 8px;
+  margin-top: var(--cg-space-2);
 }
 .ctl.gap .btn {
   flex: 1;
 }
-.cockpit {
-  display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  gap: var(--gap);
-  align-items: start;
-}
-@media (max-width: 1100px) {
-  .cockpit {
-    grid-template-columns: 1fr;
-  }
-}
 /* The JQL the search is made within: a few lines of code above the field, never wider than the
    column and at most about eight lines tall; longer JQL scrolls inside. */
 .jql {
-  margin-bottom: 12px;
+  margin-bottom: var(--cg-space-3);
 }
 .jql textarea.field {
   display: block;
@@ -38,11 +28,11 @@
   height: auto;
   min-height: 64px;
   max-height: 176px;
-  padding: 8px 12px;
+  padding: var(--cg-space-2) var(--cg-space-3);
   resize: vertical;
   overflow-y: auto;
   font-family: var(--cg-font-mono);
-  font-size: 13px;
+  font-size: var(--cg-text-sm);
   line-height: 1.45;
 }
 /* The search results' summary wraps, within reason; a one-line cell is the sheet's and shrinks instead. */
@@ -71,7 +61,7 @@ td .actions {
    block's report in a panel under it with a pointer up to the block. */
 .stages {
   display: flex;
-  gap: 8px;
+  gap: var(--cg-space-2);
   flex-wrap: wrap;
   margin: -8px 0 26px;
 }
@@ -106,7 +96,7 @@ td .actions {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--cg-space-1);
   padding: 12px 14px 15px;
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-md);
@@ -138,7 +128,7 @@ td .actions {
   margin-bottom: 2px;
 }
 .node .no {
-  font: 500 11px/1 var(--cg-font-mono);
+  font: 500 var(--cg-text-xs)/1 var(--cg-font-mono);
   color: var(--cg-fg-3);
   letter-spacing: 0.04em;
 }
@@ -152,7 +142,7 @@ td .actions {
     border-color 0.4s;
 }
 .node .name {
-  font: 600 13px/1.2 var(--cg-font-sans);
+  font: 600 var(--cg-text-sm)/1.2 var(--cg-font-sans);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--cg-fg);
@@ -160,7 +150,7 @@ td .actions {
 }
 .node .agent {
   max-width: 100%;
-  font: 11px/1.3 var(--cg-font-mono);
+  font: var(--cg-text-xs)/1.3 var(--cg-font-mono);
   color: var(--cg-fg-2);
   white-space: nowrap;
   overflow: hidden;
@@ -240,7 +230,7 @@ td .actions {
   align-items: center;
   text-align: center;
   border-radius: var(--cg-radius-pill);
-  padding: 12px 20px;
+  padding: var(--cg-space-3) var(--cg-space-5);
 }
 .node.start .name,
 .node.end .name,
@@ -416,7 +406,7 @@ pre.report {
 }
 .run-summary {
   margin: -10px 0 22px;
-  font-size: 15px;
+  font-size: var(--cg-text-lg);
   color: var(--cg-fg);
 }
 
@@ -446,7 +436,7 @@ pre.report {
 .qrow {
   display: grid;
   grid-template-columns: 28px 104px minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: var(--cg-space-3);
   align-items: center;
 }
 .qhead {
@@ -577,19 +567,9 @@ pre.report {
 .stats-filters .opts.by {
   margin-left: auto;
 }
+/* The three bar frames (the sheet's .stats-pair.three) keep their distance from the charts. */
 .stats-pair {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--gap);
   margin-bottom: var(--gap);
-}
-@media (max-width: 1300px) {
-  .stats-pair {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .stats-pair > :last-child {
-    grid-column: 1 / -1;
-  }
 }
 .prs td.jira {
   white-space: nowrap;
@@ -604,15 +584,14 @@ pre.report {
   margin-bottom: var(--gap);
 }
 @media (max-width: 900px) {
-  .stats-pair,
   .charts {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 /* The pull requests. */
 .pr-chips {
-  margin-bottom: 16px;
+  margin-bottom: var(--cg-space-4);
 }
 table.prs td.key .jira-arrow {
   margin-left: 6px;
