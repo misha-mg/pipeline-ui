@@ -19,6 +19,7 @@ import {
   fmtTime,
   prNumber,
   stageOfAgent,
+  stageOfRun,
   toneClass,
   verdictClass,
 } from '../api.ts'
@@ -108,6 +109,7 @@ const inFlightNote = computed(() => {
   if (!r) return ''
   const parts = [`${fmtDuration(r.seconds)} so far`]
   if (r.stageSince) parts.push(`${stageOfAgent(r.stage)} ${fmtAgo(r.stageSince, state.value!.now)}`)
+  else if (!r.runDir) parts.push('the entry point prepares the worktree and the mock, then starts the session')
   if (r.rework) parts.push(`rework ${r.rework}`)
   return parts.join(' · ')
 })
@@ -230,7 +232,9 @@ function confirmCancel() {
           ><span :key="inFlight?.key ?? '-'">{{ inFlight?.key ?? '—' }}</span></Transition
         ><MigrationMark v-if="inFlight?.migration" />
         <Transition name="tick" mode="out-in"
-          ><small v-if="inFlight" :key="inFlight.stage ?? '-'">{{ stageOfAgent(inFlight.stage) }}</small></Transition
+          ><small v-if="inFlight" :key="inFlight.stage ?? (inFlight.runDir ? '-' : 'preparing')">{{
+            stageOfRun(inFlight)
+          }}</small></Transition
         >
       </div>
       <template v-if="inFlight">

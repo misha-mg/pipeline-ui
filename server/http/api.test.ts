@@ -85,6 +85,21 @@ describe('views', () => {
     ])
     expect(runs[2]!.pr).toMatchObject({ state: 'unknown' })
     expect(runs[0]!.serviceRunId).toBe(id)
+    // A run just started is listed before its directory exists, in flight, with no number.
+    const started = insertRun(db, { key: 'KAZ-4', summary: 'four', startedAt: '2026-10-22T11:00:00Z', logPath: null })
+    const fresh = shownRuns(deps)
+    expect(fresh.map((r) => [r.key, r.ending, r.number])).toEqual([
+      ['KAZ-4', 'in-flight', 0],
+      ['KAZ-3', 'cancelled', 1],
+      ['KAZ-2', 'died', 1],
+      ['KAZ-1', 'unwatched', 1],
+    ])
+    expect(fresh[0]!.serviceRunId).toBe(started)
+    // Once its directory is on disk the files list it; the record without run_dir is not listed twice.
+    fs.mkdirSync(path.join(runsDir, 'KAZ-4/run-1'), { recursive: true })
+    fs.writeFileSync(path.join(runsDir, 'KAZ-4/run-1/00-assignment.md'), '- Summary: four\n- Time: 2026-10-22T11:01:00Z\n')
+    const appeared = shownRuns(deps).filter((r) => r.key === 'KAZ-4')
+    expect(appeared.map((r) => [r.ending, r.number])).toEqual([['in-flight', 1]])
   })
 
   it('counts verdicts all time, for 7 days and for the last batch, by the loop start when it is later', () => {

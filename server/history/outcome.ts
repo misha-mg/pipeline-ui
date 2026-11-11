@@ -103,6 +103,15 @@ export function stageOfAgent(agent: string | null): string {
   return agent ? (AGENT_STAGE[agent] ?? agent) : 'between stages'
 }
 
+/**
+ * The stage of a run the service drives: before its run directory exists the entry point is
+ * still at work (the worktree, npm ci, the mock's reset, the session's start), which the
+ * session's hooks do not report; then the agent's stage, or between two.
+ */
+export function stageOfRun(run: { stage: string | null; runDir: string | null }): string {
+  return run.runDir || run.stage ? stageOfAgent(run.stage) : 'preparing the worktree'
+}
+
 /** The stages a clean run goes through, in order: a bug's, and a screen migration's (webui's screen-migration.js). */
 export const STAGE_ORDER = ['investigate', 'implement', 'diff', 'review', 'app-test', 'pull request'] as const
 export const MIGRATION_STAGE_ORDER = ['spec', 'implement', 'diff', 'review', 'compare', 'pull request'] as const

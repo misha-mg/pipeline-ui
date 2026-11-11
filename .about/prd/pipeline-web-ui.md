@@ -47,7 +47,9 @@ Agent SDK, and from its own records.
   and ending, each filter's counts following the other. A run the service did not drive shows the
   ending `unwatched`, never `completed`. A stage that ran several times shows each round's result. Over it, a strip of what the runs shown add up to: how many, done, blocked or
   failed, pull requests by state, the time in all and per run. The ticket key opens the run, an
-  arrow beside it the Jira ticket; the run in flight stands out, with its stage and its time so far.
+  arrow beside it the Jira ticket; the run in flight stands out, with its stage and its time so far,
+  from the moment the loop takes the ticket: while the entry point prepares its worktree, before
+  the run has a directory or a report, it is listed as preparing the worktree.
 - A run's page: its full summary, start, end and duration, a link to Jira, running the ticket
   again, and a diagram of its steps as blocks joined by links (the assignment, each agent in
   order, the stages still to come while it is in flight, the verdict). Choosing a block shows what

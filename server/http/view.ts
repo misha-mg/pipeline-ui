@@ -133,9 +133,13 @@ export function shownRuns(src: ViewSources): ShownRun[] {
       pr: h.prUrl ? (prs.get(h.prUrl) ?? unknownPullRequest(h.prUrl)) : null,
     }
   })
-  // A run the service started whose directory never appeared (prepare-worktree.sh failed before the session).
+  // A run the service started whose directory is not there: still being prepared (the entry
+  // point has not started the session yet), or ended before it appeared (prepare-worktree.sh
+  // failed). Both are listed, so a ticket taken from the queue never goes out of sight; a
+  // directory that has just appeared is listed from its files instead.
   for (const rec of listRuns(src.db, 10_000)) {
-    if (rec.runDir || rec.ending === null) continue
+    if (rec.runDir) continue
+    if (rec.ending === null && runs.some((r) => r.key === rec.key && r.ending === 'in-flight')) continue
     runs.push({
       key: rec.key,
       number: 0,
@@ -151,7 +155,7 @@ export function shownRuns(src: ViewSources): ShownRun[] {
       stages: [],
       reports: [],
       serviceRunId: rec.id,
-      ending: rec.ending,
+      ending: rec.ending ?? 'in-flight',
       endingDetail: rec.endingDetail,
       pr: null,
     })

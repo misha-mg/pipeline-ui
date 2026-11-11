@@ -9,6 +9,7 @@ import {
   endingLabel,
   prNumber,
   stageOfAgent,
+  stageOfRun,
   verdictFamily,
   type History,
   type RunSettings,
@@ -144,7 +145,7 @@ export function ticketUrl(key: string): string | null {
 export function liveStage(run: ShownRun): string | null {
   if (run.ending !== 'in-flight') return null
   const r = state.value?.inFlight
-  return r && r.key === run.key ? stageOfAgent(r.stage) : null
+  return r && r.key === run.key ? stageOfRun(r) : null
 }
 
 /** A run's duration: for the run in flight, how long it has taken so far by the last state poll. */
