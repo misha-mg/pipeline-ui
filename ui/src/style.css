@@ -572,7 +572,7 @@ pre.report {
   }
 }
 
-/* Statistics: the period's chips, a strip of eight numbers, the funnel beside the fixes sent to
+/* Statistics: the period's chips, a strip of four numbers, the funnel beside the fixes sent to
    Failed and why runs stopped, four charts two by two, then the pull requests. */
 .stats-filters .row {
   flex-wrap: wrap;

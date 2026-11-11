@@ -18,7 +18,7 @@ re-argued here.
 system both consoles draw with, and this repository holds the original. bug-validator copies
 the three with its `npm run sheet:sync`, and a test there fails when its copy falls behind; an
 edit is made here, never in the copy. Every reusable part is the sheet's: the cards (compact by
-default), the strip (six cells, eight with `.eight`), the switch, the filters with their family
+default), the strip (six cells, four with `.four`, eight with `.eight`), the switch, the filters with their family
 groups (`.group.ok`, `.group.bad`), bars, the column chart (whose SVG markup is a documented
 contract, so bug-validator renders the same chart on the server), lamps and the pulse, the live
 row, the state sources, the reason, the confirmation dialog (`dialog.confirm`), toasts, one

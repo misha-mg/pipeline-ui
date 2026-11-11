@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The statistics: what the pipeline's runs came to over a period (the last batch, 7, 30 or 90
-// days, or all time), counted by the runs started in it. A strip of numbers; the tickets'
+// days, or all time), counted by the runs started in it. A strip of four numbers; the tickets'
 // funnel from a run to Done in Jira, the merged fixes testing sent to Failed, and why runs
 // stopped; four charts by day or week (runs, pull requests opened, closed, tickets Done or
 // Failed); then every pull request with what became of it.
@@ -152,44 +152,24 @@ const charts = computed(() => [
 const pct = (part: number, whole: number | null | undefined) => (whole ? `${Math.round((part / whole) * 100)}%` : '—')
 const word = (verdict: string) => verdict.slice(verdict.indexOf(':') + 1).replace(/-/g, ' ')
 
-/** The strip: one number each, a note under it. */
+/** The strip: one number each, a note under it. What the runs came to leads (the tickets, the
+ *  pull requests merged as the pipeline opened them, the tickets Done in Jira), then the pull
+ *  requests opened; the rest (declined, failed after merge, why runs stopped) is in the frames below. */
 const strip = computed(() => {
   const s = sum.value
   if (!s) return []
-  const closed = s.prs.merged + s.prs.declined
-  // One branch names the cell (`Merged into master`); several are counted in its note.
-  const only = s.prs.into.length === 1 ? s.prs.into[0]![0] : null
-  const into = only ? '' : s.prs.into.map(([b, n]) => `${n} ${b}`).join(' · ')
   const compared = s.prs['merged-as-opened'] + s.prs['merged-with-changes']
   return [
     { label: 'Tickets', value: String(s.tickets), tone: '', note: `${s.runs} runs · median ${fmtDuration(s.medianRun)}` },
     {
-      label: 'Pull requests',
-      value: String(s.prs.opened),
-      tone: '',
-      note: `${s.prs.open} open${s.prs.drafts ? ` · ${s.prs.drafts} drafts` : ''}${s.prs.unknown ? ` · ${s.prs.unknown} unknown` : ''}`,
-    },
-    {
-      label: only && only !== 'unknown' ? `Merged into ${only}` : 'Merged',
-      value: String(s.prs.merged),
-      tone: s.prs.merged ? 'ok' : '',
-      note: `${pct(s.prs.merged, closed)} of closed${into ? ` · ${into}` : ''}`,
-    },
-    {
       label: 'Merged as opened',
       value: String(s.prs['merged-as-opened']),
-      tone: '',
+      tone: s.prs['merged-as-opened'] ? 'ok' : '',
       note: compared
         ? `${pct(s.prs['merged-as-opened'], compared)} · ${s.prs['merged-with-changes']} with changes`
         : s.prs.merged
           ? 'not compared yet'
           : 'none merged',
-    },
-    {
-      label: 'Declined',
-      value: String(s.prs.declined),
-      tone: s.prs.declined ? 'bad' : '',
-      note: closed ? `${pct(s.prs.declined, closed)} of closed` : 'none closed',
     },
     {
       label: 'Done in Jira',
@@ -198,16 +178,10 @@ const strip = computed(() => {
       note: `of ${s.funnel.merged} tickets merged${s.mergedTicketsUnknown ? ` · ${s.mergedTicketsUnknown} not read` : ''}`,
     },
     {
-      label: 'Failed after merge',
-      value: String(s.failed.tickets),
-      tone: s.failed.tickets ? 'bad' : '',
-      note: s.funnel.merged ? `${pct(s.failed.tickets, s.funnel.merged)} of ${s.funnel.merged} merged` : 'none merged',
-    },
-    {
-      label: 'Not finished',
-      value: String(s.ticketsNotFinished),
-      tone: s.ticketsNotFinished ? 'bad' : '',
-      note: `${s.kinds.stopped} runs blocked or failed`,
+      label: 'Pull requests',
+      value: String(s.prs.opened),
+      tone: '',
+      note: `${s.prs.open} open${s.prs.drafts ? ` · ${s.prs.drafts} drafts` : ''}${s.prs.unknown ? ` · ${s.prs.unknown} unknown` : ''}`,
     },
   ]
 })
@@ -320,7 +294,7 @@ const read = computed(() => {
     </div>
   </div>
 
-  <Frame class="strip eight">
+  <Frame class="strip four">
     <div v-for="cell in strip" :key="cell.label" class="cell">
       <div class="label">{{ cell.label }}</div>
       <div class="value" :class="cell.tone">{{ cell.value }}</div>

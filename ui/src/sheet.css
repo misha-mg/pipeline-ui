@@ -709,7 +709,7 @@ h3 {
 
 /* ==========================================================================
    The strip (the kit's KPI strip): one frame of cells parted by hairlines, each a label, a
-   number and a note, for what a list adds up to. Six across, eight with `.eight`; fewer as
+   number and a note, for what a list adds up to. Six across, four with `.four`, eight with `.eight`; fewer as
    the page narrows. The strip is one frame, its surface the same glass as any block's; the
    hairlines are drawn into the one-pixel gap by each cell's shadow, so no second layer of
    surface sits on the cells and the strip is no lighter than the frames around it.
@@ -755,6 +755,9 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.strip.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .strip.eight {
   grid-template-columns: repeat(8, minmax(0, 1fr));
 }
@@ -764,12 +767,13 @@ h3 {
   }
 }
 @media (max-width: 1100px) {
-  .strip:not(.eight) {
+  .strip:not(.eight, .four) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {
   .strip,
+  .strip.four,
   .strip.eight {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -58,3 +58,10 @@ to change before the merge fails more often.
 
 The cockpit's counts by verdict for the last batch, 7 days and all time (dropped from the cockpit
 on 2026-11-01) are the page's periods now; the state API still carries them.
+
+**The strip leads with what the runs came to** (2026-11-11). Eight numbers over the page were
+too many, and not all of equal weight. The strip keeps four: Tickets, Merged as opened and Done
+in Jira first, the two outcomes the operator judges the pipeline by in green, then Pull requests
+opened. Merged, Declined, Failed after merge and Not finished left it: the closed chart and the
+pull requests' filter carry the merged and the declined, the "Failed after merge" frame the
+failed, and "Why runs stopped" the runs that did not finish.

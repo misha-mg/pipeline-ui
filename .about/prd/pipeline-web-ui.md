@@ -76,6 +76,8 @@ Agent SDK, and from its own records.
   a pull request, merged, Done in Jira, Done without a Failed after the merge. By day or by week:
   runs started by how they ended, pull requests opened, closed (merged as opened, with changes,
   declined), tickets moving into Done or, after the merge, into Failed.
+  Over it all, a strip of four numbers (2026-11-11): tickets, merged as opened and Done in Jira
+  first, the two in green, then pull requests opened.
   Then every pull request of the period with what became of it, the lines the pipeline pushed and
   those merged when they differ, and its ticket's Jira status, filterable by outcome.
 - The webui branch a run starts from and its pull request goes to, and whether pull requests are
