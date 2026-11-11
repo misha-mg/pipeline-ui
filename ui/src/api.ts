@@ -66,6 +66,7 @@ export { fmtAgo, fmtClock, fmtDate, fmtDay, fmtDuration, fmtTime } from '../../s
 export {
   endingLabel,
   endingTone,
+  preparingStep,
   stageKey,
   stageOfAgent,
   stageOfRun,
@@ -73,6 +74,7 @@ export {
   stagesAfter,
   verdictFamily,
   verdictTone,
+  type PreparationStep,
   type Tone,
 } from '../../server/history/outcome.ts'
 

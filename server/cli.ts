@@ -17,6 +17,7 @@
 // Every command but serve and maintain writes to the database and returns; the service acts
 // within a second.
 import { configFromEnv, runDefaults } from './config.ts'
+import { preparingStep, stageOfRun, type PreparationStep } from './history/outcome.ts'
 import { fmtDuration } from './format.ts'
 import { describeError, log } from './log.ts'
 import { maintain } from './maintain.ts'
@@ -30,12 +31,14 @@ import {
   inFlight,
   listEvents,
   listRuns,
+  listSteps,
   loopState,
   requestCancel,
   serviceAlive,
   serviceInfo,
   startLoop,
   stopLoop,
+  type RunRecord,
 } from './store/runs.ts'
 import { changedSettings, parseRunSettings, readRunSettings, writeRunSettings, type RunSettings } from './store/settings.ts'
 
@@ -202,6 +205,13 @@ function printQueue(queue: ReturnType<typeof listQueue>, out: (l: string) => voi
   queue.forEach((item, i) => out(`${i + 1}\t${item.key}\t${item.summary ?? '-'}`))
 }
 
+/** Where the run in flight is: its agent's stage and since when, or its preparation's step and since when. */
+function whereIs(run: RunRecord, steps: PreparationStep[]): string {
+  if (run.stage) return `${run.stage} since ${run.stageSince}`
+  const step = preparingStep(steps)
+  return step ? `${stageOfRun({ ...run, steps })} since ${step.startedAt}` : stageOfRun({ ...run, steps })
+}
+
 function printStatus(db: ReturnType<typeof openDb>, out: (l: string) => void): void {
   const info = serviceInfo(db)
   out(
@@ -214,7 +224,7 @@ function printStatus(db: ReturnType<typeof openDb>, out: (l: string) => void): v
   const run = inFlight(db)
   out(
     run
-      ? `in flight: run ${run.id} ${run.key}${run.summary ? ` — ${run.summary}` : ''}, ${run.stage ? `${run.stage} since ${run.stageSince}` : 'between stages'}, ${duration(run.startedAt, null)} so far${run.cancelRequestedAt ? ', cancel requested' : ''}`
+      ? `in flight: run ${run.id} ${run.key}${run.summary ? ` — ${run.summary}` : ''}, ${whereIs(run, listSteps(db, run.id))}, ${duration(run.startedAt, null)} so far${run.cancelRequestedAt ? ', cancel requested' : ''}`
       : 'in flight: nothing',
   )
   const queue = listQueue(db)

@@ -8,7 +8,20 @@ import path from 'node:path'
 import type { SessionEnding, SessionEvent } from '../session/driver.ts'
 import { nowIso, type Db } from '../store/db.ts'
 import { queueHead, takeHead } from '../store/queue.ts'
-import { addEvent, getRun, insertRun, loopState, stopLoop, updateRun, type Ending, type RunRecord } from '../store/runs.ts'
+import {
+  addEvent,
+  endSteps,
+  getRun,
+  insertRun,
+  listSteps,
+  loopState,
+  startStep,
+  stopLoop,
+  updateRun,
+  type Ending,
+  type RunRecord,
+} from '../store/runs.ts'
+import { stepOfTrace } from './preparation.ts'
 import { newRunDir, readMigration, readSummary, readVerdict, runDirsOf } from './runfiles.ts'
 
 export type RunExit = { code: number | null; signal: string | null }
@@ -19,6 +32,8 @@ export type RunnerHandlers = {
   onOutput: (chunk: string) => void
   /** Where the session's raw SDK trace goes. */
   tracePath: string
+  /** Each line of prepare-worktree.sh's own trace (`bash -x`), as it is written: the preparation's steps (preparation.ts). */
+  onTrace?: (line: string) => void
 }
 
 /** Starts prepare-worktree.sh for the key and resolves when it has exited; the signal cancels it. */
@@ -114,10 +129,22 @@ export function createLoop(deps: LoopDeps): Loop {
     let ended: SessionEnding | null = null
     let events = 0
     let runDir: string | null = null
+    // The end of what the scripts wrote, for the line a failed preparation died on.
+    let tail = ''
     const handlers: RunnerHandlers = {
       tracePath,
-      onOutput: (chunk) => fs.writeSync(log, chunk),
+      onOutput: (chunk) => {
+        fs.writeSync(log, chunk)
+        tail = (tail + chunk).slice(-4096)
+      },
+      // The preparation's steps, until the session reports its first event: then it has started,
+      // and whatever the trace says after that is not the preparation's.
+      onTrace: (line) => {
+        const step = events === 0 ? stepOfTrace(line) : null
+        if (step && startStep(db, id, step, now())) fs.writeSync(log, `[service] preparing: ${step}\n`)
+      },
       onEvent: (event) => {
+        if (events === 0) endSteps(db, id, event.at)
         events += 1
         addEvent(db, id, event)
         // The run directory appears once the session has started: learn it early, so the
@@ -140,9 +167,12 @@ export function createLoop(deps: LoopDeps): Loop {
     }
     fs.closeSync(log)
     const aborted = controller.signal.aborted ? (controller.signal.reason as AbortCause) : null
-    const { ending, detail } = endingOf(aborted, ended, exit, events)
+    const step = listSteps(db, id).find((s) => s.endedAt === null)?.step ?? null
+    const { ending, detail } = endingOf(aborted, ended, exit, events, step ? { step, lastLine: lastLineOf(tail) } : null)
     runDir ??= newRunDir(runsDir, key, before)
-    const patch: Parameters<typeof updateRun>[2] = { ending, endingDetail: detail, endedAt: now(), runDir, stage: null, stageSince: null }
+    const endedAt = now()
+    endSteps(db, id, endedAt)
+    const patch: Parameters<typeof updateRun>[2] = { ending, endingDetail: detail, endedAt, runDir, stage: null, stageSince: null }
     if (runDir) {
       patch.verdict = readVerdict(runDir)
       if (!summary) patch.summary = readSummary(runDir)
@@ -177,19 +207,32 @@ export function createLoop(deps: LoopDeps): Loop {
 
 /**
  * The run's ending from why it was aborted, what the session reported and how
- * prepare-worktree.sh exited. A run that exits without one event means the session program
- * never ran: the launch script had no PIPELINE_SESSION, so the plain CLI ran the ticket
- * unwatched.
+ * prepare-worktree.sh exited. `preparing`: the preparation's step the run was in when it ended,
+ * the session never having started, with the last line the scripts wrote. A run that exits
+ * without one event once it was handed over to the launch script (or with no step known) means
+ * the session program never ran: the launch script had no PIPELINE_SESSION, so the plain CLI
+ * ran the ticket unwatched.
  */
 export function endingOf(
   aborted: AbortCause | null,
   ended: SessionEnding | null,
   exit: RunExit,
   events = 1,
+  preparing: { step: string; lastLine: string | null } | null = null,
 ): { ending: Ending; detail: string | null } {
+  const inPreparation = preparing && preparing.step !== 'session start' ? preparing : null
+  if (aborted && inPreparation)
+    return { ending: aborted, detail: `ended while preparing the run (${inPreparation.step}), before the session started` }
   if (aborted) return { ending: aborted, detail: ended ? `the session reported ${ended.kind}` : 'the session reported no ending' }
   if (!ended) {
     const how = exit.signal ? `signal ${exit.signal}` : `code ${exit.code ?? 'unknown'}`
+    if (inPreparation) {
+      const said = inPreparation.lastLine ? `: ${inPreparation.lastLine}` : ''
+      return {
+        ending: 'exited',
+        detail: `prepare-worktree.sh exited with ${how} while preparing the run (${inPreparation.step}), before the session started${said}`,
+      }
+    }
     const why =
       events === 0 ? '; no event arrived at all, so the session program was not run (launch-session.sh without PIPELINE_SESSION?)' : ''
     return { ending: 'exited', detail: `prepare-worktree.sh exited with ${how} before the session reported an ending${why}` }
@@ -206,4 +249,13 @@ export function endingOf(
     case 'no-result':
       return { ending: 'no-result', detail: 'the session ended without a result' }
   }
+}
+
+/** The last line with something on it, the service's own notes left out. */
+function lastLineOf(text: string): string | null {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('[service]') && !l.startsWith('[events]'))
+  return lines.at(-1)?.slice(0, 300) ?? null
 }

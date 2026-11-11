@@ -1,6 +1,7 @@
 // The runs the service started, their events as the session reported them, the loop's state
 // and the service's heartbeat. The ending is the service's word on how the session ended; the
 // verdict is the pipeline's, read from the run's state.md. See .about/glossary.md.
+import type { PreparationStep, PreparationStepName } from '../history/outcome.ts'
 import type { SessionEvent } from '../session/driver.ts'
 import { nowIso, transaction, type Db } from './db.ts'
 
@@ -121,6 +122,40 @@ export function listEvents(db: Db, runId: number): RunEvent[] {
     }))
 }
 
+/** The preparation has reached `step`: the step before ends as it begins. A step already begun is not begun again. */
+export function startStep(db: Db, runId: number, step: PreparationStepName, at: string): boolean {
+  return transaction(db, () => {
+    if (db.prepare('SELECT 1 FROM run_steps WHERE run_id = ? AND step = ?').get(runId, step)) return false
+    endSteps(db, runId, at)
+    db.prepare('INSERT INTO run_steps (run_id, step, started_at) VALUES (?, ?, ?)').run(runId, step, at)
+    return true
+  })
+}
+
+/** Ends the step the preparation is at, if any: the session started, or the run ended in it. */
+export function endSteps(db: Db, runId: number, at: string): void {
+  db.prepare('UPDATE run_steps SET ended_at = ? WHERE run_id = ? AND ended_at IS NULL').run(at, runId)
+}
+
+/** A run's preparation steps in the order they began. */
+export function listSteps(db: Db, runId: number): PreparationStep[] {
+  return db.prepare('SELECT step, started_at, ended_at FROM run_steps WHERE run_id = ? ORDER BY rowid').all(runId).map(stepOf)
+}
+
+/** Every run's preparation steps, by run id, for the lists. */
+export function stepsByRun(db: Db): Map<number, PreparationStep[]> {
+  const out = new Map<number, PreparationStep[]>()
+  for (const row of db.prepare('SELECT run_id, step, started_at, ended_at FROM run_steps ORDER BY rowid').all()) {
+    const id = row.run_id as number
+    out.set(id, [...(out.get(id) ?? []), stepOf(row)])
+  }
+  return out
+}
+
+function stepOf(row: Record<string, unknown>): PreparationStep {
+  return { step: row.step as PreparationStepName, startedAt: row.started_at as string, endedAt: (row.ended_at as string | null) ?? null }
+}
+
 /** Asks for the run in flight to be cancelled; the loop acts on it on its next tick. */
 export function requestCancel(
   db: Db,
@@ -169,8 +204,14 @@ export function stopLoop(
 export function markRestart(db: Db, now: () => string = nowIso): RunRecord[] {
   return transaction(db, () => {
     const open = db.prepare(`SELECT ${RUN_COLUMNS} FROM runs WHERE ending IS NULL`).all().map(runOf)
-    for (const run of open)
-      updateRun(db, run.id, { ending: 'restart', endedAt: now(), endingDetail: 'the service restarted while the run was in flight' })
+    for (const run of open) {
+      const at = now()
+      // A run cut off in its preparation says in which step: the session never started.
+      const step = listSteps(db, run.id).find((s) => s.endedAt === null)
+      const during = step ? `, preparing it (${step.step})` : ''
+      updateRun(db, run.id, { ending: 'restart', endedAt: at, endingDetail: `the service restarted while the run was in flight${during}` })
+      endSteps(db, run.id, at)
+    }
     stopLoop(db, 'restart', { now })
     return open
   })

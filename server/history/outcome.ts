@@ -104,12 +104,32 @@ export function stageOfAgent(agent: string | null): string {
 }
 
 /**
- * The stage of a run the service drives: before its run directory exists the entry point is
- * still at work (the worktree, npm ci, the mock's reset, the session's start), which the
- * session's hooks do not report; then the agent's stage, or between two.
+ * The preparation's steps, in the order prepare-worktree.sh takes them: what the entry point
+ * does before the session starts, which the session's hooks do not report. The service reads
+ * them from the script's trace (loop/preparation.ts, ADR preparation-steps).
  */
-export function stageOfRun(run: { stage: string | null; runDir: string | null }): string {
-  return run.runDir || run.stage ? stageOfAgent(run.stage) : 'preparing the worktree'
+export const PREPARATION_STEPS = ['git fetch', 'worktree', 'npm ci', 'sandbox check', 'mock reset', 'session start'] as const
+export type PreparationStepName = (typeof PREPARATION_STEPS)[number]
+
+/** One step of a run's preparation; `endedAt` is null while it goes on. A run that ended in it closed it as it ended. */
+export type PreparationStep = { step: PreparationStepName; startedAt: string; endedAt: string | null }
+
+/** The step the preparation is at; null before the first one and once the session has started. */
+export function preparingStep(steps: readonly PreparationStep[]): PreparationStep | null {
+  return steps.find((s) => s.endedAt === null) ?? null
+}
+
+/**
+ * The stage of a run the service drives: until the session starts, the preparation's step it is
+ * at (`preparing: npm ci`), or "preparing the worktree" before the first step is known; then
+ * the agent's stage, or between two.
+ */
+export function stageOfRun(run: { stage: string | null; runDir: string | null; steps?: readonly PreparationStep[] }): string {
+  if (run.stage) return stageOfAgent(run.stage)
+  const steps = run.steps ?? []
+  const step = preparingStep(steps)
+  if (step) return `preparing: ${step.step}`
+  return run.runDir || steps.length ? stageOfAgent(null) : 'preparing the worktree'
 }
 
 /** The stages a clean run goes through, in order: a bug's, and a screen migration's (webui's screen-migration.js). */

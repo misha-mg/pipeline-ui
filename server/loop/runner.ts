@@ -1,7 +1,8 @@
 // The real runner: starts the entry point's prepare-worktree.sh (entry.ts) for a ticket the way
 // batch.sh does (the secrets sourced inside the child, the API key unset), with bin/session as
 // the session program, the base branch the worktree starts from, the events pipe on file
-// descriptor 3, and the session told whether it may open a pull request, or only a draft. Cancelling sends
+// descriptor 3, the script's own trace (`bash -x`) on descriptor 4, for the preparation's steps
+// (preparation.ts), and the session told whether it may open a pull request, or only a draft. Cancelling sends
 // SIGTERM to the whole process group (prepare-worktree.sh, launch-session.sh, the session and its
 // CLI), then SIGKILL if it lingers.
 import { spawn } from 'node:child_process'
@@ -40,13 +41,15 @@ const EVENT_TYPES = new Set<SessionEvent['type']>([
   'ended',
 ])
 
-// The secrets never appear on a command line: the file is sourced by the child itself.
+// The secrets never appear on a command line: the file is sourced by the child itself, before
+// the trace begins. Only prepare-worktree.sh is traced: the launch script it hands over to is a
+// new bash, which does not inherit -x.
 const SCRIPT = [
   'set -a',
   'if [[ -f $PIPELINE_ENV ]]; then . "$PIPELINE_ENV"; fi',
   'set +a',
   'unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN',
-  'exec bash "$PIPELINE_PREPARE_WORKTREE" "$1"',
+  'exec bash -x "$PIPELINE_PREPARE_WORKTREE" "$1"',
 ].join('; ')
 
 /**
@@ -72,11 +75,15 @@ export function createRunner(configOf: RunnerConfig | (() => RunnerConfig)): Run
         PIPELINE_EVENTS_FD: '3',
         PIPELINE_SESSION_TRACE: handlers.tracePath,
         PIPELINE_SESSION_TIMEOUT_MS: String(config.sessionTimeoutMs),
+        // The trace goes to its own descriptor, not into the run's log, and every line starts
+        // with `+ `, whatever PS4 the service was started with.
+        BASH_XTRACEFD: '4',
+        PS4: '+ ',
       })
       const child = spawn('bash', ['-c', SCRIPT, 'run', key], {
         cwd: config.webuiDir,
         env,
-        stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+        stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'],
         detached: true,
       })
       let exit: RunExit | null = null
@@ -117,6 +124,7 @@ export function createRunner(configOf: RunnerConfig | (() => RunnerConfig)): Run
         if (event) handlers.onEvent(event)
         else if (line.trim()) handlers.onOutput(`[events] ${line}\n`)
       })
+      readline.createInterface({ input: child.stdio[4] as Readable }).on('line', (line) => handlers.onTrace?.(line))
       child.on('error', (error) => {
         handlers.onOutput(`[service] prepare-worktree.sh could not be started: ${error.message}\n`)
         finish({ code: null, signal: null })

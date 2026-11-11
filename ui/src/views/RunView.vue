@@ -26,7 +26,7 @@ import {
 } from '../api.ts'
 import { MIGRATION_STAGE_ORDER, noReportReason, STAGE_ORDER } from '../../../server/history/outcome.ts'
 import MigrationMark from '../components/MigrationMark.vue'
-import { actions, runSeconds, state, ticketUrl } from '../console.ts'
+import { actions, preparationSeconds, preparationShown, runSeconds, state, ticketUrl } from '../console.ts'
 
 const props = defineProps<{ ticket: string; number: number }>()
 const run = ref<RunFiles | null>(null)
@@ -79,6 +79,13 @@ type Step = {
 }
 
 const live = computed(() => run.value?.ending === 'in-flight')
+// What the entry point did before the session started, for a run the service drove: the steps
+// and how long each took, the one going on counted to the last state poll.
+const preparation = computed(() => {
+  const steps = run.value?.preparation ?? []
+  const now = state.value?.now ?? new Date().toISOString()
+  return steps.length ? { seconds: preparationSeconds(steps, now), steps: preparationShown(steps, now) } : null
+})
 const nowMs = computed(() => Date.parse(state.value?.now ?? new Date().toISOString()))
 
 const steps = computed<Step[]>(() => {
@@ -312,6 +319,16 @@ onUnmounted(() => window.removeEventListener('resize', placeCaret))
     <p v-if="run.reason || run.endingDetail" class="reason" :class="verdictTone(run.verdict) || toneClass(endingTone(run.ending))">
       <span class="label">{{ run.reason ? 'Why' : 'Ending' }}</span
       >{{ run.reason ?? run.endingDetail }}
+    </p>
+    <p v-if="preparation" class="reason">
+      <span class="label">Preparation</span
+      ><span
+        >{{ fmtDuration(preparation.seconds) }}<template v-if="preparation.steps.some((s) => s.current)"> so far</template>:
+        <template v-for="(s, i) in preparation.steps" :key="s.step"
+          ><template v-if="i"> · </template><b v-if="s.current">{{ s.step }} {{ fmtDuration(s.seconds) }}</b
+          ><template v-else>{{ s.step }} {{ fmtDuration(s.seconds) }}</template></template
+        ></span
+      >
     </p>
     <Frame class="flow-frame">
       <div ref="flowEl" class="flow" @scroll.passive="placeCaret">

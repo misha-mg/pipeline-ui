@@ -23,13 +23,14 @@ server/
   store/
     db.ts                the SQLite file (node:sqlite): the versioned schema, MIGRATIONS, a copy before a migration
     queue.ts             the queue: add (with the summary and the labels from Jira), remove, reorder
-    runs.ts              the runs the service started, their events, the loop's state, the heartbeat
+    runs.ts              the runs the service started, their events and preparation steps, the loop's state, the heartbeat
     settings.ts          the run settings (base branch, pull requests, a session's hours): the environment's defaults, what the console set over them
     jira.ts              Jira REST v3 through api.atlassian.com: a ticket's summary, the search (within a JQL), the statuses; read only
   loop/
     loop.ts              one tick: take the queue's head when nothing is in flight, record events, the ending, stop on the usage limit
     entry.ts             the entry point checked before every run: prepare-worktree.sh and launch-session.sh from origin/<base>
-    runner.ts            starts prepare-worktree.sh as batch.sh does, with bin/session as the session program and an events pipe
+    runner.ts            starts prepare-worktree.sh as batch.sh does, with bin/session as the session program, an events pipe and the script's trace
+    preparation.ts       the preparation's steps (git fetch, worktree, npm ci, sandbox check, mock reset, session start) from that trace
     runfiles.ts          the run directory a run made, its verdict and summary
   session/
     main.ts              the session program: argv from launch-session.sh, events as JSON lines on PIPELINE_EVENTS_FD
@@ -75,8 +76,12 @@ sides.
    script it hands over to knows `PIPELINE_SESSION`; refused, the loop stops and says why.
 3. **The run** (`loop/runner.ts`): `prepare-worktree.sh KEY` as `batch.sh` runs it, with the
    pipeline's secrets sourced inside the child, `bin/session` named as the session program and
-   a pipe on file descriptor 3 for the session's events. `launch-session.sh` builds the prompt
-   and the settings and runs `bin/session`.
+   a pipe on file descriptor 3 for the session's events. The prepare script runs under `bash -x`
+   with its trace on descriptor 4 (`BASH_XTRACEFD`): each command it runs arrives as a line when
+   it starts, and `loop/preparation.ts` takes the preparation's steps from a few of them into
+   `run_steps`, until the session's first event ends the last one (ADR preparation-steps). The
+   run's log gets a `[service] preparing: <step>` line for each. `launch-session.sh` builds the
+   prompt and the settings and runs `bin/session`.
 4. **The session** (`session/driver.ts`): the Agent SDK drives Claude Code in the worktree; the
    SubagentStart/Stop hooks give the stages, rate-limit events the usage limit, the result the
    ending. Each event goes down the pipe as a JSON line; `loop.ts` records it in `run_events`

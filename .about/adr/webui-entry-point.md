@@ -35,6 +35,9 @@ them as they are and asks for no new field.
 - A change to `launch-session.sh`'s arguments, to the form of `prepare-worktree.sh`'s last line,
   to how either reads `PIPELINE_BASE_BRANCH`, or to the run files is a change to the service;
   webui's ADR ticket-pipeline names those files as a contract.
+- Since 2026-11-11 the service runs the copied prepare script under `bash -x`, its trace on a
+  descriptor of its own, to show the preparation's steps (ADR preparation-steps): the script is
+  still run as webui ships it, and nothing in webui changed for it.
 
 ## The base branch (2026-10-30)
 

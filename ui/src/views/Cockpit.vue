@@ -17,13 +17,24 @@ import {
   fmtDate,
   fmtDuration,
   fmtTime,
+  preparingStep,
   prNumber,
   stageOfAgent,
   stageOfRun,
   toneClass,
   verdictClass,
 } from '../api.ts'
-import { actions, history, liveStage, PULL_REQUESTS_WORDS, runSeconds, state, ticketUrl } from '../console.ts'
+import {
+  actions,
+  history,
+  liveStage,
+  preparationSeconds,
+  preparationShown,
+  PULL_REQUESTS_WORDS,
+  runSeconds,
+  state,
+  ticketUrl,
+} from '../console.ts'
 import {
   applyJql,
   clearSearch,
@@ -109,9 +120,17 @@ const inFlightNote = computed(() => {
   if (!r) return ''
   const parts = [`${fmtDuration(r.seconds)} so far`]
   if (r.stageSince) parts.push(`${stageOfAgent(r.stage)} ${fmtAgo(r.stageSince, state.value!.now)}`)
-  else if (!r.runDir) parts.push('the entry point prepares the worktree and the mock, then starts the session')
+  else if (!r.runDir && !r.steps.length) parts.push('the entry point prepares the worktree and the mock, then starts the session')
   if (r.rework) parts.push(`rework ${r.rework}`)
   return parts.join(' · ')
+})
+// The preparation's steps, the one going on the last; once the session has started, what the
+// whole preparation took stays in sight for the rest of the run.
+const preparation = computed(() => {
+  const r = inFlight.value
+  if (!r?.steps.length) return null
+  const now = state.value!.now
+  return { done: preparingStep(r.steps) ? null : preparationSeconds(r.steps, now), steps: preparationShown(r.steps, now) }
 })
 
 // The one field: a ticket key queues at once, anything else is a Jira search (search.ts).
@@ -232,15 +251,20 @@ function confirmCancel() {
           ><span :key="inFlight?.key ?? '-'">{{ inFlight?.key ?? '—' }}</span></Transition
         ><MigrationMark v-if="inFlight?.migration" />
         <Transition name="tick" mode="out-in"
-          ><small v-if="inFlight" :key="inFlight.stage ?? (inFlight.runDir ? '-' : 'preparing')">{{
-            stageOfRun(inFlight)
-          }}</small></Transition
+          ><small v-if="inFlight" :key="stageOfRun(inFlight)">{{ stageOfRun(inFlight) }}</small></Transition
         >
       </div>
       <template v-if="inFlight">
         <div class="note one" :title="inFlight.summary ?? ''">{{ inFlight.summary ?? 'no summary' }}</div>
         <div class="note one">
           {{ inFlightNote }}<template v-if="inFlight.cancelRequestedAt"> · <span class="err">cancelling</span></template>
+        </div>
+        <div v-if="preparation" class="note one" :title="preparation.steps.map((s) => `${s.step} ${fmtDuration(s.seconds)}`).join(' · ')">
+          <template v-if="preparation.done !== null">prepared in {{ fmtDuration(preparation.done) }}: </template
+          ><template v-for="(s, i) in preparation.steps" :key="s.step"
+            ><template v-if="i"> · </template><b v-if="s.current">{{ s.step }} {{ fmtDuration(s.seconds) }}</b
+            ><template v-else>{{ s.step }} {{ fmtDuration(s.seconds) }}</template></template
+          >
         </div>
         <div class="acts">
           <a v-if="runNumber(inFlight.runDir)" class="btn tiny" :href="`#/runs/${inFlight.key}/${runNumber(inFlight.runDir)}`">Reports</a>
@@ -281,7 +305,7 @@ function confirmCancel() {
   <dialog ref="cancelDialog" class="frame confirm" aria-labelledby="cancel-title" @pointerdown="closeOnBackdrop">
     <div class="frame-head">
       <h2 id="cancel-title">Cancel {{ inFlight?.key ?? 'the run' }}?</h2>
-      <span v-if="inFlight" class="note">{{ stageOfAgent(inFlight.stage) }} · {{ fmtDuration(inFlight.seconds) }} so far</span>
+      <span v-if="inFlight" class="note">{{ stageOfRun(inFlight) }} · {{ fmtDuration(inFlight.seconds) }} so far</span>
     </div>
     <p>
       The session ends within 30 s and the run is recorded cancelled with the stage it was in. Its worktree, its branch and the reports

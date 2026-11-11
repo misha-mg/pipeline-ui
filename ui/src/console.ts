@@ -12,6 +12,7 @@ import {
   stageOfRun,
   verdictFamily,
   type History,
+  type PreparationStep,
   type RunSettings,
   type ShownRun,
   type StateView,
@@ -145,13 +146,34 @@ export function ticketUrl(key: string): string | null {
 export function liveStage(run: ShownRun): string | null {
   if (run.ending !== 'in-flight') return null
   const r = state.value?.inFlight
-  return r && r.key === run.key ? stageOfRun(r) : null
+  return r && run.serviceRunId === r.id ? stageOfRun(r) : null
+}
+
+/** One step of a run's preparation as the console shows it: how long it took, or has taken so far. */
+export type ShownStep = { step: string; seconds: number; current: boolean }
+
+/** A run's preparation steps with their durations; the one going on is counted to `now` (the state poll's). */
+export function preparationShown(steps: readonly PreparationStep[], now: string): ShownStep[] {
+  const nowMs = Date.parse(now)
+  return steps.map((s) => ({
+    step: s.step,
+    seconds: Math.max(0, Math.round(((s.endedAt ? Date.parse(s.endedAt) : nowMs) - Date.parse(s.startedAt)) / 1000)),
+    current: s.endedAt === null,
+  }))
+}
+
+/** How long the whole preparation took, from its first step's start to its last's end (or to `now`); null without steps. */
+export function preparationSeconds(steps: readonly PreparationStep[], now: string): number | null {
+  const first = steps[0]
+  const last = steps.at(-1)
+  if (!first || !last) return null
+  return Math.max(0, Math.round((Date.parse(last.endedAt ?? now) - Date.parse(first.startedAt)) / 1000))
 }
 
 /** A run's duration: for the run in flight, how long it has taken so far by the last state poll. */
 export function runSeconds(run: ShownRun): number | null {
   const r = state.value?.inFlight
-  return run.ending === 'in-flight' && r && r.key === run.key ? r.seconds : run.seconds
+  return run.ending === 'in-flight' && r && run.serviceRunId === r.id ? r.seconds : run.seconds
 }
 
 export function setFilter(next: { verdict: string; ending: string }): void {

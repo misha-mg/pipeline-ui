@@ -8,7 +8,7 @@ import { loadRuns, readReport, type HistoryRun } from '../history/runs.ts'
 import { pullRequestStates, unknownPullRequest, type PullRequestState } from '../history/bitbucket.ts'
 import { ticketStatuses, type KnownTicket } from '../history/tickets.ts'
 import type { Health } from '../health.ts'
-import { SHOWN_ENDINGS, stageOfAgent, verdictFamily, type ShownEnding } from '../history/outcome.ts'
+import { SHOWN_ENDINGS, stageOfAgent, verdictFamily, type PreparationStep, type ShownEnding } from '../history/outcome.ts'
 import { structuredOutput } from '../session/transcript.ts'
 import type { Db } from '../store/db.ts'
 import { listQueue, type QueueItem } from '../store/queue.ts'
@@ -18,9 +18,11 @@ import {
   inFlight,
   listEvents,
   listRuns,
+  listSteps,
   loopState,
   serviceAlive,
   serviceInfo,
+  stepsByRun,
   type LoopState,
   type RunRecord,
   type ServiceInfo,
@@ -37,12 +39,16 @@ export type ShownRun = HistoryRun & {
   ending: ShownEnding
   endingDetail: string | null
   pr: PullRequestState | null
+  /** The steps of its preparation, for a run the service drove since they are recorded (2026-11-11); none for another. */
+  preparation: PreparationStep[]
 }
 
 export type InFlightView = RunRecord & {
   /** The rework rounds so far: implementer stages after the first. */
   rework: number
   seconds: number
+  /** Its preparation's steps so far: the last has no end while the session has not started. */
+  steps: PreparationStep[]
 }
 
 export type Counts = Record<string, number>
@@ -108,7 +114,12 @@ export function stateView(src: ViewSources): StateView {
 
 function inFlightView(db: Db, run: RunRecord, now: Date): InFlightView {
   const reworks = agentStages(db, run.id).filter((s) => s.label.startsWith('rework ')).length
-  return { ...run, rework: reworks, seconds: Math.max(0, Math.round((now.getTime() - Date.parse(run.startedAt)) / 1000)) }
+  return {
+    ...run,
+    rework: reworks,
+    seconds: Math.max(0, Math.round((now.getTime() - Date.parse(run.startedAt)) / 1000)),
+    steps: listSteps(db, run.id),
+  }
 }
 
 /** Every run under the runs directory with what the service knows of it, newest first. */
@@ -120,17 +131,28 @@ export function shownRuns(src: ViewSources): ShownRun[] {
   )
   const flying = inFlight(src.db)
   const prs = pullRequestStates(src.db)
+  const steps = stepsByRun(src.db)
+  // The run in flight's directory before the service has linked it to its record (on the
+  // session's next event): the key's, started since the run did. An earlier run of the key that
+  // never closed (one run outside the service, or that died) is not it, and stays `died`.
+  const isFlyingDir = (h: HistoryRun) => flying !== null && !flying.runDir && flying.key === h.key && h.startedAt >= flying.startedAt
   const runs = loadRuns(src.runsDir).map((h): ShownRun => {
     const rec = byDir.get(h.path) ?? null
     // A run the service did not drive has no ending of its own: its files closed it (unwatched) or not (died).
-    const ending: ShownEnding =
-      rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'unwatched' : flying?.key === h.key && !flying.runDir ? 'in-flight' : 'died')
+    const ending: ShownEnding = rec?.ending ?? (rec ? 'in-flight' : h.verdict ? 'unwatched' : isFlyingDir(h) ? 'in-flight' : 'died')
+    const id = rec?.id ?? (isFlyingDir(h) ? flying!.id : null)
+    // A run the service drove took its time from when the loop took the ticket, its preparation
+    // included; the files start it only once the session wrote the assignment.
+    const end = rec && ending !== 'in-flight' ? (h.finishedAt ?? rec.endedAt) : null
+    const seconds = rec && end ? Math.max(0, Math.round((Date.parse(end) - Date.parse(rec.startedAt)) / 1000)) : h.seconds
     return {
       ...h,
-      serviceRunId: rec?.id ?? null,
+      seconds,
+      serviceRunId: id,
       ending,
       endingDetail: rec?.endingDetail ?? null,
       pr: h.prUrl ? (prs.get(h.prUrl) ?? unknownPullRequest(h.prUrl)) : null,
+      preparation: id !== null ? (steps.get(id) ?? []) : [],
     }
   })
   // A run the service started whose directory is not there: still being prepared (the entry
@@ -158,6 +180,7 @@ export function shownRuns(src: ViewSources): ShownRun[] {
       ending: rec.ending ?? 'in-flight',
       endingDetail: rec.endingDetail,
       pr: null,
+      preparation: steps.get(rec.id) ?? [],
     })
   }
   return runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.number - a.number)

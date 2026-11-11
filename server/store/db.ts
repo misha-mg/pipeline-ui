@@ -125,6 +125,13 @@ export const MIGRATIONS: ((db: Db) => void)[] = [
     addColumn(db, 'queue', 'migration', 'INTEGER NOT NULL DEFAULT 0')
     addColumn(db, 'runs', 'migration', 'INTEGER NOT NULL DEFAULT 0')
   },
+  // 4 (2026-11-11): the steps of a run's preparation as the entry point's trace showed them
+  // (loop/preparation.ts, ADR preparation-steps): each once per run, in the order they began.
+  (db) => {
+    db.exec(
+      'CREATE TABLE run_steps (run_id INTEGER NOT NULL REFERENCES runs(id), step TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, PRIMARY KEY (run_id, step))',
+    )
+  },
 ]
 
 export type OpenOptions = {

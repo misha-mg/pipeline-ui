@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { SessionEvent } from '../session/driver.ts'
 import { openDb } from '../store/db.ts'
 import { enqueue, listQueue } from '../store/queue.ts'
-import { getRun, inFlight, listEvents, loopState, markRestart, requestCancel, startLoop, stopLoop } from '../store/runs.ts'
+import { stageOfRun } from '../history/outcome.ts'
+import { getRun, inFlight, listEvents, listSteps, loopState, markRestart, requestCancel, startLoop, stopLoop } from '../store/runs.ts'
 import { createLoop, endingOf, type RunExit, type Runner, type RunnerHandlers } from './loop.ts'
 
 type Call = { key: string; handlers: RunnerHandlers; signal: AbortSignal; finish: (exit?: RunExit) => void }
@@ -215,6 +216,71 @@ describe('loop', () => {
     loop.tick()
     expect(fake.last().key).toBe('KAZ-2')
     expect(loopState(db).wanted).toBe('running')
+  })
+
+  it("records the preparation's steps from the trace until the session's first event, and names the step a run ended in", async () => {
+    const { db, fake, loop } = setup()
+    for (const k of ['KAZ-1', 'KAZ-2', 'KAZ-3', 'KAZ-4']) await enqueue(db, k)
+    startLoop(db)
+    loop.tick()
+    const first = fake.last().handlers
+    first.onTrace!('+ set -euo pipefail')
+    first.onTrace!('+ git -C /w fetch origin')
+    first.onTrace!('+ git -C /w worktree add --no-track -b KAZ-1 /w/.claude/worktrees/KAZ-1 origin/master')
+    first.onTrace!('+ npm ci')
+    expect(listSteps(db, 1).map((s) => [s.step, s.endedAt === null])).toEqual([
+      ['git fetch', false],
+      ['worktree', false],
+      ['npm ci', true],
+    ])
+    expect(stageOfRun({ ...inFlight(db)!, steps: listSteps(db, 1) })).toBe('preparing: npm ci')
+    first.onTrace!('+ exec tools/ticket-pipeline/launch-session.sh KAZ-1')
+    first.onEvent(ev({ type: 'init', version: '1', model: 'm', mcp: {} }))
+    // Once the session runs, the trace (a child script's own `set -x`) is not the preparation's.
+    first.onTrace!('+ command -v bwrap')
+    const steps = listSteps(db, 1)
+    expect(steps.map((s) => s.step)).toEqual(['git fetch', 'worktree', 'npm ci', 'session start'])
+    expect(steps.at(-1)!.endedAt).toBe(at)
+    expect(stageOfRun({ ...inFlight(db)!, steps })).toBe('between stages')
+    expect(fs.readFileSync(getRun(db, 1)!.logPath!, 'utf8')).toContain('[service] preparing: npm ci\n')
+    first.onEvent(completed)
+    fake.last().finish()
+    await loop.settled()
+
+    // A preparation that fails says in which step, and the last line the scripts wrote.
+    loop.tick()
+    fake.last().handlers.onTrace!('+ command -v bwrap')
+    fake.last().handlers.onOutput('sandbox needs: bwrap (sudo apt install bubblewrap socat)\n')
+    fake.last().finish({ code: 1, signal: null })
+    await loop.settled()
+    expect(getRun(db, 2)).toMatchObject({
+      ending: 'exited',
+      endingDetail:
+        'prepare-worktree.sh exited with code 1 while preparing the run (sandbox check), before the session started: sandbox needs: bwrap (sudo apt install bubblewrap socat)',
+    })
+    expect(listSteps(db, 2)).toMatchObject([{ step: 'sandbox check', endedAt: getRun(db, 2)!.endedAt }])
+
+    // Cancelled in its preparation.
+    loop.tick()
+    fake.last().handlers.onTrace!('+ npm ci')
+    requestCancel(db)
+    loop.tick()
+    fake.last().finish({ code: null, signal: 'SIGTERM' })
+    await loop.settled()
+    expect(getRun(db, 3)).toMatchObject({
+      ending: 'cancelled',
+      endingDetail: 'ended while preparing the run (npm ci), before the session started',
+    })
+
+    // The service died in it: the next start closes it, naming the step.
+    loop.tick()
+    fake.last().handlers.onTrace!('++ tools/device-mock/rpc.sh board')
+    markRestart(db)
+    expect(getRun(db, 4)).toMatchObject({
+      ending: 'restart',
+      endingDetail: 'the service restarted while the run was in flight, preparing it (mock reset)',
+    })
+    expect(listSteps(db, 4)[0]!.endedAt).toBe(getRun(db, 4)!.endedAt)
   })
 
   it('shutdown ends the run in flight as restart; a starting service marks a run left in flight the same and stops the loop', async () => {

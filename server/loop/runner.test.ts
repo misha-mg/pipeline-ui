@@ -21,15 +21,18 @@ function fakeWebui(body: string) {
 
 function collect() {
   const events: SessionEvent[] = []
+  const trace: string[] = []
   let output = ''
   return {
     events,
+    trace,
     output: () => output,
     handlers: {
       onEvent: (e: SessionEvent) => events.push(e),
       onOutput: (c: string) => {
         output += c
       },
+      onTrace: (line: string) => trace.push(line),
       tracePath: '/dev/null',
     },
   }
@@ -73,6 +76,22 @@ describe('createRunner', () => {
     expect(c.output()).toContain('err')
     expect(c.output()).toContain('[events] not-json')
     expect(c.events.map((e) => e.type)).toEqual(['init', 'ended'])
+  })
+
+  it("passes prepare-worktree.sh's own trace line by line, out of the log; the launch script it hands over to is not traced", async () => {
+    const webui = fakeWebui(['echo prepared', "printf 'echo launched\\n' > launch.sh", 'exec bash launch.sh "$1"'].join('\n'))
+    const runner = createRunner({
+      webuiDir: webui,
+      sessionBin: '/x',
+      envFile: '/nonexistent',
+      sessionTimeoutMs: 1000,
+      baseBranch: 'master',
+      drainMs: 50,
+    })
+    const c = collect()
+    await runner('KAZ-1', c.handlers, new AbortController().signal)
+    expect(c.trace).toEqual(['+ echo prepared', "+ printf 'echo launched\\n'", '+ exec bash launch.sh KAZ-1'])
+    expect(c.output()).toBe('prepared\nlaunched\n')
   })
 
   it('cancels by signalling the process group', async () => {

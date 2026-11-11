@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openDb } from '../store/db.ts'
-import { addEvent, insertRun, loopState, serviceHeartbeat, startLoop, updateRun } from '../store/runs.ts'
+import { addEvent, insertRun, loopState, serviceHeartbeat, startLoop, startStep, updateRun } from '../store/runs.ts'
 import type { Health } from '../health.ts'
 import { createServer, type ApiDeps } from './api.ts'
 import type { SearchOptions } from '../store/jira.ts'
@@ -100,6 +100,33 @@ describe('views', () => {
     fs.writeFileSync(path.join(runsDir, 'KAZ-4/run-1/00-assignment.md'), '- Summary: four\n- Time: 2026-10-22T11:01:00Z\n')
     const appeared = shownRuns(deps).filter((r) => r.key === 'KAZ-4')
     expect(appeared.map((r) => [r.ending, r.number])).toEqual([['in-flight', 1]])
+  })
+
+  it('takes a directory of the key for the run in flight only when it began since the run did: an earlier one that never closed stays died', () => {
+    const { db, deps, write } = sources()
+    // KAZ-2's run-1 never closed. A new run of KAZ-2 is being prepared:
+    const id = insertRun(db, { key: 'KAZ-2', summary: 'two again', startedAt: '2026-10-27T11:00:00Z', logPath: null })
+    startStep(db, id, 'git fetch', '2026-10-27T11:00:01Z')
+    startStep(db, id, 'npm ci', '2026-10-27T11:00:05Z')
+    const kaz2 = () => shownRuns(deps).filter((r) => r.key === 'KAZ-2')
+    expect(kaz2().map((r) => [r.number, r.ending, r.serviceRunId])).toEqual([
+      [0, 'in-flight', id],
+      [1, 'died', null],
+    ])
+    expect(kaz2()[0]!.preparation).toEqual([
+      { step: 'git fetch', startedAt: '2026-10-27T11:00:01Z', endedAt: '2026-10-27T11:00:05Z' },
+      { step: 'npm ci', startedAt: '2026-10-27T11:00:05Z', endedAt: null },
+    ])
+    expect(stateView(deps).inFlight?.steps.map((s) => s.step)).toEqual(['git fetch', 'npm ci'])
+    // Its directory appears: listed from its files, in flight, before the session's next event links it.
+    write('KAZ-2/run-2', { '00-assignment.md': '- Time: 2026-10-27T11:02:00Z\n' })
+    expect(kaz2().map((r) => [r.number, r.ending, r.serviceRunId, r.preparation.length])).toEqual([
+      [2, 'in-flight', id, 2],
+      [1, 'died', null, 0],
+    ])
+    // Once over, its time counts from when the loop took the ticket, the preparation included.
+    updateRun(db, id, { runDir: path.join(deps.runsDir, 'KAZ-2/run-2'), ending: 'completed', endedAt: '2026-10-27T11:10:00Z' })
+    expect(kaz2()[0]).toMatchObject({ number: 2, ending: 'completed', seconds: 600 })
   })
 
   it('counts verdicts all time, for 7 days and for the last batch, by the loop start when it is later', () => {

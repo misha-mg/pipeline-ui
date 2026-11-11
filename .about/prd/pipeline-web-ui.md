@@ -37,7 +37,9 @@ Agent SDK, and from its own records.
 - The service's state: running, or stopped (it takes no new ticket; the run in flight finishes),
   with why it stopped when it stopped itself (the subscription's usage limit).
 - The run in flight: ticket, summary, the stage it is in and since when, the rework round, how
-  long the run has taken so far.
+  long the run has taken so far. Before its session starts, the step of its preparation it is at
+  (git fetch, worktree, npm ci, sandbox check, mock reset, session start) and how long each step
+  took; once the session runs, what the whole preparation took.
 - The queue: ticket, summary, position. A screen migration (the ticket's `vue-migration` label,
   read with the summary) carries a mark after its key, here, in flight, in the history and on
   the run's page; hovering it names it.
@@ -48,10 +50,12 @@ Agent SDK, and from its own records.
   ending `unwatched`, never `completed`. A stage that ran several times shows each round's result. Over it, a strip of what the runs shown add up to: how many, done, blocked or
   failed, pull requests by state, the time in all and per run. The ticket key opens the run, an
   arrow beside it the Jira ticket; the run in flight stands out, with its stage and its time so far,
-  from the moment the loop takes the ticket: while the entry point prepares its worktree, before
-  the run has a directory or a report, it is listed as preparing the worktree.
+  from the moment the loop takes the ticket: while the entry point prepares it, before the run has
+  a directory or a report, it is listed with the preparation's step it is at. An earlier run of
+  the same ticket that never closed is not taken for it. A run the service drove counts its
+  duration from the moment the loop took the ticket, its preparation included.
 - A run's page: its full summary, start, end and duration, a link to Jira, running the ticket
-  again, and a diagram of its steps as blocks joined by links (the assignment, each agent in
+  again, for a run the service drove its preparation's steps and how long each took, and a diagram of its steps as blocks joined by links (the assignment, each agent in
   order, the stages still to come while it is in flight, the verdict). Choosing a block shows what
   it left: its report, or, while the run is in flight, what the agent handed back as it stopped
   (the pipeline writes the reports only when the run ends); a stage whose agent leaves no report
@@ -145,6 +149,10 @@ Queue and loop:
   shows when the limit was hit; the queue is untouched; Start takes the next ticket.
 - A run ends on an API error, the run timeout, or its session exiting without `state.md`: the run
   is recorded with that ending and the loop takes the next ticket.
+- A run's preparation fails (npm ci errs, a sandbox tool is missing, origin cannot be fetched):
+  the run is recorded `exited` with the step it stopped in and the last line the entry point
+  wrote, it stays in the history, and the loop takes the next ticket. Cancelled or cut off by a
+  restart in its preparation, it is recorded so, with the step.
 - The server reboots with KAZ-1 in flight and KAZ-2, KAZ-3 queued: after it, the queue still holds
   KAZ-2 and KAZ-3 in that order, KAZ-1 is recorded as ended by the restart, and the service starts
   nothing until Start.

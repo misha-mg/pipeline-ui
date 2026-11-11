@@ -39,6 +39,11 @@ verdict: a `completed` session can leave `blocked:tooling`.
 **Entry point**: the `launch-session.sh` a run goes through, and the `prepare-worktree.sh`
 that hands over to it, both from `origin/<base>`, the base branch (`master` by default). Checked before every run.
 
+**Preparation**: what the entry point does for a run before its session starts, in steps:
+`git fetch`, `worktree`, `npm ci`, `sandbox check`, `mock reset`, `session start` (until the
+session's first event). The service reads them from `prepare-worktree.sh`'s trace (ADR
+preparation-steps); a run in it shows `preparing: <step>` where a stage would show. Not a stage.
+
 **Base branch**: the webui branch a run's worktree starts from and its pull request goes to
 (`PIPELINE_BASE_BRANCH` by default; a run setting). The console calls it the target branch.
 
